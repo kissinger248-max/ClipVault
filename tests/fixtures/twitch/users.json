@@ -1,0 +1,28 @@
+{
+  "data": [
+    {
+      "id": "1001",
+      "login": "alphastreamer",
+      "display_name": "AlphaStreamer",
+      "type": "",
+      "broadcaster_type": "partner",
+      "description": "Fixture user one.",
+      "profile_image_url": "https://static-cdn.jtvnw.net/jtv_user_pictures/alpha-profile_image-300x300.png",
+      "offline_image_url": "",
+      "view_count": 0,
+      "created_at": "2016-12-14T20:32:28Z"
+    },
+    {
+      "id": "1002",
+      "login": "betastreamer",
+      "display_name": "BetaStreamer",
+      "type": "",
+      "broadcaster_type": "affiliate",
+      "description": "Fixture user two.",
+      "profile_image_url": "https://static-cdn.jtvnw.net/jtv_user_pictures/beta-profile_image-300x300.png",
+      "offline_image_url": "",
+      "view_count": 0,
+      "created_at": "2019-03-02T11:00:00Z"
+    }
+  ]
+}

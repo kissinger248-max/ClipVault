@@ -19,13 +19,18 @@ CONFIG_FILENAME = "config.yaml"
 DB_FILENAME = "clipvault.db"
 KEYRING_SERVICE = "clipvault"
 
-# Names of the secrets the app stores in the keychain (SPEC §17).
-SECRET_NAMES = (
+# Secrets the user types in (SPEC §17); settable with ``clipvault secrets set``.
+USER_SECRET_NAMES = (
     "twitch_client_id",
     "twitch_client_secret",
     "groq_api_key",
     "llm_api_key",
     "uploadpost_api_key",
+)
+# Every secret the app keeps in the keychain, including ones it creates itself.
+SECRET_NAMES = (
+    *USER_SECRET_NAMES,
+    "twitch_app_token",
     "ntfy_topic",
     "panel_password_hash",
 )

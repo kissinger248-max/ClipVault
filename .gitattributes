@@ -1,0 +1,10 @@
+# Store text with LF endings everywhere so files behave the same on Windows,
+# macOS, Linux and inside Docker (shell scripts with CRLF endings fail there).
+* text=auto eol=lf
+*.png binary
+*.jpg binary
+*.ico binary
+*.ttf binary
+*.otf binary
+*.mp4 binary
+*.onnx binary

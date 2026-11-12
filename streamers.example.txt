@@ -1,0 +1,15 @@
+# ClipVault streamer list. Copy to streamers.txt, edit, then run:
+#   python -m clipvault streamers import
+#
+# One Twitch login (or channel URL) per line. Optional settings after it:
+#   top_n=5         keep each day's 5 most-viewed clips (default 5)
+#   min_views=500   instead of top_n: keep every clip with at least 500 views
+#   vod_moments=3   chat-spike moments to cut per VOD (default 3)
+#   save=off        stop saving this streamer without removing them
+#
+# Importing again is safe: it adds new logins and applies changed settings.
+# It never removes a streamer, and it cannot turn posting on.
+
+examplelogin
+anotherlogin top_n=10
+https://www.twitch.tv/thirdlogin min_views=500

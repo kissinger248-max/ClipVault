@@ -58,6 +58,11 @@ clipvault/
   notify/            # ntfy.py
   web/               # routes/, templates/, static/
   jobs.py            # job definitions and state transitions
+  runs.py            # job cursors and last-run bookkeeping (runs table)
+  streamers.py       # streamer list: streamers.txt import, Twitch profile cache
+  doctor.py          # the doctor checks
+  logging_setup.py   # JSON-lines logging
+  timeutil.py        # UTC timestamps (one stored format), durations
 tests/
   fixtures/
 scripts/             # manual live checks
@@ -75,6 +80,10 @@ python -m venv .venv && source .venv/bin/activate   # Windows: .venv\Scripts\act
 pip install -e ".[dev]"
 python -m clipvault doctor        # checks ffmpeg, yt-dlp, TwitchDownloaderCLI, config, keyring
 python -m clipvault run           # starts everything
+python -m clipvault secrets set NAME      # store a key in the OS keychain (also: secrets list / delete NAME)
+python -m clipvault streamers import [FILE]   # add streamers from streamers.txt (also: streamers list)
+python -m clipvault discover [--streamer LOGIN] [--since 7d]   # find new clips
+python scripts/twitch_live_check.py LOGIN...  # manual live check of the Twitch API (needs real keys)
 pytest -q
 ruff check . && ruff format --check .
 ```

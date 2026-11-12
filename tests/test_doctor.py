@@ -15,6 +15,7 @@ CHECK_NAMES = [
     "TwitchDownloaderCLI",
     "Config file",
     "Keyring",
+    "Twitch keys",
     "Disk space",
     "Database",
 ]
@@ -28,7 +29,8 @@ def test_doctor_reports_every_check(home: Path, capsys: pytest.CaptureFixture[st
         assert name in out
     assert code in (0, 1)
     assert [r.name for r in doctor.run_checks(home)] == CHECK_NAMES
-    assert (home / "logs" / "clipvault.jsonl").exists()
+    assert str(home) in out  # the home folder is shown, so it is clear which data is in use
+    assert len(list((home / "logs").glob("clipvault-*.jsonl"))) == 1
 
 
 def test_python_check_passes_here() -> None:
@@ -116,6 +118,15 @@ def test_report_shows_fixes_and_summary() -> None:
     assert report.isascii()
 
 
+def test_twitch_keys_check(memory_keyring) -> None:
+    result = doctor.check_twitch_keys()
+    assert result.status == doctor.WARN
+    assert "secrets set twitch_client_id" in result.fix
+    memory_keyring.set_password("clipvault", "twitch_client_id", "a")
+    memory_keyring.set_password("clipvault", "twitch_client_secret", "b")
+    assert doctor.check_twitch_keys().status == doctor.OK
+
+
 def test_planned_commands_say_when_they_arrive(capsys: pytest.CaptureFixture[str]) -> None:
-    assert main(["discover"]) == 2
-    assert "M1" in capsys.readouterr().out
+    assert main(["fetch"]) == 2
+    assert "M2" in capsys.readouterr().out

@@ -1,14 +1,20 @@
-"""Shared fixtures: an isolated home folder and an in-memory keychain for every test."""
+"""Shared fixtures: isolated home folder, in-memory keychain, and no real network."""
 
 from __future__ import annotations
 
 import logging
+import socket
+import sqlite3
 from pathlib import Path
 
 import keyring
 import pytest
 from keyring.backend import KeyringBackend
 from keyring.errors import PasswordDeleteError
+
+from clipvault import db
+
+_LOOPBACK = {"127.0.0.1", "::1", "localhost"}
 
 
 class MemoryKeyring(KeyringBackend):
@@ -42,12 +48,36 @@ def memory_keyring() -> MemoryKeyring:
 
 
 @pytest.fixture(autouse=True)
+def no_network(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Hard rule 9: unit tests never reach the internet. Loopback stays allowed."""
+    real_connect = socket.socket.connect
+
+    def guarded(self: socket.socket, address, *args, **kwargs):
+        host = address[0] if isinstance(address, tuple) else address
+        if host in _LOOPBACK:
+            return real_connect(self, address, *args, **kwargs)
+        raise RuntimeError(f"unit test tried to open a network connection to {address!r}")
+
+    monkeypatch.setattr(socket.socket, "connect", guarded)
+
+
+@pytest.fixture(autouse=True)
 def home(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
     """Point CLIPVAULT_HOME at a temp folder and undo logging handlers afterwards."""
     monkeypatch.setenv("CLIPVAULT_HOME", str(tmp_path))
+    for name in ("TWITCH_CLIENT_ID", "TWITCH_CLIENT_SECRET", "TWITCH_APP_TOKEN"):
+        monkeypatch.delenv(f"CLIPVAULT_{name}", raising=False)
     yield tmp_path
     root = logging.getLogger()
     for handler in list(root.handlers):
         if getattr(handler, "_clipvault_handler", False):
             root.removeHandler(handler)
             handler.close()
+
+
+@pytest.fixture
+def conn(home: Path) -> sqlite3.Connection:
+    """A migrated database in the temp home folder."""
+    connection = db.open_db(home / "clipvault.db")
+    yield connection
+    connection.close()

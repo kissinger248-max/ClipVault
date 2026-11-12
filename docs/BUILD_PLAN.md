@@ -32,12 +32,12 @@ Accounts and keys the user needs, by milestone:
 
 ### M1. Twitch connection and viewer-clip discovery
 
-- [ ] App access token (client credentials) with automatic renewal
-- [ ] `GET /helix/users` lookup and caching of `twitch_user_id`, display name, avatar
-- [ ] `GET /helix/clips` by broadcaster since the `discover` cursor, with pagination (SPEC §5.1)
-- [ ] Selection: `top_n` per streamer per day or `min_views`; skip known ids; insert as `found`
-- [ ] `streamers.txt` import (one login per line, optional `key=value` settings)
-- [ ] CLI: `python -m clipvault discover [--streamer LOGIN] [--since 7d]`
+- [x] App access token (client credentials) with automatic renewal
+- [x] `GET /helix/users` lookup and caching of `twitch_user_id`, display name, avatar
+- [x] `GET /helix/clips` by broadcaster since the `discover` cursor, with pagination (SPEC §5.1)
+- [x] Selection: `top_n` per streamer per day or `min_views`; skip known ids; insert as `found`
+- [x] `streamers.txt` import (one login per line, optional `key=value` settings)
+- [x] CLI: `python -m clipvault discover [--streamer LOGIN] [--since 7d]`
 - [ ] Unit tests with recorded API responses
 - [ ] Check whether Twitch Auto Clips show up in results for a streamer known to use them; record the answer in PROGRESS.md
 

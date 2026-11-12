@@ -5,14 +5,7 @@ import pytest
 
 from clipvault import db
 
-TABLES = {"streamers", "clips", "renders", "posts", "runs", "alerts", "settings"}
-
-
-@pytest.fixture
-def conn(home: Path):
-    connection = db.open_db(home / "test.db")
-    yield connection
-    connection.close()
+TABLES = {"streamers", "clips", "renders", "posts", "runs", "alerts", "settings", "games"}
 
 
 def test_wal_mode_and_foreign_keys(conn: sqlite3.Connection) -> None:
@@ -87,3 +80,35 @@ def test_failed_migration_rolls_back(home: Path, monkeypatch: pytest.MonkeyPatch
     assert "a" not in names
     assert conn.execute("SELECT count(*) FROM schema_migrations").fetchone()[0] == 0
     conn.close()
+
+
+def test_transaction_commits_all_or_nothing(conn: sqlite3.Connection, home: Path) -> None:
+    with db.transaction(conn):
+        conn.execute("INSERT INTO streamers (login) VALUES ('kept')")
+    with pytest.raises(RuntimeError):
+        with db.transaction(conn):
+            conn.execute("INSERT INTO streamers (login) VALUES ('lost')")
+            raise RuntimeError("crash mid-way")
+    assert not conn.in_transaction
+    other = db.connect(home / "clipvault.db")  # a second connection sees only committed rows
+    assert [r["login"] for r in other.execute("SELECT login FROM streamers")] == ["kept"]
+    other.close()
+
+
+def test_single_statements_commit_on_their_own(conn: sqlite3.Connection, home: Path) -> None:
+    conn.execute("INSERT INTO streamers (login) VALUES ('solo')")
+    other = db.connect(home / "clipvault.db")
+    assert other.execute("SELECT count(*) FROM streamers").fetchone()[0] == 1
+    other.close()
+
+
+def test_clip_updates_touch_updated_at(conn: sqlite3.Connection) -> None:
+    conn.execute("INSERT INTO streamers (login) VALUES ('s')")
+    conn.execute(
+        "INSERT INTO clips (id, streamer_id, source, updated_at) "
+        "VALUES ('c1', 1, 'viewer', '2000-01-01T00:00:00Z')"
+    )
+    conn.execute("UPDATE clips SET view_count = 5 WHERE id = 'c1'")
+    assert conn.execute("SELECT updated_at FROM clips").fetchone()[0] > "2026"
+    conn.execute("UPDATE clips SET updated_at = '2001-01-01T00:00:00Z' WHERE id = 'c1'")
+    assert conn.execute("SELECT updated_at FROM clips").fetchone()[0] == "2001-01-01T00:00:00Z"

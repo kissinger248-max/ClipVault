@@ -161,6 +161,29 @@ def check_keyring() -> CheckResult:
     return CheckResult("Keyring", OK, f"{type(backend).__module__}.{type(backend).__name__}")
 
 
+def check_twitch_keys() -> CheckResult:
+    """Twitch client ID and secret stored; needed for discovery, so a warning until set."""
+    try:
+        missing = [
+            name
+            for name in ("twitch_client_id", "twitch_client_secret")
+            if not cfg.get_secret(name)
+        ]
+    except Exception as exc:  # keychain trouble is reported by the Keyring check
+        return CheckResult("Twitch keys", WARN, f"could not read the keychain: {exc}")
+    if not missing:
+        return CheckResult("Twitch keys", OK, "client ID and secret stored")
+    return CheckResult(
+        "Twitch keys",
+        WARN,
+        f"not set: {', '.join(missing)} (needed to find clips)",
+        "Create an application at https://dev.twitch.tv/console with redirect URL "
+        "http://localhost:8765/auth/twitch/callback, then run "
+        "'python -m clipvault secrets set twitch_client_id' and "
+        "'python -m clipvault secrets set twitch_client_secret'.",
+    )
+
+
 def check_disk(library_root: Path, min_free_pct: int) -> CheckResult:
     """Free space on the drive that will hold the library."""
     probe = library_root
@@ -219,15 +242,19 @@ def run_checks(home: Path | None = None) -> list[CheckResult]:
         check_twitch_downloader(home),
         config_result,
         check_keyring(),
+        check_twitch_keys(),
         check_disk(loaded.library_root, loaded.retention.min_free_space_pct),
         check_database(home / cfg.DB_FILENAME),
     ]
 
 
-def format_report(results: list[CheckResult]) -> str:
+def format_report(results: list[CheckResult], home: Path | None = None) -> str:
     """Render results as plain text (ASCII only, safe for any console)."""
     width = max(len(r.name) for r in results)
-    lines = ["ClipVault doctor", ""]
+    lines = ["ClipVault doctor"]
+    if home is not None:
+        lines.append(f"Home folder (config, database, logs): {home}")
+    lines.append("")
     for r in results:
         lines.append(f"{_LABELS[r.status]} {r.name.ljust(width)}  {r.detail}")
         if r.status != OK and r.fix:
@@ -246,6 +273,7 @@ def format_report(results: list[CheckResult]) -> str:
 
 def main() -> int:
     """Run the doctor; exit code 1 when any check failed."""
-    results = run_checks()
-    print(format_report(results))
+    home = cfg.home_dir()
+    results = run_checks(home)
+    print(format_report(results, home))
     return 1 if any(r.status == FAIL for r in results) else 0
