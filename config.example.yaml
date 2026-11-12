@@ -1,0 +1,26 @@
+# ClipVault settings (non-secret). Copy to config.yaml and edit.
+# Every key is optional; anything left out uses the default shown here.
+# Secrets (Twitch keys, API keys, ntfy topic) are NOT stored here: they live in
+# the OS keychain via the `keyring` library.
+
+mode: archive            # archive | archive_post
+timezone: America/Chicago
+library_root: ~/Twitch Archive
+quality: 720p            # 720p | 1080p
+discover_interval_min: 30
+heavy_jobs_on_battery: false
+retention:
+  keep_days_below_median: 60
+  min_free_space_pct: 15
+posting:
+  review_mode: true
+  max_per_account_per_day: 10
+  spacing_min: [90, 120]
+  jitter_min: 10
+  active_hours: ["08:00", "23:00"]   # keep the quotes around times
+look:
+  template: default
+  accent: "#FFD400"
+  headline_style: box     # box | outline
+notifications:
+  quiet_hours: ["23:00", "08:00"]

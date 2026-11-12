@@ -1,0 +1,31 @@
+# Python
+.venv/
+venv/
+__pycache__/
+*.py[cod]
+*.egg-info/
+build/
+dist/
+.pytest_cache/
+.ruff_cache/
+
+# Local configuration and secrets (secrets belong in the OS keychain)
+.env
+.env.*
+config.yaml
+
+# Runtime data
+logs/
+library/
+qa/
+bin/
+*.db
+*.db-wal
+*.db-shm
+*.sqlite3
+
+# OS / editor
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
