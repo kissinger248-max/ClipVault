@@ -11,6 +11,7 @@ be set from this computer itself.
 
 from __future__ import annotations
 
+import hashlib
 import logging
 import sqlite3
 import threading
@@ -62,6 +63,20 @@ class PanelState:
             return self.thumb_locks.setdefault(clip_id, threading.Lock())
 
 
+def _asset_version(folder: Path) -> str:
+    """A short tag that changes whenever a stylesheet, script or font changes.
+
+    Added to the links as ?v=, so browsers fetch the new files after an update
+    instead of keeping a cached copy.
+    """
+    digest = hashlib.sha256()
+    for path in sorted(folder.rglob("*")):
+        if path.is_file():
+            digest.update(path.relative_to(folder).as_posix().encode())
+            digest.update(path.read_bytes())
+    return digest.hexdigest()[:10]
+
+
 def create_app(home: Path | None = None) -> FastAPI:
     """Build the control-panel app (the home folder decides which database it uses)."""
     home = home or cfg.home_dir()
@@ -85,6 +100,7 @@ def create_app(home: Path | None = None) -> FastAPI:
     templates.env.filters["fromjson"] = _fromjson
     templates.env.filters["gigabytes"] = lambda size: f"{(size or 0) / 1e9:,.0f} GB"
     app.mount("/static", StaticFiles(directory=str(HERE / "static")), name="static")
+    assets = _asset_version(HERE / "static")
 
     def conn() -> sqlite3.Connection:
         return db.open_db(home / cfg.DB_FILENAME)
@@ -98,6 +114,7 @@ def create_app(home: Path | None = None) -> FastAPI:
         values["csrf"] = auth.csrf_token(session)
         values["flash"] = request.query_params.get("msg", "")
         values["version"] = __version__
+        values["assets"] = assets
         if "problems" not in values:
             with _db(conn) as c:
                 values["problems"] = len(alerts.open_alerts(c))

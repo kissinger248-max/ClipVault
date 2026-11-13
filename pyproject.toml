@@ -41,7 +41,7 @@ include = ["clipvault*"]
 [tool.setuptools.package-data]
 "clipvault.migrations" = ["*.sql"]
 "clipvault.data" = ["*.txt", "*.yaml", "*.onnx"]
-"clipvault.web" = ["templates/*.html", "static/*"]
+"clipvault.web" = ["templates/*.html", "static/*", "static/fonts/*"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

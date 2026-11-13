@@ -38,7 +38,7 @@
     </div>
     <label class="toggle">
       <input type="checkbox" name="starred" value="1" {{ 'checked' if filters.starred }}>
-      <span><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round" aria-hidden="true"><path d="m12 3 2.8 5.7 6.2.9-4.5 4.4 1 6.2L12 17.3 6.5 20.2l1-6.2L3 9.6l6.2-.9z"/></svg>Starred<span class="desk-only">&nbsp;only</span></span>
+      <span><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round" aria-hidden="true"><path d="m12 3 2.8 5.7 6.2.9-4.5 4.4 1 6.2L12 17.3 6.5 20.2l1-6.2L3 9.6l6.2-.9z"/></svg><span>Starred<span class="desk-only">&nbsp;only</span></span></span>
     </label>
     <input type="checkbox" id="more-filters" class="more-toggle" aria-label="More filters">
     <label for="more-filters" class="more-chip">More Filters</label>
@@ -47,7 +47,7 @@
 </form>
 
 <div class="editing">
-  {% if editing %}<span class="spinner cv-spin" aria-hidden="true"></span>{{ editing }} more clip{{ 's are' if editing != 1 else ' is' }} still being edited<span class="desk-only">&nbsp;and will appear here</span>.
+  {% if editing %}<span class="spinner cv-spin" aria-hidden="true"></span><span>{{ editing }} more clip{{ 's are' if editing != 1 else ' is' }} still being edited<span class="desk-only">&nbsp;and will appear here</span>.</span>
   {% else %}{{ '{:,}'.format(total) }} clip{{ 's' if total != 1 }}{% if filters.q %} saying “{{ filters.q }}”{% endif %}.{% endif %}
 </div>
 

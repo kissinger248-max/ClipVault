@@ -24,7 +24,7 @@ code { font: 13px/18px ui-monospace, "SF Mono", Menlo, Consolas, monospace; over
 /* --- shell: sidebar + content ------------------------------------------------- */
 .app { display: flex; min-height: 100vh; }
 .sidebar {
-  flex: none; width: 200px; position: sticky; top: 0; height: 100vh;
+  flex: 1 1 200px; position: sticky; top: 0; height: 100vh;  /* as Main.dc.html */
   background: var(--side); border-right: 1px solid var(--sep);
   padding: 20px 12px; display: flex; flex-direction: column; gap: 16px;
 }
@@ -43,7 +43,7 @@ code { font: 13px/18px ui-monospace, "SF Mono", Menlo, Consolas, monospace; over
   display: inline-flex; align-items: center; justify-content: center;
 }
 .content {
-  flex: 1; min-width: 0; padding: 24px 32px 40px;
+  flex: 999 1 560px; min-width: 0; padding: 24px 32px 40px;
   display: flex; flex-direction: column; gap: 24px;
 }
 .content.tight { gap: 16px; }
@@ -144,7 +144,8 @@ input.switch:checked::before { transform: translateX(18px); }
 .groups { width: 100%; max-width: 720px; display: flex; flex-direction: column; gap: 26px; }
 .group { display: flex; flex-direction: column; gap: 8px; }
 .group > h2 { margin-left: 4px; font-size: 13px; line-height: 20px; font-weight: 600; color: var(--label2); }
-.list > * + * { border-top: 1px solid var(--sep); }
+/* a line between rows; hidden form fields don't count as rows */
+.list > :not(input[type="hidden"]) ~ :not(input[type="hidden"]) { border-top: 1px solid var(--sep); }
 .row {
   display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between;
   gap: 8px 16px; padding: 12px 16px;
@@ -300,6 +301,7 @@ details.card > .inside { padding: 0 16px 14px; }
 }
 .setup-card form { display: flex; flex-direction: column; gap: 24px; margin: 0; }
 .setup-card form.inline { display: inline-flex; flex-direction: row; gap: 8px; align-self: flex-start; }
+.setup-card .nav-row > form.inline { align-self: center; }
 .setup-card form.actions { flex-direction: row; flex-wrap: wrap; gap: 8px; }
 .setup-card .intro { display: flex; flex-direction: column; gap: 6px; }
 .setup-card .step-label { font-size: 13px; color: var(--label2); }
@@ -311,7 +313,9 @@ details.card > .inside { padding: 0 16px 14px; }
 .steps li.done > div, .steps li[aria-current="step"] > div { background: var(--accent); }
 .steps li[aria-current="step"] { color: var(--label); font-weight: 600; }
 .boxed { border-radius: 12px; border: 1px solid var(--sep); }
-.boxed > * + * { border-top: 1px solid var(--sep); }
+/* a line between rows; hidden form fields don't count as rows */
+.boxed > :not(input[type="hidden"]) ~ :not(input[type="hidden"]) { border-top: 1px solid var(--sep); }
+.look-wizard .boxed > .row { padding: 12px 14px; }  /* Setup.dc.html step 5 */
 .feature { display: flex; gap: 12px; align-items: flex-start; padding: 14px 16px; }
 .feature svg { flex: none; margin-top: 1px; stroke: var(--green); }
 .note { display: flex; gap: 10px; padding: 12px 14px; border-radius: 10px; background: var(--bg); color: var(--label2); }
@@ -324,7 +328,7 @@ details.card > .inside { padding: 0 16px 14px; }
 .copy-row input { flex: 1; min-width: 0; font-size: 13px; background: var(--bg); }
 .nav-row { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 12px; }
 .choice { display: flex; gap: 10px; align-items: flex-start; padding: 12px 14px; border-radius: 10px; border: 1px solid var(--sep); cursor: pointer; }
-.choice:has(input:checked) { border: 2px solid var(--accent); padding: 11px 13px; }
+.choice:has(input:checked) { border: 2px solid var(--accent); }  /* the mockup keeps the padding, so it grows 2 px */
 .choice input { margin-top: 3px; }
 .folder { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; padding: 14px 16px; }
 .previews { display: flex; justify-content: center; gap: 16px; flex-wrap: wrap; }
@@ -397,13 +401,19 @@ details.card > .inside { padding: 0 16px 14px; }
 
 /* setup: exact mockup sizes */
 .strong { font-weight: 600; }
-.tickbox { flex: none; margin-top: 3px; }
+/* the mockup draws a real 16 px checkbox, which keeps the browser margins 3px 3px 3px 4px */
+.tickbox { flex: none; margin: 3px 3px 3px 4px; }
+.btn.plain.skip-setup { height: 36px; border: 0; padding: 0 4px; }
 .btn.large.back-btn { padding: 0 16px; }
 .btn.large.plain { padding: 0 4px; }
-.btn.large.plain.skip { padding: 0 12px; }
+.btn.large.plain.skip { padding: 0 12px; border: 0; }
+.setup-card label.boxed.row { padding: 12px 14px; }  /* Setup.dc.html step 6 */
 .field.compact { gap: 6px; }
 .field.compact input { height: 36px; padding: 0 10px; border-radius: 8px; }
-.btn.danger.small-remove { height: 30px; padding: 0 8px; }
+.btn.danger.small-remove { height: 30px; padding: 0 8px; border: 0; }
+.setup-card .feature > form.inline { align-self: center; }
+/* Setup.dc.html step 3: Add is 18 px wide padding and sits at the top of the row */
+.setup-card .btn.add-btn { padding: 0 18px; align-self: flex-start; }
 .setup-card .avatar.small { background: var(--selected); color: var(--link); }
 
 /* desktop / phone wording swaps */
@@ -494,3 +504,4 @@ details.card > .inside { padding: 0 16px 14px; }
 .copy-row input { height: 36px; }
 .copy-row .btn { height: 34px; }
 .setup-card .add-form input { height: 42px !important; }
+.password-form .field { gap: 8px; }  /* SetupPassword: label, box and hint 8 px apart */

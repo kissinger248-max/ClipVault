@@ -413,3 +413,25 @@ def test_every_page_uses_the_new_design_and_shows_the_problem_badge(client, home
     assert home_page.count('class="count-badge"') == 2  # sidebar and phone tab bar
     assert 'name="csrf"' in home_page
     assert client.get("/static/style.css").status_code == 404
+
+
+def test_inter_is_bundled_with_its_licence(client) -> None:
+    tokens = client.get("/static/tokens.css").text
+    assert "font-family: Inter" in tokens
+    for name in ("Inter-latin.woff2", "Inter-latin-ext.woff2"):
+        assert f"fonts/{name}" in tokens
+        reply = client.get(f"/static/fonts/{name}")
+        assert reply.status_code == 200 and reply.content[:4] == b"wOF2", name
+    assert "SIL Open Font License" in client.get("/static/fonts/OFL-Inter.txt").text
+
+
+def test_static_links_change_when_the_files_change(tmp_path) -> None:
+    from clipvault.web.server import _asset_version
+
+    (tmp_path / "fonts").mkdir()
+    (tmp_path / "panel.css").write_text("a { color: red; }", encoding="utf-8")
+    (tmp_path / "fonts" / "x.woff2").write_bytes(b"wOF2")
+    before = _asset_version(tmp_path)
+    assert before == _asset_version(tmp_path)
+    (tmp_path / "panel.css").write_text("a { color: blue; }", encoding="utf-8")
+    assert _asset_version(tmp_path) != before

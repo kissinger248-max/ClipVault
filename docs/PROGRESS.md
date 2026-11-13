@@ -479,3 +479,43 @@ Request: replace the control panel's look with the design in `docs/design/` (DES
 
 **Open issues**
 - None blocking. Optional: bundle Inter for exact text widths.
+
+## 2026-11-13: Inter bundled; second measured pass against the mockups
+
+The user approved bundling Inter, so text widths now match the mockups exactly.
+
+**What changed**
+- **Inter bundled** (SIL Open Font License, `clipvault/web/static/fonts/OFL-Inter.txt`).
+  - The files are the same two variable-font files the mockups load from Google Fonts: Latin and Latin Extended, weights 100-900.
+  - They are declared with `@font-face` in `tokens.css` and packaged via `static/fonts/*` in pyproject.
+  - The font stack is unchanged from the handoff. Inter is 4th, so Apple devices still use SF, and Windows/Linux now get Inter instead of Segoe UI.
+- **Cache-busting fixed.** Stylesheet and script links were tagged `?v=<app version>`, which doesn't change when the files change, so browsers kept old CSS after an update. They now carry a short hash of the static files (`_asset_version`, computed at start-up).
+- **Fixes from re-measuring with Inter**:
+  - **Sidebar:** sized as in Main.dc.html, `flex: 1 1 200px` beside a main area of `flex: 999 1 560px` (200.5 px at 1280 wide).
+  - **Row dividers** (`.list`, `.boxed`): the hidden `csrf` field was counted as the first row, so the first real row got a divider and every Settings card was 1 px taller.
+  - **Text in flex rows:** text with a desktop-only part ("Starred only", "…and will appear here") is now wrapped in one span, so the row gap isn't added inside it. The Starred button had been 6 px too wide.
+  - **Setup step 1:** the ticks keep a real checkbox's margins (3px 3px 3px 4px). Skip Setup is 36 px with no border and centred in the row.
+  - **Setup step 3:** Add has 18 px padding and sits at the top of its row. Remove has no border and is centred.
+  - **Setup step 4:** quality titles are semibold (600), not bold. The selected card keeps its padding and grows 2 px, as in the mockup.
+  - **Setup step 5:** look rows have 12×14 px padding.
+  - **Setup step 6:** the phone-access row has 12×14 px padding; Skip for Now has no border.
+  - **Password and login pages:** fields are spaced 8 px apart.
+
+**Verified, and how**
+- Same method as before: mockups rendered in the built-in browser beside the panel preview at the same window size.
+  - A script measured each text's position and width on both sides.
+  - Every animation was finished first. The page fade-in had been stalling in the preview pane, which left pages 6 px low on both sides.
+- **Identical to the mockup** (position and width, to 0.1 px for widths):
+  - desktop Home, Settings, setup steps 1-6 and the first-run password page;
+  - phone Home (horizontal and vertical);
+  - the phone Clips chips (horizontal positions and widths).
+- **Remaining differences, all from real data or the extra control:**
+  - The sort and "Keep" menus are 5-8 px wider because the real menus have more and longer options than the mockups' placeholders.
+  - Streamers has the Phone layout control on each row's second line.
+  - Real messages and transcripts are longer than the mockup text.
+  - Step 6 has no QR box until notifications are set up.
+  - The PhoneClips mockup squashes its own search box to 24 px; the panel keeps the 44 px it states.
+- `pytest -q`: 346 passed (new: Inter files and licence served; static link tag changes when a file changes). `ruff check` and `ruff format --check` are clean.
+
+**Open issues**
+- None.
