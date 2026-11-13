@@ -152,7 +152,8 @@ def encode(
     if not has_audio:
         arguments += ["-f", "lavfi", "-i", "anullsrc=r=48000:cl=stereo"]
     graph = (
-        f"[0:v]{video_filter}[base];[base]subtitles=overlay.ass:fontsdir=fonts,format=yuv420p[v]"
+        f"[0:v]{video_filter}[base];[base]subtitles=overlay.ass:fontsdir=fonts,"
+        "setsar=1,format=yuv420p[v]"  # square pixels: scaling 1280x720 to 1080x608 leaves 1216:1215
     )
     arguments += ["-filter_complex", graph, "-map", "[v]"]
     arguments += ["-map", "0:a:0", "-af", audio_filter] if has_audio else ["-map", "1:a:0"]

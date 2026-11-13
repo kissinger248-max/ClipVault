@@ -134,7 +134,9 @@ def test_first_visit_after_login_goes_to_the_wizard(client) -> None:
         assert page.status_code == 200 and f"Step {step} of 6" in page.text
 
 
-def test_home_clips_and_clip_pages_show_saved_clips(client, home, library) -> None:
+def test_dashboard_shows_phone_versions_with_the_original_one_tap_away(
+    client, home, library
+) -> None:
     login(client)
     finish_setup(home)
     conn = db.open_db(home / "clipvault.db")
@@ -143,14 +145,34 @@ def test_home_clips_and_clip_pages_show_saved_clips(client, home, library) -> No
     conn.execute(
         "INSERT INTO transcripts (clip_id, text) VALUES ('clip1', 'no way that was insane')"
     )
+    # Not edited yet: listed as "being edited", not shown as a clip.
+    home_page = client.get("/").text
+    assert "Running" in home_page and "1 new clip is being edited" in home_page
+    assert "Huge" not in home_page
+    assert "0 clips" in client.get("/clips").text
+    original_only = client.get("/clips/clip1").text
+    assert "still being made" in original_only and "Download original" in original_only
+
+    vertical = library / "alpha/2026-11/vertical/clip1_9x16.mp4"
+    vertical.parent.mkdir()
+    vertical.write_bytes(b"phone video")
+    conn.execute(
+        "INSERT INTO renders (clip_id, layout, path, headline, qa_passed) "
+        "VALUES ('clip1', 'letterbox', 'alpha/2026-11/vertical/clip1_9x16.mp4', 'Huge play', 1)"
+    )
     conn.close()
-    home_page = client.get("/")
-    assert "Running" in home_page.text and "Huge &lt;b&gt;play&lt;/b&gt;" in home_page.text
+    home_page = client.get("/").text
+    assert "Huge &lt;b&gt;play&lt;/b&gt;" in home_page and "being edited" not in home_page
+    assert "kind=vertical" in home_page  # the card shows the phone version
     listing = client.get("/clips", params={"q": "insane"})
     assert "<mark>insane</mark>" in listing.text and "1 clip saying" in listing.text
     assert "0 clips" in client.get("/clips", params={"q": "zebra"}).text
-    page = client.get("/clips/clip1")
-    assert page.status_code == 200 and "no way that was insane" in page.text
+    page = client.get("/clips/clip1").text
+    assert "phone-player" in page and "Save video" in page and "See original" in page
+    assert "no way that was insane" in page
+    assert client.get("/media/clip1", params={"kind": "vertical"}).content == b"phone video"
+    original = client.get("/clips/clip1", params={"view": "original"}).text
+    assert "See phone version" in original and "Download original" in original
     assert client.get("/media/clip1").content == b"video"
     assert client.get("/clips/missing").status_code == 404
 
@@ -252,7 +274,7 @@ def test_estimate_grows_with_streamers_and_quality() -> None:
 
     one = [{"save_enabled": 1, "top_n": 5, "min_views": None, "vod_moments": 3}]
     small = estimate_gb_per_month(one, "720p")
-    assert 2 < small < 3
+    assert 10 < small < 11.5  # mostly the phone versions
     assert estimate_gb_per_month(one * 2, "1080p") > 2 * small
     assert estimate_gb_per_month([{**one[0], "save_enabled": 0}], "720p") == 0
 

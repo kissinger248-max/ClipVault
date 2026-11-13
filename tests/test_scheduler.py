@@ -213,3 +213,36 @@ def test_cli_notify_setup_shows_the_topic(capsys) -> None:
     assert main(["notify", "setup"]) == 0
     assert ntfy.get_topic() in capsys.readouterr().out
     assert main(["notify", "status"]) == 0
+
+
+def test_new_clips_get_their_phone_version_newest_first(conn, home) -> None:
+    from clipvault import jobs
+    from clipvault.render.ffmpeg import RenderError
+
+    config = make_config(home)
+    add_streamer(conn, "alpha")
+    add_clip(
+        conn, "old", state="transcribed", file_path="a/old.mp4", created_at="2026-11-01T00:00:00Z"
+    )
+    add_clip(
+        conn, "new", state="transcribed", file_path="a/new.mp4", created_at="2026-11-12T00:00:00Z"
+    )
+    add_clip(
+        conn, "bad", state="transcribed", file_path="a/bad.mp4", created_at="2026-11-10T00:00:00Z"
+    )
+    add_clip(conn, "raw", state="fetched", file_path="a/raw.mp4")  # waits for its transcript
+    made: list[str] = []
+
+    def fake_render(conn, config, clip_id):
+        if clip_id == "bad":
+            raise RenderError("broken file")
+        made.append(clip_id)
+        conn.execute("INSERT INTO renders (clip_id, layout, path) VALUES (?, 'letterbox', ?)",
+                     (clip_id, f"a/vertical/{clip_id}.mp4"))  # fmt: skip
+
+    assert jobs.clips_to_render(conn, config) == ["new", "bad", "old"]
+    summary = jobs.run_render(conn, config, limit=2, render=fake_render)
+    assert made == ["new"] and summary.failed == 1 and summary.remaining == 1
+    jobs.run_render(conn, config, render=fake_render)
+    assert made == ["new", "old"]  # the broken one isn't tried again
+    assert jobs.clips_to_render(conn, config) == []

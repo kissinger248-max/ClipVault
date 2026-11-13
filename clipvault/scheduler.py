@@ -34,6 +34,7 @@ log = logging.getLogger(__name__)
 
 FETCH_BATCH = 20  # clips per worker round, so pausing or quitting takes effect quickly
 TRANSCRIBE_BATCH = 5
+RENDER_BATCH = 3  # about 25 s each; the worker runs every 2 minutes
 BROKEN_AFTER = 3
 CLEANUP_AT = "04:00"
 BACKUP_FOLDER = ".clipvault-backups"
@@ -170,7 +171,7 @@ def step_worker(conn: sqlite3.Connection, config: cfg.Config, now: datetime) -> 
         notes.append(f"saved {saved}, {fetched.failed} failed, {fetched.remaining} waiting")
     if config.transcription.enabled:
         if not heavy:
-            notes.append("transcription and VOD cuts wait for mains power")
+            notes.append("transcription, editing and VOD cuts wait for mains power")
         else:
             done = jobs.run_transcribe(conn, config, limit=TRANSCRIBE_BATCH, now=now)
             if done.stopped_on_failures:
@@ -180,6 +181,11 @@ def step_worker(conn: sqlite3.Connection, config: cfg.Config, now: datetime) -> 
                 notes.append(
                     f"transcribed {finished}, {done.failed} failed, {done.remaining} waiting"
                 )
+    if heavy:
+        # Every new clip gets its phone version (the dashboard shows those), newest first.
+        made = jobs.run_render(conn, config, limit=RENDER_BATCH)
+        if made.rendered or made.failed:
+            notes.append(f"edited {made.rendered}, {made.failed} failed, {made.remaining} waiting")
     return "; ".join(notes)
 
 

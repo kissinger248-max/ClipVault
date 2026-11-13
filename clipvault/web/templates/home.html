@@ -17,10 +17,11 @@
   <button class="{{ 'primary' if paused else '' }}">{{ 'Resume' if paused else 'Pause everything' }}</button>
 </form>
 <h2>Newest clips</h2>
+{% if editing %}<p class="muted">{{ editing }} new clip{{ 's are' if editing != 1 else ' is' }} being edited for phones.</p>{% endif %}
 {% if newest %}
 <div class="grid">{% for clip in newest %}{{ clip_card(clip, csrf) }}{% endfor %}</div>
 <p><a href="/clips">All clips →</a></p>
 {% else %}
-<p class="muted">No clips saved yet. With streamers on the list, ClipVault finds and saves their best clips while it runs.</p>
+<p class="muted">No edited clips yet. While ClipVault runs, it finds the newest clips and edits each one for phones (with the charger plugged in on a laptop).</p>
 {% endif %}
 {% endblock %}

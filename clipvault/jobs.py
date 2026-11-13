@@ -602,3 +602,66 @@ def run_write(
         summary.written += 1
         summary.examples.append((candidate.clip_id, candidate.login, copy.headline))
     return summary
+
+
+# --- render: phone versions of every new clip ----------------------------------------
+
+RENDER_JOB = "render"
+
+
+@dataclass
+class RenderSummary:
+    """What one round of automatic rendering did."""
+
+    rendered: int = 0
+    failed: int = 0
+    remaining: int = 0
+    errors: list[str] = field(default_factory=list)
+
+
+def clips_to_render(conn: sqlite3.Connection, config: Config) -> list[str]:
+    """Saved clips without a phone version yet, newest first.
+
+    Clips wait for their transcript (the captions come from it) unless
+    transcripts are switched off. A clip that failed to render is skipped.
+    """
+    states = ("'transcribed'", "'written'") if config.transcription.enabled else (
+        "'fetched'", "'transcribed'", "'written'")  # fmt: skip
+    rows = conn.execute(
+        "SELECT c.id FROM clips c JOIN streamers s ON s.id = c.streamer_id "
+        f"WHERE c.state IN ({', '.join(states)}) AND c.removed_at IS NULL "
+        "AND c.file_path IS NOT NULL AND c.render_error IS NULL AND s.save_enabled = 1 "
+        "AND NOT EXISTS (SELECT 1 FROM renders r WHERE r.clip_id = c.id AND r.path IS NOT NULL) "
+        "ORDER BY c.created_at DESC"
+    ).fetchall()
+    return [row["id"] for row in rows]
+
+
+def run_render(
+    conn: sqlite3.Connection,
+    config: Config,
+    *,
+    limit: int | None = None,
+    render: Callable[..., object] | None = None,
+) -> RenderSummary:
+    """Make the phone version (best layout, headline, captions) of the newest clips."""
+    from clipvault.render import engine
+    from clipvault.render.ffmpeg import RenderError
+
+    render = render or engine.render_clip
+    summary = RenderSummary()
+    todo = clips_to_render(conn, config)
+    picked = todo[:limit] if limit else todo
+    for clip_id in picked:
+        try:
+            render(conn, config, clip_id)
+            summary.rendered += 1
+        except (RenderError, OSError) as exc:
+            summary.failed += 1
+            summary.errors.append(f"{clip_id}: {exc}")
+            conn.execute(
+                "UPDATE clips SET render_error = ? WHERE id = ?", (str(exc)[:500], clip_id)
+            )
+            log.error("phone version failed: %s", exc, extra=ctx(clip=clip_id, job=RENDER_JOB))
+    summary.remaining = len(todo) - len(picked)
+    return summary

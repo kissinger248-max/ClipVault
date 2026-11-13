@@ -18,18 +18,22 @@ from clipvault.web import auth
 # Measured in M2 and M4 on real clips (MB): a 30 s clip, and a 40 s chat moment cut from a VOD.
 CLIP_MB = {"720p": 5.3, "1080p": 9.6}
 MOMENT_MB = {"720p": 16.0, "1080p": 30.0}
+VERTICAL_MB = 36.0  # the phone version of a clip (1080x1920 at 10 Mbit/s, measured in M7)
 WIZARD_STEPS = 6  # mode, Twitch, streamers, storage, look, phone
 _COLOR = re.compile(r"^#[0-9A-Fa-f]{6}$")
 
 
 def estimate_gb_per_month(streamers: list[dict], quality: str) -> float:
-    """Rough disk use per month: each day's top clips plus chat moments from one stream a day."""
+    """Rough disk use per month: each day's top clips, chat moments from one stream a day,
+    and the phone version of each."""
     per_day = 0.0
     for streamer in streamers:
         if not streamer["save_enabled"]:
             continue
         clips = streamer["top_n"] if streamer["min_views"] is None else 5
-        per_day += clips * CLIP_MB[quality] + streamer["vod_moments"] * MOMENT_MB[quality]
+        moments = streamer["vod_moments"]
+        per_day += clips * CLIP_MB[quality] + moments * MOMENT_MB[quality]
+        per_day += (clips + moments) * VERTICAL_MB  # every clip also gets its phone version
     return per_day * 30 / 1024
 
 

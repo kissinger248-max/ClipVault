@@ -189,13 +189,15 @@ def create_app(home: Path | None = None) -> FastAPI:
                     "AND state NOT IN ('found', 'dead')"
                 ).fetchone(),
             }
-            newest = _clip_rows(c, "1=1", [], "c.fetched_at DESC", 8)
+            newest = _clip_rows(c, f"{EDITED} AND c.removed_at IS NULL", [], "c.created_at DESC", 8)
+            editing = _editing_count(c, config())
             last = c.execute(
                 "SELECT max(last_success) FROM runs WHERE job LIKE 'step:%'"
             ).fetchone()[0]
         status = "red" if open_alerts else ("yellow" if paused else "green")
         return page(request, "home.html", tab="home", status=status, alerts=open_alerts,
-                    paused=paused, counts=counts, newest=newest, last_run=last)  # fmt: skip
+                    paused=paused, counts=counts, newest=newest, last_run=last,
+                    editing=editing)  # fmt: skip
 
     @app.post("/pause")
     def pause():
@@ -220,7 +222,7 @@ def create_app(home: Path | None = None) -> FastAPI:
         }
         page_no = max(int(q.get("page", "1") or 1), 1)
         where, params = ["c.file_path IS NOT NULL", "c.removed_at IS NULL",
-                         "c.state NOT IN ('found', 'dead')"], []  # fmt: skip
+                         "c.state NOT IN ('found', 'dead')", EDITED], []  # fmt: skip
         if filters["streamer"]:
             where.append("s.login = ?")
             params.append(filters["streamer"])
@@ -257,14 +259,15 @@ def create_app(home: Path | None = None) -> FastAPI:
             rows = _clip_rows(c, " AND ".join(where), params, order, PAGE_SIZE,
                               (page_no - 1) * PAGE_SIZE)  # fmt: skip
             logins = [r[0] for r in c.execute("SELECT login FROM streamers ORDER BY login")]
+            editing = _editing_count(c, config())
         pages = max((total + PAGE_SIZE - 1) // PAGE_SIZE, 1)
         query = {k: v for k, v in filters.items() if v}
         return page(request, "clips.html", tab="clips", clips=rows, filters=filters, total=total,
                     page_no=page_no, pages=pages, logins=logins, snippets=snippets,
-                    query=urlencode(query))  # fmt: skip
+                    query=urlencode(query), editing=editing)  # fmt: skip
 
     @app.get("/clips/{clip_id}", response_class=HTMLResponse)
-    def clip_page(request: Request, clip_id: str):
+    def clip_page(request: Request, clip_id: str, view: str = ""):
         state: PanelState = app.state.panel
         with _db(conn) as c:
             rows = _clip_rows(c, "c.id = ?", [clip_id], "c.id", 1)
@@ -278,6 +281,7 @@ def create_app(home: Path | None = None) -> FastAPI:
             ).fetchone()
         return page(request, "clip.html", tab="clips", clip=rows[0], renders=renders,
                     transcript=text[0] if text else "", rendering=clip_id in state.rendering,
+                    original=view == "original" or not rows[0]["render_id"],
                     render_error=state.render_errors.get(clip_id, ""))  # fmt: skip
 
     @app.get("/media/{clip_id}")
@@ -287,7 +291,7 @@ def create_app(home: Path | None = None) -> FastAPI:
             if kind == "vertical":
                 row = c.execute(
                     "SELECT path FROM renders WHERE clip_id = ? AND path IS NOT NULL "
-                    "ORDER BY id DESC LIMIT 1",
+                    "ORDER BY created_at DESC, id DESC LIMIT 1",
                     (clip_id,),
                 ).fetchone()
             else:
@@ -300,19 +304,30 @@ def create_app(home: Path | None = None) -> FastAPI:
         return FileResponse(path, media_type="video/mp4")
 
     @app.get("/thumb/{clip_id}")
-    def thumbnail(clip_id: str):
+    def thumbnail(clip_id: str, kind: str = "video", render: int = 0):
         state: PanelState = app.state.panel
-        target = state.home / "cache" / "thumbs" / f"{storage.safe_id(clip_id)}.jpg"
+        vertical = kind == "vertical"
+        name = storage.safe_id(clip_id) + (f"_v{render}" if vertical else "")
+        target = state.home / "cache" / "thumbs" / f"{name}.jpg"
         if not target.is_file():
             with _db(conn) as c:
                 library = storage.open_library(c, config())
-                row = c.execute("SELECT file_path FROM clips WHERE id = ?", (clip_id,)).fetchone()
+                if vertical:
+                    row = c.execute(
+                        "SELECT path FROM renders WHERE clip_id = ? AND path IS NOT NULL "
+                        "ORDER BY created_at DESC, id DESC LIMIT 1",
+                        (clip_id,),
+                    ).fetchone()
+                else:
+                    row = c.execute(
+                        "SELECT file_path FROM clips WHERE id = ?", (clip_id,)
+                    ).fetchone()
             video = storage.resolve(library, row[0]) if row and row[0] else None
             if video is None:
                 return FileResponse(HERE / "static" / "no-thumb.svg", media_type="image/svg+xml")
             with state.thumb_lock(clip_id):
                 if not target.is_file():
-                    _make_thumbnail(video, target)
+                    _make_thumbnail(video, target, 360 if vertical else 480)
         if not target.is_file():
             return FileResponse(HERE / "static" / "no-thumb.svg", media_type="image/svg+xml")
         return FileResponse(target, media_type="image/jpeg",
@@ -562,21 +577,34 @@ def _clip_rows(
 ) -> list[sqlite3.Row]:
     return c.execute(
         "SELECT c.*, s.login, s.display_name, "
-        "(SELECT count(*) FROM renders r WHERE r.clip_id = c.id AND r.path IS NOT NULL) AS renders "
+        "(SELECT count(*) FROM renders r WHERE r.clip_id = c.id AND r.path IS NOT NULL) "
+        "AS renders, "
+        "(SELECT r.id FROM renders r WHERE r.clip_id = c.id AND r.path IS NOT NULL "
+        "ORDER BY r.created_at DESC, r.id DESC LIMIT 1) AS render_id "
         f"FROM clips c JOIN streamers s ON s.id = c.streamer_id WHERE {where} "
         f"ORDER BY {order} LIMIT ? OFFSET ?",
         [*params, limit, offset],
     ).fetchall()
 
 
-def _make_thumbnail(video: Path, target: Path) -> None:
+EDITED = "EXISTS (SELECT 1 FROM renders r WHERE r.clip_id = c.id AND r.path IS NOT NULL)"
+
+
+def _editing_count(c: sqlite3.Connection, config: cfg.Config) -> int:
+    """Saved clips whose phone version hasn't been made yet."""
+    from clipvault import jobs
+
+    return len(jobs.clips_to_render(c, config))
+
+
+def _make_thumbnail(video: Path, target: Path, width: int = 480) -> None:
     from clipvault.render import ffmpeg
 
     target.parent.mkdir(parents=True, exist_ok=True)
     try:
         ffmpeg._ffmpeg(
             ["-y", "-loglevel", "error", "-ss", "1", "-i", str(video), "-frames:v", "1",
-             "-vf", "scale=480:-2", "-q:v", "5", str(target)],
+             "-vf", f"scale={width}:-2", "-q:v", "5", str(target)],
             what="thumbnail",
         )  # fmt: skip
     except ffmpeg.RenderError as exc:

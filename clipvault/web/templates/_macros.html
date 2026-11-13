@@ -1,13 +1,13 @@
 {% macro clip_card(clip, csrf, snippet='') %}
-<article class="clip">
+<article class="clip{{ ' vertical-card' if clip.render_id }}">
   <a class="thumb" href="/clips/{{ clip.id|urlpart }}">
-    <img src="/thumb/{{ clip.id|urlpart }}" alt="" loading="lazy" width="480" height="270">
+    {% if clip.render_id %}<img src="/thumb/{{ clip.id|urlpart }}?kind=vertical&render={{ clip.render_id }}" alt="" loading="lazy" width="360" height="640">
+    {% else %}<img src="/thumb/{{ clip.id|urlpart }}" alt="" loading="lazy" width="480" height="270">{% endif %}
     <span class="len">{{ clip.duration|clock }}</span>
     {% if clip.source == 'vod_spike' %}<span class="badge chat">chat moment</span>{% elif clip.source == 'live_spike' %}<span class="badge chat">live moment</span>{% endif %}
-    {% if clip.renders %}<span class="badge vert">9:16</span>{% endif %}
   </a>
   <div class="meta">
-    <a href="/clips/{{ clip.id|urlpart }}" class="title">{{ clip.title or 'Untitled clip' }}</a>
+    <a href="/clips/{{ clip.id|urlpart }}" class="title">{{ clip.headline or clip.title or 'Untitled clip' }}</a>
     <div class="sub">{{ clip.display_name or clip.login }} · {{ (clip.created_at or '')[:10] }}{% if clip.view_count is not none %} · {{ '{:,}'.format(clip.view_count) }} view{{ 's' if clip.view_count != 1 }}{% endif %}</div>
     {% if snippet %}<div class="snippet">{{ snippet|highlight }}</div>{% endif %}
   </div>

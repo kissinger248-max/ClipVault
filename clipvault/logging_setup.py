@@ -119,4 +119,8 @@ def setup_logging(log_dir: Path, level: int = logging.INFO) -> Path:
     root.addHandler(console)
     for name in _NOISY_LOGGERS:
         logging.getLogger(name).setLevel(logging.WARNING)
+    # "Skipped: maximum number of running instances" just means a long round is
+    # still going (say, editing a backlog); that is expected, not a warning.
+    logging.getLogger("apscheduler.scheduler").setLevel(logging.ERROR)
+    logging.getLogger("apscheduler.executors").setLevel(logging.ERROR)
     return log_file_for(log_dir, datetime.now().strftime("%Y-%m-%d"))

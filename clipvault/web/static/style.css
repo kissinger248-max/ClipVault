@@ -162,3 +162,16 @@ mark { background: var(--mark); color: inherit; padding: 0 2px; }
 input[type=color] { padding: 4px; height: 44px; }
 input[type=range] { width: 100%; }
 .code { font-size: 1.3rem; letter-spacing: 2px; font-family: ui-monospace, monospace; }
+/* phone versions: vertical cards and player */
+.grid:has(.vertical-card) { grid-template-columns: repeat(2, 1fr); }
+@media (min-width: 700px) { .grid:has(.vertical-card) { grid-template-columns: repeat(4, 1fr); } }
+@media (min-width: 1000px) { .grid:has(.vertical-card) { grid-template-columns: repeat(5, 1fr); } }
+.vertical-card .thumb { aspect-ratio: 9 / 16; }
+.vertical-card .meta { padding: 8px 40px 10px 10px; }
+.vertical-card .meta .title { font-size: 0.9rem; }
+.vertical-card .star { right: 2px; bottom: 4px; }
+.viewer { display: flex; justify-content: center; }
+.phone-player { width: 100%; max-width: 420px; max-height: 78vh; aspect-ratio: 9 / 16; background: #000; border-radius: var(--radius); }
+.actions.center { justify-content: center; }
+details { margin: 12px 0; }
+details summary { cursor: pointer; font-weight: 600; padding: 8px 0; }

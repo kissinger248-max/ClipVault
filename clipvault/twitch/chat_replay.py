@@ -110,8 +110,12 @@ def download_chat(
         raise ChatUnavailable(f"could not start {TOOL}: {exc}") from exc
     if result.returncode != 0 or not raw.is_file():
         raw.unlink(missing_ok=True)
-        text = (result.stderr or result.stdout or "").strip().splitlines()
-        message = text[-1][:300] if text else f"{TOOL} exited with code {result.returncode}"
+        # The tool prints progress ("[STATUS] - Downloading 55%") to stdout; those lines
+        # say nothing about what went wrong.
+        output = (result.stderr or "") + "\n" + (result.stdout or "").replace("\r", "\n")
+        lines = [line for line in output.splitlines() if line.strip() and "[STATUS]" not in line]
+        fallback = f"{TOOL} stopped (exit code {result.returncode})"
+        message = lines[-1].strip()[:300] if lines else fallback
         permanent = any(marker in message.lower() for marker in _PERMANENT_MARKERS)
         raise ChatUnavailable(message, permanent=permanent)
     temp = dest.with_name(dest.name + ".tmp")

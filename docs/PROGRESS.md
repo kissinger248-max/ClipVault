@@ -404,3 +404,23 @@ The user chose not to post at all ("No, go to M14"), so M9 to M12 are skipped an
 - "Done when": the user logs in to Twitch once (Settings, Live chat, or `python -m clipvault twitch login`), leaves `run` going while one of the streamers is live, and at least one live moment is created and saved. Until then no real chat has been read through EventSub; subscribing to another channel's chat with a regular viewer's token is what the docs describe but is only proven by that first live run.
 
 **2026-11-13, later: user logged in.** `python -m clipvault twitch login` (device code, approved by the user at twitch.tv/activate) stored a user token. With it, a `channel.chat.message` subscription to a channel the user has no relation to (a 42,000-viewer live stream) was accepted, and 27 chat messages arrived in 20 seconds, about 0.4 s after they were sent. So a regular viewer token with `user:read:chat` can read any channel's chat. Still to see: one of the saved streamers live with `run` going, and a live moment saved and cut ("Done when").
+
+## 2026-11-13: the dashboard shows edited phone versions, made automatically
+
+User request: "i should be seeing edited clips in mobile format not the raw downloads, maybe have a button for 'see original' ... just want the newest clips edited in the best way and ready for me to view or save in the dashboard."
+
+**What changed**
+- **Every saved clip gets its phone version automatically** (`jobs.run_render`, in the worker step after transcription): best layout, headline, word-by-word captions, loudness, newest clips first, 3 per round, on mains power only. A clip that fails to render is remembered (`clips.render_error`, migration `0008_auto_render`) and not retried every round. Clips wait for their transcript, since the captions come from it.
+- **Dashboard shows only edited clips:** Home's newest clips and the Clips grid list clips that have a phone version, as 9:16 cards (2 columns on a phone, 4-5 on a computer) with a thumbnail taken from the phone version, so the headline and captions show. A line says how many are still being edited.
+- **Clip page:** the phone version plays first, with **Save video** (downloads the phone version), **See original** (the Twitch download, with Download original) and Star. Re-making with another layout, On Twitch and Delete moved under "More". The headline is the page title; the Twitch title is shown under it.
+- Storage estimate in Settings now includes the phone versions (about 36 MB each, so most of the space: about 10.5 GB a month per streamer at the defaults).
+- **Bug fixed:** phone versions carried a 1216:1215 pixel shape (from scaling 1280x720 to 1080x608), so players showed them 1081 wide. Renders now end with `setsar=1`; the ones made before were re-rendered.
+- Quieter console: APScheduler's "skipped: maximum number of running instances" (a long editing round still going) is no longer printed. The chat tool's error message no longer shows a progress line ("[STATUS] - Downloading 55%").
+
+**Verified**
+- `pytest -q`: 341 passed; ruff clean. New tests: newest-first render queue, failed render not retried, clip waiting for its transcript; dashboard lists only edited clips, counts the rest, phone version first, See original and back.
+- Live: after restarting `run`, the first worker round made 3 phone versions with no failures (QA passed on 2 of 3; the third was over 59 s, which only matters for posting). In the browser at phone size: the grid of vertical cards, a phone version playing at 1080x1920, See original playing the 1280x720 original.
+
+**Open issues**
+- Without an AI key the headlines are made from Twitch titles, and some are weak ("big", "smoke"). An AI key (`python -m clipvault secrets set llm_api_key --window`) would make them proper hooks.
+- About 125 clips were waiting to be edited at the time of the change; at 3 per 2-minute round that is roughly an hour and a half on mains power.

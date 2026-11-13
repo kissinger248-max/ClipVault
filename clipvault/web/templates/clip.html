@@ -1,41 +1,56 @@
 {% extends "base.html" %}
-{% block title %}{{ clip.title }} · ClipVault{% endblock %}
+{% block title %}{{ clip.headline or clip.title }} · ClipVault{% endblock %}
 {% block content %}
 <p><a href="/clips">← Clips</a></p>
+{% if not original %}
+<div class="viewer">
+  <video controls playsinline preload="metadata" class="phone-player"
+    poster="/thumb/{{ clip.id|urlpart }}?kind=vertical&render={{ clip.render_id }}"
+    src="/media/{{ clip.id|urlpart }}?kind=vertical&r={{ clip.render_id }}"></video>
+</div>
+<div class="actions center">
+  <a class="button primary" href="/media/{{ clip.id|urlpart }}?kind=vertical&download=1">Save video</a>
+  <a class="button" href="/clips/{{ clip.id|urlpart }}?view=original">See original</a>
+  <form method="post" action="/clips/{{ clip.id|urlpart }}/star"><input type="hidden" name="csrf" value="{{ csrf }}">
+    <button>{{ '★ Starred' if clip.starred else '☆ Star' }}</button></form>
+</div>
+{% else %}
 <video controls playsinline preload="metadata" poster="/thumb/{{ clip.id|urlpart }}" class="player">
   <source src="/media/{{ clip.id|urlpart }}" type="video/mp4">
 </video>
-<p class="muted small">Doesn't play? Some browsers can't play Twitch's newer video format; use Download, or the vertical copy below.</p>
-<h1>{{ clip.title or 'Untitled clip' }}</h1>
+<p class="muted small">This is the original from Twitch. Some browsers can't play Twitch's newer video format; Download still works.</p>
+<div class="actions">
+  {% if clip.render_id %}<a class="button primary" href="/clips/{{ clip.id|urlpart }}">See phone version</a>{% endif %}
+  <a class="button" href="/media/{{ clip.id|urlpart }}?download=1">Download original</a>
+  <form method="post" action="/clips/{{ clip.id|urlpart }}/star"><input type="hidden" name="csrf" value="{{ csrf }}">
+    <button>{{ '★ Starred' if clip.starred else '☆ Star' }}</button></form>
+</div>
+{% if not clip.render_id %}<p class="muted">The phone version of this clip is still being made.</p>{% endif %}
+{% endif %}
+<h1>{{ clip.headline or clip.title or 'Untitled clip' }}</h1>
 <p class="sub">{{ clip.display_name or clip.login }} · {{ (clip.created_at or '')[:16]|replace('T', ' ') }} UTC
   {% if clip.view_count is not none %}· {{ '{:,}'.format(clip.view_count) }} view{{ 's' if clip.view_count != 1 }}{% endif %}
   · {{ clip.duration|clock }}{% if clip.game_name %} · {{ clip.game_name }}{% endif %}
-  {% if clip.source == 'vod_spike' %}· chat moment{% endif %}
-  {% if clip.reject_reason == 'muted' %}· <b>no sound (muted by Twitch)</b>{% endif %}</p>
-<div class="actions">
-  <form method="post" action="/clips/{{ clip.id|urlpart }}/star"><input type="hidden" name="csrf" value="{{ csrf }}">
-    <button>{{ '★ Starred' if clip.starred else '☆ Star' }}</button></form>
-  <a class="button" href="/media/{{ clip.id|urlpart }}?download=1">Download</a>
-  {% if clip.url %}<a class="button" href="{{ clip.url }}" target="_blank" rel="noopener">On Twitch</a>{% endif %}
-  <form method="post" action="/clips/{{ clip.id|urlpart }}/delete" data-confirm="Delete this clip's files? It won't be downloaded again.">
-    <input type="hidden" name="csrf" value="{{ csrf }}">
-    <button class="danger" {{ 'disabled title="Starred clips are kept"' if clip.starred }}>Delete</button></form>
-</div>
-<h2>Vertical copy for phones</h2>
-{% if rendering %}<p class="busy" data-reload="5">Making it now… this page refreshes by itself.</p>
-{% else %}
-  {% if render_error %}<p class="error">{{ render_error }}</p>{% endif %}
-  {% for r in renders %}{% if r.path %}
-  <div class="vertical">
-    <video controls playsinline preload="metadata" src="/media/{{ clip.id|urlpart }}?kind=vertical"></video>
-    <p class="sub">{{ r.layout }} layout · quality check {{ 'passed' if r.qa_passed else 'flagged something' }} · <a href="/media/{{ clip.id|urlpart }}?kind=vertical&download=1">Download</a></p>
+  {% if clip.source == 'vod_spike' %}· chat moment{% elif clip.source == 'live_spike' %}· live moment{% endif %}
+  {% if clip.reject_reason == 'muted' %}· <b>no sound (muted by Twitch)</b>{% endif %}
+  {% if clip.headline and clip.title and clip.headline != clip.title %}<br>Twitch title: {{ clip.title }}{% endif %}</p>
+{% if transcript %}<details><summary>What was said</summary><p class="transcript">{{ transcript }}</p></details>{% endif %}
+<details class="more">
+  <summary>More</summary>
+  {% if rendering %}<p class="busy" data-reload="5">Making a new phone version… this page refreshes by itself.</p>
+  {% else %}
+    {% if render_error %}<p class="error">{{ render_error }}</p>{% endif %}
+    <form method="post" action="/clips/{{ clip.id|urlpart }}/vertical" class="row">
+      <input type="hidden" name="csrf" value="{{ csrf }}">
+      <select name="layout" aria-label="Layout"><option value="">Best layout</option><option value="letterbox">Whole picture</option><option value="split">Facecam on top</option></select>
+      <button>{{ 'Make it again' if clip.render_id else 'Make phone version now' }}</button>
+    </form>
+  {% endif %}
+  <div class="actions">
+    {% if clip.url %}<a class="button" href="{{ clip.url }}" target="_blank" rel="noopener">On Twitch</a>{% endif %}
+    <form method="post" action="/clips/{{ clip.id|urlpart }}/delete" data-confirm="Delete this clip and its phone version? It won't be downloaded again.">
+      <input type="hidden" name="csrf" value="{{ csrf }}">
+      <button class="danger" {{ 'disabled title="Starred clips are kept"' if clip.starred }}>Delete</button></form>
   </div>
-  {% endif %}{% endfor %}
-  <form method="post" action="/clips/{{ clip.id|urlpart }}/vertical" class="row">
-    <input type="hidden" name="csrf" value="{{ csrf }}">
-    <select name="layout" aria-label="Layout"><option value="">Best layout</option><option value="letterbox">Letterbox</option><option value="split">Split (facecam on top)</option></select>
-    <button class="primary">{{ 'Make again' if renders else 'Make vertical copy' }}</button>
-  </form>
-{% endif %}
-{% if transcript %}<h2>What was said</h2><p class="transcript">{{ transcript }}</p>{% endif %}
+</details>
 {% endblock %}

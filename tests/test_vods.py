@@ -248,3 +248,13 @@ def test_piece_offsets_counted_from_the_piece_are_moved_to_vod_time(tmp_path) ->
         '{"comments": [{"content_offset_seconds": 14412, "message": {"body": "x"}}]}'
     )
     assert chat_replay.load_chat(absolute, 14400)[0].offset == 14412
+
+
+def test_chat_tool_progress_lines_are_not_used_as_the_error(tmp_path) -> None:
+    from clipvault.twitch import chat_replay
+
+    stopped = FakeProcess(returncode=1)
+    stopped.stdout = "[STATUS] - Downloading 10%\r[STATUS] - Downloading 55%"
+    with pytest.raises(ChatUnavailable) as caught:
+        chat_replay.download_chat(TOOL, "v3", tmp_path / "v3.json.gz", runner=stopped)
+    assert str(caught.value) == "TwitchDownloaderCLI stopped (exit code 1)"

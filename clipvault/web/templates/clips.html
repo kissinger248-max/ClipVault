@@ -18,7 +18,7 @@
   <label class="check"><input type="checkbox" name="starred" value="1" {{ 'checked' if filters.starred }}> Starred</label>
   <button>Show</button>
 </form>
-<p class="muted">{{ '{:,}'.format(total) }} clip{{ 's' if total != 1 }}{% if filters.q %} saying “{{ filters.q }}”{% endif %}.</p>
+<p class="muted">{{ '{:,}'.format(total) }} clip{{ 's' if total != 1 }}{% if filters.q %} saying “{{ filters.q }}”{% endif %}{% if editing %} · {{ editing }} more being edited{% endif %}.</p>
 <div class="grid">{% for clip in clips %}{{ clip_card(clip, csrf, snippets.get(clip.id, '')) }}{% endfor %}</div>
 {% if pages > 1 %}
 <nav class="pager">
