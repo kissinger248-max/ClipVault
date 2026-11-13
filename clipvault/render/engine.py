@@ -165,7 +165,7 @@ def render_clip(
     )
     mask = transcribe.mask_pattern(transcribe.load_mask_words())
     if headline is None:
-        headline = fit_headline(default_headline(clip["title"]), look)
+        headline = clip["headline"] or fit_headline(default_headline(clip["title"]), look)
     disclosure = None
     if streamer["permission_type"] == "campaign":
         disclosure = f"#ad Paid partnership with @{clip['login']}"
@@ -249,6 +249,78 @@ def render_clip(
         ),
     )
     return RenderResult(render_id, clip_id, chosen, relpath, dest, headline, report, seconds)
+
+
+def preview_clip(conn: sqlite3.Connection, layout: str) -> sqlite3.Row | None:
+    """A recent saved clip that suits ``layout`` (for the Look editor), or None."""
+    query = (
+        "SELECT c.*, s.login, s.cam_rect, s.content_rect FROM clips c "
+        "JOIN streamers s ON s.id = c.streamer_id WHERE c.file_path IS NOT NULL "
+        "AND c.removed_at IS NULL AND c.state NOT IN ('found', 'rejected', 'dead') "
+        "AND c.transcript_path IS NOT NULL AND c.duration >= 8"
+    )
+    order = "c.speech_wps DESC, c.created_at DESC"
+    if layout == layouts.SPLIT:
+        # Only a confirmed cam (a stored one that keeps missing the face is reset
+        # to unchecked), and a clip already rendered in this layout if there is one.
+        query += " AND s.cam_rect IS NOT NULL AND s.layout_checked_at IS NOT NULL"
+        order = (
+            "EXISTS (SELECT 1 FROM renders r WHERE r.clip_id = c.id AND r.layout = 'split') DESC, "
+            + order
+        )
+    elif layout == layouts.NATIVE:
+        query += " AND c.portrait_path IS NOT NULL"
+    return conn.execute(f"{query} ORDER BY {order} LIMIT 1").fetchone()
+
+
+def preview_frame(
+    conn: sqlite3.Connection, config: cfg.Config, look: Look, layout: str, dest: Path
+) -> Path:
+    """Draw one frame of a recent clip in ``layout`` with the look's text, as a JPEG.
+
+    Used by the Look editor: much faster than a full render, and nothing is saved
+    in the library. Raises ``RenderError`` when no saved clip suits the layout.
+    """
+    clip = preview_clip(conn, layout)
+    if clip is None:
+        raise RenderError(f"no saved clip suits the {layout} layout yet")
+    library = storage.open_library(conn, config)
+    video = storage.resolve(
+        library, clip["portrait_path" if layout == layouts.NATIVE else "file_path"]
+    )
+    if video is None:
+        raise RenderError("the preview clip's file is not in the library")
+    info = ffmpeg.probe(video)
+    if layout == layouts.NATIVE:
+        plan = layouts.native(look)
+    elif layout == layouts.SPLIT:
+        plan = layouts.split(info, Rect.from_json(clip["cam_rect"]),
+                             Rect.from_json(clip["content_rect"]), None, look)  # fmt: skip
+    else:
+        plan = layouts.letterbox(info, look)
+    original = storage.resolve(library, clip["file_path"])
+    words = _read_transcript(original).words if original else ()
+    headline = clip["headline"] or fit_headline(default_headline(clip["title"]), look)
+    overlay = build_overlay(look=look, layout=layout, duration=info.duration, headline=headline,
+                            login=clip["login"], words=words)  # fmt: skip
+    # Show a moment with a caption on screen, a little into the first block.
+    moment = min(overlay.blocks[0].start + 0.15, info.duration - 0.1) if overlay.blocks else 1.0
+    dest.parent.mkdir(parents=True, exist_ok=True)
+    with tempfile.TemporaryDirectory(prefix="clipvault-preview-") as folder:
+        work = Path(folder)
+        (work / "overlay.ass").write_text(overlay.ass, encoding="utf-8")
+        shutil.copytree(FONTS_DIR, work / "fonts", ignore=shutil.ignore_patterns("*.txt", ".*"))
+        graph = f"[0:v]{plan.video_filter}[base];[base]subtitles=overlay.ass:fontsdir=fonts[v]"
+        ffmpeg._ffmpeg(
+            ["-y", "-loglevel", "error", "-i", str(video), "-ss", f"{max(moment, 0):.3f}",
+             "-filter_complex", graph, "-map", "[v]", "-frames:v", "1", "-q:v", "3",
+             str(dest.resolve())],
+            cwd=work,
+            what="look preview",
+        )  # fmt: skip
+    if not dest.is_file():
+        raise RenderError("FFmpeg made no preview picture")
+    return dest
 
 
 def _read_transcript(video: Path) -> Transcript:

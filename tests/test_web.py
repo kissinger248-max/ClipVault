@@ -129,9 +129,9 @@ def test_session_expires_and_password_change_logs_everyone_out() -> None:
 def test_first_visit_after_login_goes_to_the_wizard(client) -> None:
     login(client)
     assert client.get("/").headers["location"] == "/setup/1"
-    for step in range(1, 6):
+    for step in range(1, 7):
         page = client.get(f"/setup/{step}")
-        assert page.status_code == 200 and f"Step {step} of 5" in page.text
+        assert page.status_code == 200 and f"Step {step} of 6" in page.text
 
 
 def test_home_clips_and_clip_pages_show_saved_clips(client, home, library) -> None:
@@ -293,3 +293,41 @@ def test_reset_password_command_forgets_the_password(capsys) -> None:
     auth.set_password(PASSWORD)
     assert main(["panel", "reset-password"]) == 0
     assert not auth.has_password() and cfg.get_secret("panel_session_key") is None
+
+
+def test_look_is_saved_and_previews_are_cached(client, home, library, monkeypatch) -> None:
+    from clipvault.render import engine
+
+    login(client)
+    token = csrf(client)
+    client.post(
+        "/settings/look",
+        data={"csrf": token, "style": "outline", "accent": "#ff0055", "size": "80"},
+    )
+    look = cfg.load_config(home / "config.yaml").look
+    assert (look.headline_style, look.accent, look.caption_size) == ("outline", "#FF0055", 80)
+    bad = client.post("/settings/look", data={"csrf": token, "size": "200"})
+    assert "Not+saved" in bad.headers["location"]
+    # No saved clip yet: a grey placeholder instead of an error.
+    assert client.get("/look/preview/letterbox.jpg").headers["content-type"] == "image/svg+xml"
+    assert client.get("/look/preview/nonsense.jpg").headers["content-type"] == "image/svg+xml"
+
+    conn = db.open_db(home / "clipvault.db")
+    add_streamer(conn, "alpha")
+    saved_clip(conn, library)
+    conn.close()
+    drawn: list[tuple] = []
+
+    def fake_frame(conn, config, look, layout, dest):
+        drawn.append((layout, look.headline_style, look.accent, look.caption.size))
+        dest.parent.mkdir(parents=True, exist_ok=True)
+        dest.write_bytes(b"\xff\xd8jpeg")
+        return dest
+
+    monkeypatch.setattr(engine, "preview_frame", fake_frame)
+    query = "style=box&accent=%2300FF00&size=64"
+    first = client.get(f"/look/preview/letterbox.jpg?{query}")
+    again = client.get(f"/look/preview/letterbox.jpg?{query}")
+    assert first.headers["content-type"] == "image/jpeg" and again.content == first.content
+    assert drawn == [("letterbox", "box", "#00FF00", 64)]  # made once, then served from cache
+    assert "Look of vertical videos" in client.get("/settings").text

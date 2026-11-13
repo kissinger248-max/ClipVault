@@ -155,3 +155,9 @@ mark { background: var(--mark); color: inherit; padding: 0 2px; }
 .qr { width: 200px; max-width: 70%; background: #fff; padding: 8px; border-radius: 8px; margin: 8px 0 12px; }
 .qr svg { width: 100%; height: auto; display: block; }
 .card > h2:first-child, .card > h1:first-child { margin-top: 0; }
+.previews { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin: 8px 0; }
+.previews figure { margin: 0; }
+.previews img { width: 100%; aspect-ratio: 9 / 16; object-fit: cover; border-radius: 8px; background: #000; display: block; }
+.previews figcaption { font-size: 0.75rem; color: var(--muted); text-align: center; margin-top: 4px; }
+input[type=color] { padding: 4px; height: 44px; }
+input[type=range] { width: 100%; }

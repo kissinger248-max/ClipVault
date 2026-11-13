@@ -1,0 +1,17 @@
+{
+  "id": "chatcmpl-made-up-for-tests",
+  "object": "chat.completion",
+  "created": 1794560000,
+  "model": "openai/gpt-oss-20b",
+  "choices": [
+    {
+      "index": 0,
+      "message": {
+        "role": "assistant",
+        "content": "{\"headline\": \"Kai Loses It Over Cops\", \"post_caption\": \"The chase did not go to plan.\", \"hashtags\": [\"gta\", \"#KaiCenat\", \"twitch\", \"funny\"]}"
+      },
+      "finish_reason": "stop"
+    }
+  ],
+  "usage": {"prompt_tokens": 412, "completion_tokens": 48, "total_tokens": 460}
+}

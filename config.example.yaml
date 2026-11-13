@@ -22,6 +22,11 @@ look:
   template: default
   accent: "#FFD400"
   headline_style: box     # box | outline
+  caption_size: 72        # 56 to 96 px
+llm:                       # writes hook headlines; needs an API key: secrets set llm_api_key
+  provider: groq
+  model: openai/gpt-oss-20b
+  base_url: https://api.groq.com/openai/v1
 notifications:
   quiet_hours: ["23:00", "08:00"]    # phone notifications wait until the end of these
   summary_time: "09:00"              # daily summary

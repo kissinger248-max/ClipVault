@@ -95,6 +95,7 @@ python -m clipvault vods [--streamer LOGIN] [--limit N]    # chat of finished st
 python -m clipvault cleanup [--dry-run]       # retention, disk check, files deleted by hand
 python -m clipvault transcribe [--streamer LOGIN] [--limit N]   # subtitles + word timings for saved clips
 python -m clipvault search WORDS... [--limit N]   # find clips by what was said
+python -m clipvault headlines [--streamer LOGIN] [--limit 20]   # AI hook headlines for the best clips (needs llm_api_key)
 python -m clipvault render [CLIP_ID] [--layout letterbox|split|native] [--headline TEXT] [--streamer LOGIN] [--limit N]   # vertical 9:16 copy + QA
 python scripts/twitch_live_check.py LOGIN...  # manual live check of the Twitch API (needs real keys)
 pytest -q

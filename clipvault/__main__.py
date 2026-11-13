@@ -56,6 +56,10 @@ def build_parser() -> argparse.ArgumentParser:
     search.add_argument("words", nargs="+", help="the words or phrase to look for")
     search.add_argument("--limit", metavar="N", type=int, default=10, help="results to show")
 
+    headlines = sub.add_parser("headlines", help="write hook headlines for the best clips (AI)")
+    headlines.add_argument("--streamer", metavar="LOGIN", help="only this streamer")
+    headlines.add_argument("--limit", metavar="N", type=int, default=20, help="clips to write")
+
     render = sub.add_parser("render", help="make phone-ready vertical videos with captions")
     render.add_argument("clip_id", nargs="?", help="one clip; leave out to render the top clips")
     render.add_argument("--layout", choices=("letterbox", "split", "native"))
@@ -121,6 +125,7 @@ def main(argv: list[str] | None = None) -> int:
         "transcribe": _cmd_transcribe,
         "render": _cmd_render,
         "search": _cmd_search,
+        "headlines": _cmd_headlines,
         "streamers": _cmd_streamers,
         "secrets": _cmd_secrets,
         "run": _cmd_run,
@@ -334,6 +339,32 @@ def _cmd_render(args: argparse.Namespace) -> int:
         conn.close()
     print(f"\nPreview pictures with the phone buttons drawn in: {cfg.home_dir() / 'qa'}")
     return 1 if failed else 0
+
+
+def _cmd_headlines(args: argparse.Namespace) -> int:
+    from clipvault import jobs
+    from clipvault.process import write
+    from clipvault.streamers import normalize_login
+
+    config = cfg.load_config()
+    provider = write.build_provider(config)
+    if provider is None:
+        print("Headlines are written by an AI model, which needs an API key (Groq by default).")
+        print("Store one with: python -m clipvault secrets set llm_api_key --window")
+        print("Until then every vertical video uses a headline made from the clip's title.")
+        return 1
+    login = normalize_login(args.streamer) if args.streamer else None
+    conn = db.open_db(cfg.db_path())
+    try:
+        summary = jobs.run_write(conn, config, provider, login=login, limit=args.limit)
+    finally:
+        conn.close()
+    for clip_id, streamer, headline in summary.examples:
+        _say(f"{streamer:<16} {headline}    ({clip_id})")
+    print(f"\n{summary.written} headline(s) written; {summary.unusable} clip(s) got no usable one.")
+    for error in summary.errors:
+        print(f"Problem: {error}")
+    return 1 if summary.errors else 0
 
 
 def _cmd_search(args: argparse.Namespace) -> int:

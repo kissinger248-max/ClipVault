@@ -16,7 +16,7 @@ YouTube Shorts. See [docs/SPEC.md](docs/SPEC.md) for what it does and
 | Control panel | Browser and phone screens, tray icon | Working (M5) |
 | Subtitles | Transcripts with word-by-word timing, searchable | Working (M6) |
 | Phone-ready video | Vertical 9:16 versions with a headline and captions kept clear of TikTok and Shorts buttons | Working (M7), waiting for a check on a real phone |
-| Headlines and look | Hook headline writer, style editor with live preview | M8 |
+| Headlines and look | Hook headline writer, style editor with live preview | Built (M8); headlines need an AI key |
 | Posting | TikTok and YouTube Shorts, only for streamers who gave permission | M9 onward |
 
 The exact rules for the phone-ready video (sizes, fonts, caption timing, safe
@@ -208,6 +208,7 @@ python -m clipvault cleanup [--dry-run]            # retention, disk check, hand
 python -m clipvault transcribe [--streamer LOGIN] [--limit N]   # subtitles for saved clips
 python -m clipvault search WORDS...                # find clips by what was said
 python -m clipvault render [CLIP_ID] [--streamer LOGIN] [--limit N]   # phone-ready vertical copies
+python -m clipvault headlines [--limit 20]         # AI hook headlines for the best clips
 python scripts/twitch_live_check.py LOGIN...       # manual check against the real Twitch API
 pytest -q                                          # run the tests
 ruff check . && ruff format --check .

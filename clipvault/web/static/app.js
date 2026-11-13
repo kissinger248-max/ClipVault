@@ -15,6 +15,24 @@ document.addEventListener("DOMContentLoaded", () => {
   if (busy) {
     window.setTimeout(() => window.location.reload(), Number(busy.dataset.reload) * 1000);
   }
+  // Look editor: refresh the three previews when a control changes.
+  const look = document.querySelector("[data-look-form]");
+  if (look) {
+    const update = () => {
+      const data = new FormData(look);
+      const query = new URLSearchParams({
+        style: data.get("style"), accent: data.get("accent"), size: data.get("size"),
+      });
+      const label = look.querySelector("[data-size-label]");
+      if (label) label.textContent = `${data.get("size")} px`;
+      look.querySelectorAll("img[data-layout]").forEach((img) => {
+        img.src = `/look/preview/${img.dataset.layout}.jpg?${query}`;
+      });
+    };
+    look.querySelectorAll("select, input[type=color], input[type=range]").forEach((input) => {
+      input.addEventListener("change", update);
+    });
+  }
   // Keep the flash message out of the address bar after reading it.
   if (window.location.search.includes("msg=")) {
     const url = new URL(window.location.href);

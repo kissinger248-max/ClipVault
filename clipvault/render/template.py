@@ -52,6 +52,11 @@ def load_look(config: cfg.Config | None = None) -> Look:
             values = _merge(values, yaml.safe_load(path.read_text(encoding="utf-8")) or {})
         values["accent"] = config.look.accent
         values["headline_style"] = config.look.headline_style
+        if config.look.caption_size != cfg.LookConfig().caption_size:  # set by the user
+            # Bigger captions also need a bigger lower limit for over-long words.
+            values["caption"] = {**values["caption"], "size": config.look.caption_size,
+                                 "min_size": min(values["caption"].get("min_size", 56),
+                                                 config.look.caption_size)}  # fmt: skip
     values.setdefault("headline_style", "box")
     return Look(values)
 

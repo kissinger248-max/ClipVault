@@ -22,7 +22,7 @@ from clipvault.fetch import ytdlp
 from clipvault.fetch.ytdlp import DownloadError
 from clipvault.library import retention, storage
 from clipvault.logging_setup import ctx
-from clipvault.process import transcribe
+from clipvault.process import transcribe, write
 from clipvault.process.filter import Span, find_duplicates
 from clipvault.timeutil import parse_rfc3339, to_rfc3339, utc_now
 
@@ -469,3 +469,134 @@ def _transcribe_video(
         except transcribe.NoAudio:
             return transcribe.Transcript("", (), None, "none")
         return transcribe.transcribe_audio(audio, providers, language)
+
+
+# --- write: transcribed -> written (SPEC §9) ---------------------------------------
+
+WRITE_JOB = "write"
+
+
+@dataclass
+class WriteSummary:
+    """What one headline-writing run did."""
+
+    written: int = 0
+    rejected: int = 0
+    unusable: int = 0  # no valid answer, clip kept (archive use)
+    errors: list[str] = field(default_factory=list)
+    examples: list[tuple[str, str, str]] = field(default_factory=list)  # (clip, login, headline)
+
+
+def clip_facts(
+    conn: sqlite3.Connection, library: storage.Library, clip: sqlite3.Row
+) -> write.ClipFacts:
+    """Everything the headline writer may use for one clip."""
+    from clipvault.process import write
+
+    words: tuple[transcribe.Word, ...] = ()
+    video = storage.resolve(library, clip["file_path"])
+    if video is not None:
+        transcript = _load_transcript(video.with_suffix(".words.json"))
+        if transcript is not None:
+            words = transcript.words
+    mask = transcribe.mask_pattern(transcribe.load_mask_words())
+    lines = [
+        (cue.start, transcribe.mask_text(cue.text, mask))
+        for cue in transcribe.cues_from_words(words)
+    ]
+    streamer = conn.execute(
+        "SELECT * FROM streamers WHERE id = ?", (clip["streamer_id"],)
+    ).fetchone()
+    disclosure = None
+    if streamer["permission_type"] == "campaign":
+        disclosure = f"#ad Paid partnership with @{streamer['login']}"
+    return write.ClipFacts(
+        login=streamer["login"],
+        display_name=streamer["display_name"] or streamer["login"],
+        title=clip["title"] or "",
+        game=clip["game_name"] or "",
+        transcript=lines,
+        disclosure=disclosure,
+    )
+
+
+def write_for_clip(
+    conn: sqlite3.Connection,
+    config: Config,
+    clip_id: str,
+    provider: write.Provider,
+    *,
+    reject_on_failure: bool = False,
+) -> write.Copy | None:
+    """Write and store a clip's headline, caption and hashtags; None when no valid answer came.
+
+    ``reject_on_failure`` (the posting pipeline) marks such a clip ``rejected``
+    with reason ``headline``; for the private archive the clip simply keeps its
+    stand-in headline. Raises ``write.LLMError`` when the model can't be reached.
+    """
+    from clipvault.process import write
+    from clipvault.render.ass import layout_headline
+    from clipvault.render.template import load_look
+
+    clip = conn.execute("SELECT * FROM clips WHERE id = ?", (clip_id,)).fetchone()
+    if clip is None:
+        raise KeyError(clip_id)
+    library = storage.open_library(conn, config)
+    facts = clip_facts(conn, library, clip)
+    look = load_look(config)
+    blocked = transcribe.mask_pattern(transcribe.load_mask_words())
+    copy, problems = write.write_copy(
+        facts, provider, blocked=blocked, fits=lambda text: layout_headline(text, look).fits
+    )
+    log_ctx = ctx(clip=clip_id, streamer=facts.login, job=WRITE_JOB)
+    if copy is None:
+        log.warning("no usable headline: %s", "; ".join(problems), extra=log_ctx)
+        if reject_on_failure:
+            conn.execute(
+                "UPDATE clips SET state = 'rejected', reject_reason = 'headline', last_error = ? "
+                "WHERE id = ?",
+                ("; ".join(problems)[:1000], clip_id),
+            )
+        return None
+    conn.execute(
+        "UPDATE clips SET headline = ?, post_caption = ?, hashtags_json = ?, copy_provider = ?, "
+        "state = CASE WHEN state = 'transcribed' THEN 'written' ELSE state END WHERE id = ?",
+        (copy.headline, copy.post_caption, copy.hashtags_json(), copy.provider, clip_id),
+    )
+    log.info("headline written: %s", copy.headline, extra=log_ctx)
+    return copy
+
+
+def run_write(
+    conn: sqlite3.Connection,
+    config: Config,
+    provider: write.Provider,
+    *,
+    login: str | None = None,
+    limit: int = 20,
+    reject_on_failure: bool = False,
+) -> WriteSummary:
+    """Write headlines for the best-scoring transcribed clips that have none yet."""
+    from clipvault.process import candidates, write
+
+    summary = WriteSummary()
+    ranked = candidates.rank_candidates(conn, login=login, unrendered_only=False)
+    have = {r[0] for r in conn.execute("SELECT id FROM clips WHERE headline IS NOT NULL")}
+    states = {r[0]: r[1] for r in conn.execute("SELECT id, state FROM clips")}
+    todo = [c for c in ranked if c.clip_id not in have and states.get(c.clip_id) == "transcribed"]
+    for candidate in todo[:limit]:
+        try:
+            copy = write_for_clip(conn, config, candidate.clip_id, provider,
+                                  reject_on_failure=reject_on_failure)  # fmt: skip
+        except write.LLMError as exc:
+            summary.errors.append(str(exc))
+            break  # the service is down or refusing: no point trying the next clip
+        if copy is None:
+            if reject_on_failure:
+                summary.rejected += 1
+            else:
+                summary.unusable += 1
+            continue
+        summary.written += 1
+        summary.examples.append((candidate.clip_id, candidate.login, copy.headline))
+    return summary

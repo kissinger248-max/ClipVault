@@ -334,3 +334,30 @@ Built ahead of M3 to M5 at the user's request ("Phone-ready video"). Both milest
 **Open issues and things to watch**
 - HEVC playback: Chromium on this Windows laptop plays the clips; Firefox and some Android browsers may not. The clip page says so and offers Download and the vertical (H.264) copy.
 - The Look editor and Queue screens come with M8 and M9.
+
+## 2026-11-13: M8 (hook headline writer and the Look editor), built; waiting for an AI key
+
+**What changed**
+- `clipvault/process/write.py`: provider interface (`complete(messages) -> text`) with one implementation for any OpenAI-style chat endpoint, Groq by default. Prompt with every SPEC 9 rule; answers checked in code: JSON shape, headline at most 6 words, no emoji, no BREAKING/LEAKED/BANNED/EXPOSED/CONFIRMED/OFFICIAL unless said in the clip or title, mask-list words blocked, headline must fit the on-screen box (2 lines at 64 px or more), credit `@login on Twitch` added if missing, campaign disclosure put first, hashtags cleaned to 3-5 lowercase words. A rejected answer is asked for again with the reasons (3 tries).
+- `jobs.write_for_clip` / `run_write`: headline, post caption and hashtags stored on the clip (migration `0007_copy`), state `transcribed -> written`. The posting pipeline (M9) will pass `reject_on_failure=True` (clip `rejected`, reason `headline`); for the private archive a clip without a usable answer keeps its stand-in headline and stays visible.
+- Renders use the clip's written headline, then the stand-in from the title.
+- `python -m clipvault headlines [--streamer] [--limit 20]` writes and lists them for review.
+- Look editor (Settings and wizard step 5 of 6): headline style (white box / outlined text), highlight colour, caption size 56-96 px, with previews of the three layouts on a recent real clip, redrawn when a control changes. `engine.preview_frame` draws one frame with FFmpeg in about 0.5 s; previews are cached under `<home>/cache/look/`. Config: `look.caption_size`, `llm.provider/model/base_url`.
+
+**Decisions worth knowing**
+- **Default model `openai/gpt-oss-20b` on Groq**, docs checked 2026-11-13: production model, supports strict `json_schema` output (so answers are always valid JSON), $0.075 / $0.30 per million tokens in/out, about 500 tokens per headline, so roughly $0.0001 each. Other models get `json_object` mode. `max_completion_tokens` (Groq deprecated `max_tokens`). 429 answers are waited out using `retry-after` (at most 60 s, twice).
+- **Key:** `llm_api_key`, or `groq_api_key` if only that one is stored (one Groq key covers transcription and headlines).
+- A model that can't be reached stops the run (`LLMError`) instead of burning through every clip; it is not the clip's fault and the clip is not rejected.
+- The written copy lives on the clip, not on a render, so every layout and every post of a clip uses the same words.
+- **Look preview bug found and fixed:** the split preview picked valkyrae, whose stored cam rectangle had already failed 3 face checks (so it points at her chat). Real renders were never affected (each clip is checked); the preview now only uses confirmed cams and prefers a clip already rendered as split.
+
+**Verified**
+- `pytest -q`: 321 passed. `ruff check .` and `ruff format --check .`: clean. 18 writer tests (rule checks, retries with reasons, giving up, Groq request shape against a made-up recorded answer in `tests/fixtures/groq/chat_completion.json`, 429 wait, 401 message, storing, rejecting for posting, unreachable model) and a Look editor test (save, validation, placeholder, cache).
+- Real clips: previews for letterbox and split in 0.5 s each; box and outline styles checked by eye; the Look section works in the browser and redraws on change.
+
+**Not done yet (needs the user)**
+- No AI key is stored (paid services need the user's OK), so no real headline has been written. "Done when": with a key, run `python -m clipvault headlines --limit 20`, the user reviews them (at most 2 rejected as misleading or dull), and prompt changes are recorded here.
+
+**Open issues and things to watch**
+- valkyrae's facecam detection is wrong (it found a box above her chat). Real renders fall back to letterbox, but split will not be used for her until a re-detection finds the real cam; the detector may need a better grow-to-border step for cams without a frame. xqc's split crop includes a strip of chat under his camera.
+- "Twitch's own vertical" preview shows a placeholder: none of the 3 streamers' saved clips has a portrait version.

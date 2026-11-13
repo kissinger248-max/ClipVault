@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import re
 import socket
 from collections.abc import Callable
 from pathlib import Path
@@ -17,7 +18,8 @@ from clipvault.web import auth
 # Measured in M2 and M4 on real clips (MB): a 30 s clip, and a 40 s chat moment cut from a VOD.
 CLIP_MB = {"720p": 5.3, "1080p": 9.6}
 MOMENT_MB = {"720p": 16.0, "1080p": 30.0}
-WIZARD_STEPS = 5  # mode, Twitch, streamers, storage, phone
+WIZARD_STEPS = 6  # mode, Twitch, streamers, storage, look, phone
+_COLOR = re.compile(r"^#[0-9A-Fa-f]{6}$")
 
 
 def estimate_gb_per_month(streamers: list[dict], quality: str) -> float:
@@ -216,6 +218,65 @@ def register(
         except ValueError as exc:
             return back("/settings#password", str(exc).capitalize() + ".")
         return back("/login", "Password changed. Log in again (other devices are logged out too).")
+
+    # --- look editor ----------------------------------------------------------------------
+
+    @app.get("/look/preview/{layout}.jpg")
+    def look_preview(layout: str, style: str = "", accent: str = "", size: int = 0):
+        import dataclasses
+        import hashlib
+
+        from fastapi.responses import FileResponse
+
+        from clipvault.render import engine, layouts
+        from clipvault.render.ffmpeg import RenderError
+        from clipvault.render.template import load_look
+
+        fallback = FileResponse(Path(__file__).parent / "static" / "no-thumb.svg",
+                                media_type="image/svg+xml")  # fmt: skip
+        if layout not in (layouts.LETTERBOX, layouts.SPLIT, layouts.NATIVE):
+            return fallback
+        current = config()
+        wanted = dataclasses.replace(
+            current.look,
+            headline_style=style if style in ("box", "outline") else current.look.headline_style,
+            accent=accent if _COLOR.match(accent or "") else current.look.accent,
+            caption_size=size if 56 <= size <= 96 else current.look.caption_size,
+        )
+        look = load_look(dataclasses.replace(current, look=wanted))
+        c = conn()
+        try:
+            clip = engine.preview_clip(c, layout)
+            if clip is None:
+                return fallback
+            key = f"{layout}|{clip['id']}|{wanted}|{clip['headline']}".encode()
+            dest = home / "cache" / "look" / f"{hashlib.sha1(key).hexdigest()[:16]}.jpg"
+            if not dest.is_file():
+                try:
+                    engine.preview_frame(c, current, look, layout, dest)
+                except RenderError:
+                    return fallback
+        finally:
+            c.close()
+        return FileResponse(dest, media_type="image/jpeg")
+
+    @app.post("/settings/look")
+    def save_look(
+        style: str = Form("box"),
+        accent: str = Form("#FFD400"),
+        size: str = Form("72"),
+        next: str = Form("/settings#look"),
+    ):
+        try:
+            caption_size = int(size)
+        except ValueError:
+            return back(next, "Not saved: the caption size must be a number.")
+        updates = {
+            "look.headline_style": style,
+            "look.accent": accent.upper(),
+            "look.caption_size": caption_size,
+        }
+        return save(updates, next, "Look saved. New vertical copies use it.")
 
     # --- setup wizard -------------------------------------------------------------------
 

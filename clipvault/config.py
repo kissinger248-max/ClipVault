@@ -64,6 +64,7 @@ class LookConfig:
     template: str = "default"
     accent: str = "#FFD400"
     headline_style: str = "box"
+    caption_size: int = 72
 
 
 @dataclass(frozen=True)
@@ -71,6 +72,13 @@ class NotificationsConfig:
     quiet_hours: tuple[str, str] = ("23:00", "08:00")
     summary_time: str = "09:00"
     server: str = "https://ntfy.sh"
+
+
+@dataclass(frozen=True)
+class LLMConfig:
+    provider: str = "groq"  # a name for logs; any OpenAI-style chat endpoint works
+    model: str = "openai/gpt-oss-20b"
+    base_url: str = "https://api.groq.com/openai/v1"
 
 
 @dataclass(frozen=True)
@@ -102,6 +110,7 @@ class Config:
     notifications: NotificationsConfig = field(default_factory=NotificationsConfig)
     transcription: TranscriptionConfig = field(default_factory=TranscriptionConfig)
     panel: PanelConfig = field(default_factory=PanelConfig)
+    llm: LLMConfig = field(default_factory=LLMConfig)
     # Keys found in the file that the app does not know (likely typos). Not an error.
     unknown_keys: tuple[str, ...] = ()
 
@@ -209,11 +218,17 @@ def _build(raw: dict[str, Any]) -> Config:
             template=reader.text("look.template", "default"),
             accent=reader.color("look.accent", "#FFD400"),
             headline_style=reader.choice("look.headline_style", ("box", "outline"), "box"),
+            caption_size=reader.integer("look.caption_size", 72, minimum=56, maximum=96),
         ),
         notifications=NotificationsConfig(
             quiet_hours=reader.time_pair("notifications.quiet_hours", ("23:00", "08:00")),
             summary_time=reader.time_of_day("notifications.summary_time", "09:00"),
             server=reader.url("notifications.server", "https://ntfy.sh"),
+        ),
+        llm=LLMConfig(
+            provider=reader.text("llm.provider", "groq"),
+            model=reader.text("llm.model", "openai/gpt-oss-20b"),
+            base_url=reader.url("llm.base_url", "https://api.groq.com/openai/v1"),
         ),
         panel=PanelConfig(
             host=reader.text("panel.host", "127.0.0.1"),

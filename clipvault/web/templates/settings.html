@@ -27,6 +27,10 @@
     <button class="primary">Save schedule</button>
   </form>
 </section>
+<section class="card" id="look">
+  <h2>Look of vertical videos</h2>
+  {% include "_look.html" %}
+</section>
 <section class="card" id="twitch">
   <h2>Twitch keys</h2>
   <p class="muted">Client ID: {{ 'stored' if keys.twitch_client_id else 'not set' }} · Client secret: {{ 'stored' if keys.twitch_client_secret else 'not set' }}. Kept in this computer's keychain and never shown again.</p>

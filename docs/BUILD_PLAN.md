@@ -124,10 +124,10 @@ Accounts and keys the user needs, by milestone:
 
 ### M8. Hook headline writer and the Look editor
 
-- [ ] LLM provider interface; Groq default
-- [ ] Prompt and validation rules from SPEC §9; regenerate up to 3 times
-- [ ] Look editor in Settings: live preview of the three layouts on a recent clip; headline style, accent color, caption size
-- [ ] Wizard step 6
+- [x] LLM provider interface; Groq default
+- [x] Prompt and validation rules from SPEC §9; regenerate up to 3 times
+- [x] Look editor in Settings: live preview of the three layouts on a recent clip; headline style, accent color, caption size
+- [x] Wizard step 6 (Look; the review-mode switch comes with posting in M9)
 
 **Done when:** 20 generated headlines are reviewed by the user; at most 2 rejected as misleading or dull, and prompt changes recorded.
 
