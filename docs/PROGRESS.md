@@ -418,8 +418,8 @@ User request: "i should be seeing edited clips in mobile format not the raw down
 - Quieter console: APScheduler's "skipped: maximum number of running instances" (a long editing round still going) is no longer printed. The chat tool's error message no longer shows a progress line ("[STATUS] - Downloading 55%").
 
 **Verified**
-- `pytest -q`: 341 passed; ruff clean. New tests: newest-first render queue, failed render not retried, clip waiting for its transcript; dashboard lists only edited clips, counts the rest, phone version first, See original and back.
-- Live: after restarting `run`, the first worker round made 3 phone versions with no failures (QA passed on 2 of 3; the third was over 59 s, which only matters for posting). In the browser at phone size: the grid of vertical cards, a phone version playing at 1080x1920, See original playing the 1280x720 original.
+- `pytest -q`: 340 passed; ruff clean. New tests: newest-first render queue, failed render not retried, clip waiting for its transcript; dashboard lists only edited clips, counts the rest, phone version first, See original and back.
+- Live: after restarting `run`, the first worker round made 3 phone versions with no failures (QA passed on 2 of 3; the third came out at -16.2 LUFS, 0.2 dB quieter than the loudness check allows; it plays fine). In the browser at phone size: the grid of vertical cards, a phone version playing at 1080x1920, See original playing the 1280x720 original.
 
 **Open issues**
 - Without an AI key the headlines are made from Twitch titles, and some are weak ("big", "smoke"). An AI key (`python -m clipvault secrets set llm_api_key --window`) would make them proper hooks.
