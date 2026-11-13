@@ -12,6 +12,7 @@ in the settings table); after that the user's choice in Settings is kept.
 from __future__ import annotations
 
 import logging
+import os
 import plistlib
 import sqlite3
 import sys
@@ -30,12 +31,22 @@ log = logging.getLogger(__name__)
 
 
 def supported() -> bool:
-    """Whether this copy can start itself at login (the installed app on Windows or macOS)."""
+    """Whether this copy can start itself at login (the installed app on Windows or macOS).
+
+    ``CLIPVAULT_NO_AUTOSTART=1`` turns it off: test copies (the smoke test, a build's
+    checks) must never register themselves to start with the computer.
+    """
+    if os.environ.get("CLIPVAULT_NO_AUTOSTART"):
+        return False
     return cfg.is_packaged() and sys.platform in ("win32", "darwin")
 
 
 def _program() -> str:
-    return str(Path(sys.executable).resolve())
+    """The program to start at login: always the windowless app, never the console one."""
+    program = Path(sys.executable).resolve()
+    if program.name.lower() == "clipvault-console.exe":
+        program = program.with_name("ClipVault.exe")
+    return str(program)
 
 
 def _agent_path() -> Path:

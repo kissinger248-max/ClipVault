@@ -182,3 +182,26 @@ def test_a_test_copy_can_use_its_own_keychain_entries(monkeypatch: pytest.Monkey
 
     assert keyring.get_password("clipvault-smoke", "ntfy_topic") == "t"
     assert keyring.get_password("clipvault", "ntfy_topic") is None
+
+
+def test_test_copies_never_register_to_start_at_login(
+    packaged: Path, monkeypatch: pytest.MonkeyPatch, conn
+) -> None:
+    monkeypatch.setattr(sys, "platform", "win32")
+    monkeypatch.setenv("CLIPVAULT_NO_AUTOSTART", "1")
+    calls: list[bool] = []
+    monkeypatch.setattr(autostart, "set_enabled", calls.append)
+    assert not autostart.supported()
+    autostart.first_run(conn)
+    assert calls == []
+
+
+def test_the_console_copy_registers_the_windowless_app(
+    packaged: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    fake = FakeWinreg()
+    monkeypatch.setitem(sys.modules, "winreg", fake)
+    monkeypatch.setattr(sys, "platform", "win32")
+    monkeypatch.setattr(sys, "executable", str(packaged / "ClipVault-console.exe"))
+    autostart.set_enabled(True)
+    assert fake.values["ClipVault"] == f'"{(packaged / "ClipVault.exe").resolve()}"'

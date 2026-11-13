@@ -62,10 +62,25 @@ jobs:
       - name: Build, selftest, smoke test and installer
         run: python packaging/build.py --smoke
 
+      - name: Oldest macOS the app runs on (for the download page)
+        if: runner.os == 'macOS'
+        run: |
+          find packaging/build/dist/ClipVault.app -type f \( -perm -u+x -o -name '*.dylib' -o -name '*.so' \) -print0 \
+            | xargs -0 -n1 vtool -show-build 2>/dev/null | awk '/minos/ {print $2}' | sort -V | tail -1 \
+            | tee packaging/build/macos-minimum.txt
+          lipo -archs packaging/build/dist/ClipVault.app/Contents/MacOS/ClipVault | tee packaging/build/macos-archs.txt
+
       - uses: actions/upload-artifact@v4
         with:
           name: ClipVault-${{ matrix.name }}
           path: ${{ matrix.file }}
+          retention-days: 7
+
+      - uses: actions/upload-artifact@v4
+        if: runner.os == 'macOS'
+        with:
+          name: macos-build-facts
+          path: packaging/build/macos-*.txt
           retention-days: 7
 
   release:
@@ -83,7 +98,10 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          gh release create "${GITHUB_REF_NAME}" out/* \
+          cd out
+          sha256sum ClipVault-Setup-Windows.exe ClipVault-macOS.dmg > SHA256SUMS.txt
+          cat SHA256SUMS.txt
+          gh release create "${GITHUB_REF_NAME}" ClipVault-Setup-Windows.exe ClipVault-macOS.dmg SHA256SUMS.txt \
             --repo "${GITHUB_REPOSITORY}" \
             --title "ClipVault ${GITHUB_REF_NAME}" \
             --notes "Download for Windows: ClipVault-Setup-Windows.exe. Download for Mac (Apple silicon): ClipVault-macOS.dmg. First time? See the download page for the two-minute setup."

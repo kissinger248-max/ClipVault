@@ -20,6 +20,7 @@ import os
 import shutil
 import subprocess
 import sys
+import tempfile
 from pathlib import Path
 
 HERE = Path(__file__).resolve().parent
@@ -99,7 +100,9 @@ def main() -> int:
         run(sys.executable, HERE / "fetch_tools.py")
     run(sys.executable, "-m", "PyInstaller", "--noconfirm", "--clean",
         "--distpath", DIST, "--workpath", BUILD / "work", HERE / "clipvault.spec")  # fmt: skip
-    run(app_program(), "selftest")
+    with tempfile.TemporaryDirectory() as scratch:  # keep the check out of real app data
+        env = {**os.environ, "CLIPVAULT_HOME": scratch, "CLIPVAULT_NO_AUTOSTART": "1"}
+        run(app_program(), "selftest", env=env)
     if args.smoke:
         run(sys.executable, HERE / "smoke_test.py", app_program())
     if args.no_installer:

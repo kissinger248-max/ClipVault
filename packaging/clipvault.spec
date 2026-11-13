@@ -19,7 +19,11 @@ ICONS = ROOT / "packaging" / "icons"
 if not TOOLS.is_dir():
     raise SystemExit(f"{TOOLS} is missing; run packaging/fetch_tools.py first")
 
+sys.path.insert(0, str(ROOT / "packaging"))
+from collect_licenses import licence_datas  # noqa: E402
+
 datas = [
+    *licence_datas(ROOT, TOOLS),  # LICENSES/: every shipped package, font and tool
     *collect_data_files("clipvault", excludes=["**/__pycache__/**"]),
     *collect_data_files("faster_whisper"),  # the voice-activity model
     *collect_data_files("certifi"),
