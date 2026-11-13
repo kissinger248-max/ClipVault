@@ -1,0 +1,140 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>FAQ · ClipVault</title>
+<meta name="description" content="Answers about ClipVault: what it does, which computers it runs on, signing in with Twitch, disk space, privacy, updates and the installer warnings.">
+<link rel="canonical" href="[SITE URL]/faq">
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="ClipVault">
+<meta property="og:title" content="ClipVault · Questions & answers">
+<meta property="og:description" content="What ClipVault does, how to set it up, and how it treats your data.">
+<meta property="og:url" content="[SITE URL]/faq">
+<meta property="og:image" content="[SITE URL]/assets/img/share.png">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:image" content="[SITE URL]/assets/img/share.png">
+<meta name="theme-color" content="#0B0B0D">
+<link rel="icon" href="/assets/img/favicon.svg" type="image/svg+xml">
+<link rel="icon" href="/assets/img/favicon-32.png" sizes="32x32" type="image/png">
+<link rel="apple-touch-icon" href="/assets/img/apple-touch-icon.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&amp;family=Inter+Tight:wght@500;600;700;800&amp;family=Instrument+Serif:ital@1&amp;family=Montserrat:wght@800&amp;display=swap">
+<link rel="stylesheet" href="/assets/site.css">
+<link rel="stylesheet" href="/assets/pages.css">
+</head>
+<body>
+<div class="cv-site p-faq" data-theme="dark">
+<a class="skip" href="#main">Skip to content</a>
+
+<header class="site-nav cv-nav">
+  <nav aria-label="Main">
+    <a class="brand" href="/"><span class="brand-mark" aria-hidden="true"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#FFFFFF" stroke-width="2" stroke-linejoin="round"><rect x="6" y="2.5" width="12" height="19" rx="3"/><path d="M10.5 9.2l4.2 2.8-4.2 2.8z" fill="#FFFFFF"/></svg></span>ClipVault</a>
+    <a class="nav-link" href="/#how">Features</a>
+    <a class="nav-link" href="/faq" aria-current="page">FAQ</a>
+    <a class="nav-link" href="/about">About</a>
+    <a class="nav-cta cv-btn" href="/#download">Download</a>
+  </nav>
+</header>
+
+<main id="main" class="page" style="max-width: 820px; gap: 40px">
+  <div class="cv-rise" style="display: flex; flex-direction: column; gap: 12px">
+    <h1>Questions <em>&amp; answers.</em></h1>
+    <p style="margin: 0; font-size: 19px; color: var(--label2)">Can’t find what you need? Write to <a href="mailto:[CONTACT EMAIL]">[CONTACT EMAIL]</a>.</p>
+  </div>
+
+  <section class="faq-group cv-rise r1" aria-labelledby="g1">
+    <h2 id="g1">Getting started</h2>
+    <div class="faq-list">
+      <details><summary>What does ClipVault do?<svg class="cv-chev" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--label2)" stroke-width="2" stroke-linecap="round" aria-hidden="true" style="flex: none"><path d="m6 9 6 6 6-6"/></svg></summary>
+        <div><p>It watches the Twitch streamers you choose and saves their best moments to a folder on your computer: the clips viewers made, plus moments nobody clipped that it finds from chat. It also makes a vertical, phone-ready version of each one with a headline and captions.</p></div></details>
+      <details><summary>Is ClipVault free?<svg class="cv-chev" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--label2)" stroke-width="2" stroke-linecap="round" aria-hidden="true" style="flex: none"><path d="m6 9 6 6 6-6"/></svg></summary>
+        <div><p>[YOUR ANSWER, for example: Yes. ClipVault is free to download and use.]</p></div></details>
+      <details><summary>Which computers does it run on?<svg class="cv-chev" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--label2)" stroke-width="2" stroke-linecap="round" aria-hidden="true" style="flex: none"><path d="m6 9 6 6 6-6"/></svg></summary>
+        <div><p>Windows 10 and 11 (64-bit), and Macs with Apple silicon (M1 or newer). Linux and a Docker image for an always-on server are coming. Once it’s running, you can open its control panel on your phone over the same Wi-Fi.</p></div></details>
+      <details><summary>Do I need a Twitch account?<svg class="cv-chev" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--label2)" stroke-width="2" stroke-linecap="round" aria-hidden="true" style="flex: none"><path d="m6 9 6 6 6-6"/></svg></summary>
+        <div><p>Yes. Sign in with your Twitch account during setup: ClipVault shows a short code that you enter at twitch.tv/activate. ClipVault only reads; it never posts or writes in chat.</p></div></details>
+      <details><summary>What else do I need to install?<svg class="cv-chev" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--label2)" stroke-width="2" stroke-linecap="round" aria-hidden="true" style="flex: none"><path d="m6 9 6 6 6-6"/></svg></summary>
+        <div><p>Nothing. The video tools ClipVault uses (FFmpeg, yt-dlp and TwitchDownloaderCLI) come inside the download. The speech model for subtitles, about 500 MB, downloads by itself the first time ClipVault makes subtitles.</p></div></details>
+    </div>
+  </section>
+
+  <section class="faq-group cv-rise r1" aria-labelledby="g2">
+    <h2 id="g2">Everyday use</h2>
+    <div class="faq-list">
+      <details><summary>Do I have to keep ClipVault open?<svg class="cv-chev" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--label2)" stroke-width="2" stroke-linecap="round" aria-hidden="true" style="flex: none"><path d="m6 9 6 6 6-6"/></svg></summary>
+        <div><p>It needs to be running to find new clips, so it starts when you log in to your computer (you can switch that off in Settings). It sits next to the clock on Windows and in the menu bar on a Mac, and checks every 30 minutes. If your computer sleeps or is switched off, it catches up when it’s back.</p></div></details>
+      <details><summary>Will it drain my laptop battery?<svg class="cv-chev" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--label2)" stroke-width="2" stroke-linecap="round" aria-hidden="true" style="flex: none"><path d="m6 9 6 6 6-6"/></svg></summary>
+        <div><p>On battery it keeps downloading, but waits for the charger before heavier work like subtitles and phone versions. You can change this in Settings.</p></div></details>
+      <details><summary>How much disk space does it use?<svg class="cv-chev" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--label2)" stroke-width="2" stroke-linecap="round" aria-hidden="true" style="flex: none"><path d="m6 9 6 6 6-6"/></svg></summary>
+        <div><p>The app itself takes about 700 MB. Clips take roughly 10 GB a month for each streamer, mostly phone versions. Clips older than 60 days with fewer views than usual are cleaned up automatically. Starred clips and anything in the Favorites folder are always kept. Downloads pause if your disk gets low.</p></div></details>
+      <details><summary>Can I keep my library on an external drive?<svg class="cv-chev" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--label2)" stroke-width="2" stroke-linecap="round" aria-hidden="true" style="flex: none"><path d="m6 9 6 6 6-6"/></svg></summary>
+        <div><p>Yes. Choose the folder in Settings. If the drive is unplugged, new clips wait on your computer and move over when it’s back.</p></div></details>
+      <details><summary>How do I get notifications on my phone?<svg class="cv-chev" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--label2)" stroke-width="2" stroke-linecap="round" aria-hidden="true" style="flex: none"><path d="m6 9 6 6 6-6"/></svg></summary>
+        <div><p>Install the free ntfy app and scan the code shown in setup or Settings. You’ll get one summary each morning, plus a message only when something needs you. Quiet hours hold messages overnight.</p></div></details>
+    </div>
+  </section>
+
+  <section class="faq-group cv-rise r1" aria-labelledby="g3">
+    <h2 id="g3">Your clips and the rules</h2>
+    <div class="faq-list">
+      <details><summary>Does ClipVault post to TikTok or YouTube?<svg class="cv-chev" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--label2)" stroke-width="2" stroke-linecap="round" aria-hidden="true" style="flex: none"><path d="m6 9 6 6 6-6"/></svg></summary>
+        <div><p>No. It saves clips and phone-ready versions to your computer and doesn’t upload or post anything.</p></div></details>
+      <details><summary>Can I share or repost the clips I save?<svg class="cv-chev" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--label2)" stroke-width="2" stroke-linecap="round" aria-hidden="true" style="flex: none"><path d="m6 9 6 6 6-6"/></svg></summary>
+        <div><p>The clips belong to the streamers who made them, and the music or game footage in them may belong to others. ClipVault is for your own archive. Before you share a clip anywhere, get the streamer’s permission and follow the rules of the site you post on. This isn’t legal advice.</p></div></details>
+      <details><summary>Is this allowed by Twitch?<svg class="cv-chev" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--label2)" stroke-width="2" stroke-linecap="round" aria-hidden="true" style="flex: none"><path d="m6 9 6 6 6-6"/></svg></summary>
+        <div><p>ClipVault finds clips through Twitch’s official API. Some features use other open-source tools to fetch video and chat. You’re responsible for using it in line with Twitch’s Terms of Service and the law where you live.</p></div></details>
+      <details><summary>Some saved clips have no sound. Why?<svg class="cv-chev" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--label2)" stroke-width="2" stroke-linecap="round" aria-hidden="true" style="flex: none"><path d="m6 9 6 6 6-6"/></svg></summary>
+        <div><p>Twitch mutes copyrighted music in stream recordings. ClipVault keeps those moments and marks them as muted.</p></div></details>
+    </div>
+  </section>
+
+  <section class="faq-group cv-rise r1" aria-labelledby="g4">
+    <h2 id="g4">Privacy and security</h2>
+    <div class="faq-list">
+      <details><summary>Does ClipVault send my data anywhere?<svg class="cv-chev" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--label2)" stroke-width="2" stroke-linecap="round" aria-hidden="true" style="flex: none"><path d="m6 9 6 6 6-6"/></svg></summary>
+        <div><p>Your clips and library stay on your computer, and nothing is sent to us. ClipVault talks to Twitch to find and fetch clips, checks GitHub once a day for a newer download tool, and downloads the speech model once. Optional features send data only to the services you set up: transcription and AI headlines (if you add those keys) and ntfy (if you turn on phone notifications). The <a href="/privacy">Privacy page</a> lists each one.</p></div></details>
+      <details><summary>Where are my keys stored?<svg class="cv-chev" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--label2)" stroke-width="2" stroke-linecap="round" aria-hidden="true" style="flex: none"><path d="m6 9 6 6 6-6"/></svg></summary>
+        <div><p>Your Twitch sign-in, your panel password and any keys you add are kept in your operating system’s keychain, not in a file. Keys are never shown again after you save them.</p></div></details>
+      <details><summary>Who can open the control panel?<svg class="cv-chev" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--label2)" stroke-width="2" stroke-linecap="round" aria-hidden="true" style="flex: none"><path d="m6 9 6 6 6-6"/></svg></summary>
+        <div><p>By default only your computer. If you allow phones on your Wi-Fi, the panel is still protected by the password you chose.</p></div></details>
+    </div>
+  </section>
+
+  <section class="faq-group cv-rise r1" aria-labelledby="g5">
+    <h2 id="g5">Troubleshooting</h2>
+    <div class="faq-list">
+      <details><summary>My computer warns me when I open the installer.<svg class="cv-chev" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--label2)" stroke-width="2" stroke-linecap="round" aria-hidden="true" style="flex: none"><path d="m6 9 6 6 6-6"/></svg></summary>
+        <div>
+          <p>ClipVault isn’t code-signed yet (signing certificates cost money), so Windows and macOS warn you the first time.</p>
+          <p><strong>Windows:</strong> if you see “Windows protected your PC”, choose <strong>More info</strong>, then <strong>Run anyway</strong>.</p>
+          <p><strong>Mac:</strong> open ClipVault from Applications. When macOS says it can’t check the app, choose <strong>Done</strong>, then open <strong>System Settings › Privacy &amp; Security</strong>, scroll down and choose <strong>Open Anyway</strong>.</p>
+          <p>To check first that your download is the real one, compare its SHA-256 checksum with the one listed under the download buttons. On Windows, run <code>certutil -hashfile ClipVault-Setup-Windows.exe SHA256</code> in Command Prompt; on a Mac, run <code>shasum -a 256 ClipVault-macOS.dmg</code> in Terminal.</p>
+        </div></details>
+      <details><summary>Downloads stopped working.<svg class="cv-chev" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--label2)" stroke-width="2" stroke-linecap="round" aria-hidden="true" style="flex: none"><path d="m6 9 6 6 6-6"/></svg></summary>
+        <div><p>Twitch changes things now and then. The download tool updates itself once a day, so this usually fixes itself. If it doesn’t, the Home screen shows a Fix button.</p></div></details>
+      <details><summary>How do I update ClipVault?<svg class="cv-chev" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--label2)" stroke-width="2" stroke-linecap="round" aria-hidden="true" style="flex: none"><path d="m6 9 6 6 6-6"/></svg></summary>
+        <div><p>Download the newest version from this site and install it over the old one; on a Mac, replace the app in Applications. Your library, settings and Twitch sign-in are kept.</p></div></details>
+      <details><summary>How do I uninstall it and remove my data?<svg class="cv-chev" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--label2)" stroke-width="2" stroke-linecap="round" aria-hidden="true" style="flex: none"><path d="m6 9 6 6 6-6"/></svg></summary>
+        <div>
+          <p><strong>Windows:</strong> Settings › Apps › ClipVault › Uninstall. <strong>Mac:</strong> switch off “Open when I log in” in ClipVault’s Settings, quit it from the menu-bar icon, then drag it from Applications to the Bin.</p>
+          <p>Your clips stay in your library folder (Twitch Archive in your user folder, unless you chose another) until you delete them. To remove everything, also delete ClipVault’s data folder (<code>%LOCALAPPDATA%\ClipVault</code> on Windows, <code>~/Library/Application Support/ClipVault</code> on a Mac) and the ClipVault entries in your keychain (Credential Manager on Windows, Keychain Access on a Mac).</p>
+        </div></details>
+      <details><summary>Where can I report a bug?<svg class="cv-chev" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--label2)" stroke-width="2" stroke-linecap="round" aria-hidden="true" style="flex: none"><path d="m6 9 6 6 6-6"/></svg></summary>
+        <div><p>Write to [CONTACT EMAIL] or open an issue on <a href="https://github.com/kissinger248-max/ClipVault/issues">GitHub</a>. Attaching the day’s log file helps: it’s in the <code>logs</code> folder inside ClipVault’s data folder.</p></div></details>
+    </div>
+  </section>
+</main>
+
+<footer class="site-footer">
+  <div class="inner">
+    <span>© 2026 [YOUR NAME]. Not affiliated with Twitch, TikTok, YouTube or Google.</span>
+    <a href="/privacy">Privacy</a><a href="/terms">Terms</a><a href="/licenses">Licences</a><a href="mailto:[CONTACT EMAIL]">Contact</a>
+  </div>
+</footer>
+</div>
+</body>
+</html>

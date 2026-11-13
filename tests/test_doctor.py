@@ -1,3 +1,4 @@
+import sys
 from collections import namedtuple
 from pathlib import Path
 
@@ -56,7 +57,8 @@ def test_twitch_downloader_missing_is_a_warning(
 def test_twitch_downloader_found_in_home_bin(home: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(doctor.shutil, "which", lambda name: None)
     (home / "bin").mkdir()
-    (home / "bin" / "TwitchDownloaderCLI.exe").write_bytes(b"")
+    name = "TwitchDownloaderCLI" + (".exe" if sys.platform == "win32" else "")
+    (home / "bin" / name).write_bytes(b"")
     assert doctor.check_twitch_downloader(home).status == doctor.OK
 
 

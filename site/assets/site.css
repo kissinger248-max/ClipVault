@@ -1,0 +1,75 @@
+/* ClipVault website. Dark, big tight display type with a purple italic serif accent. */
+.cv-site {
+  --bg: #0B0B0D; --bg2: #111114; --card: #17171A; --card2: #1E1E22; --label: #F4F4F5; --label2: #A1A1AA;
+  --sep: rgba(255,255,255,0.09); --fill: #26262B; --accent: #7C3AED; --accent-hi: #8B5CF6; --accent-text: #A78BFA;
+  --link: #A78BFA; --green: #4ADE80; --sel: rgba(139,92,246,0.18); --band: #111114; --band-label: #F4F4F5; --band-label2: #A1A1AA;
+  --shadow: inset 0 1px 0 rgba(255,255,255,0.05); --shadow-lift: inset 0 1px 0 rgba(255,255,255,0.08), 0 24px 60px rgba(0,0,0,0.55);
+  --nav: rgba(11,11,13,0.72);
+  --display: "Inter Tight", Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  --serif: "Instrument Serif", Georgia, serif;
+  --ease: cubic-bezier(0.2, 0.8, 0.2, 1);
+  background: var(--bg); color: var(--label);
+  font-family: Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  -webkit-font-smoothing: antialiased;
+}
+.cv-site[data-theme="light"] {
+  --bg: #FAFAFA; --bg2: #FFFFFF; --card: #FFFFFF; --card2: #F4F4F5; --label: #0B0B0D; --label2: #52525B;
+  --sep: rgba(0,0,0,0.09); --fill: #EDEDF0; --accent-text: #6D28D9; --link: #6D28D9; --green: #15803D; --sel: rgba(124,58,237,0.10);
+  --band: #F4F4F5; --band-label: #0B0B0D; --band-label2: #52525B;
+  --shadow: 0 1px 2px rgba(0,0,0,0.05), 0 2px 8px rgba(0,0,0,0.04); --shadow-lift: 0 2px 6px rgba(0,0,0,0.06), 0 18px 40px rgba(0,0,0,0.12);
+  --nav: rgba(250,250,250,0.78);
+}
+
+.cv-site h1, .cv-site h2, .cv-site h3 { font-family: var(--display); letter-spacing: -0.035em; }
+.cv-site em { font-family: var(--serif); font-style: italic; font-weight: 400; color: var(--accent-text); letter-spacing: -0.01em; }
+.cv-site a { color: var(--link); text-decoration: none; }
+.cv-site a:hover { text-decoration: underline; }
+.cv-site button, .cv-site a, .cv-site summary { transition: background-color 150ms var(--ease), color 150ms var(--ease), transform 150ms var(--ease), box-shadow 200ms var(--ease), filter 150ms var(--ease); }
+.cv-site :focus-visible { outline: 3px solid var(--accent-hi); outline-offset: 3px; border-radius: 999px; }
+.cv-btn:hover { text-decoration: none !important; filter: brightness(1.1); transform: translateY(-1px); }
+.cv-btn:active { transform: scale(0.98); }
+.cv-nav { -webkit-backdrop-filter: saturate(180%) blur(20px); backdrop-filter: saturate(180%) blur(20px); }
+
+/* Hero stage */
+.cv-stage { perspective: 1600px; perspective-origin: 50% 40%; }
+.cv-rig { transform-style: preserve-3d; transition: transform 700ms var(--ease); will-change: transform; }
+.cv-rig > * { transform-style: preserve-3d; }
+.cv-float { animation: cv-float 7s ease-in-out infinite; }
+.cv-float.d1 { animation-delay: -1.8s; } .cv-float.d2 { animation-delay: -3.6s; } .cv-float.d3 { animation-delay: -5.2s; }
+@keyframes cv-float { 0%, 100% { translate: 0 0; } 50% { translate: 0 -16px; } }
+.cv-enter { animation: cv-enter 1000ms var(--ease) both; }
+.cv-enter.e1 { animation-delay: 120ms; } .cv-enter.e2 { animation-delay: 220ms; } .cv-enter.e3 { animation-delay: 320ms; } .cv-enter.e4 { animation-delay: 420ms; }
+@keyframes cv-enter { from { opacity: 0; translate: 0 60px; } to { opacity: 1; translate: 0 0; } }
+.cv-rise { animation: cv-rise 800ms var(--ease) both; }
+.cv-rise.r1 { animation-delay: 90ms; } .cv-rise.r2 { animation-delay: 180ms; } .cv-rise.r3 { animation-delay: 270ms; }
+@keyframes cv-rise { from { opacity: 0; transform: translateY(16px); } to { opacity: 1; transform: none; } }
+.cv-pulse { animation: cv-pulse 2s ease-in-out infinite; }
+@keyframes cv-pulse { 50% { opacity: 0.45; } }
+.cv-pop { animation: cv-pop 3.2s var(--ease) infinite; }
+.cv-pop.p2 { animation-delay: 1.6s; }
+@keyframes cv-pop { 0%, 100% { transform: scale(1); } 12% { transform: scale(1.08); } 24% { transform: scale(1); } }
+.cv-draw { stroke-dasharray: 900; stroke-dashoffset: 900; animation: cv-draw 2.2s var(--ease) 400ms forwards; }
+@keyframes cv-draw { to { stroke-dashoffset: 0; } }
+
+/* Endless row of saved clips */
+.cv-marquee { display: flex; gap: 20px; width: max-content; animation: cv-marquee 60s linear infinite; }
+.cv-marquee:hover { animation-play-state: paused; }
+@keyframes cv-marquee { to { transform: translateX(-50%); } }
+.cv-fade-edges { -webkit-mask-image: linear-gradient(90deg, transparent, #000 8%, #000 92%, transparent); mask-image: linear-gradient(90deg, transparent, #000 8%, #000 92%, transparent); }
+
+/* Cards that tilt toward you */
+.cv-tilt { transition: transform 350ms var(--ease), box-shadow 350ms var(--ease), border-color 350ms var(--ease); transform-style: preserve-3d; }
+@media (hover: hover) { .cv-tilt:hover { transform: perspective(900px) rotateX(5deg) translateY(-6px); box-shadow: var(--shadow-lift); border-color: rgba(167,139,250,0.35); } }
+
+/* FAQ accordions */
+.cv-site details > summary { list-style: none; cursor: pointer; }
+.cv-site details > summary::-webkit-details-marker { display: none; }
+.cv-site details .cv-chev { transition: transform 200ms var(--ease); }
+.cv-site details[open] .cv-chev { transform: rotate(180deg); }
+.cv-site details[open] > div { animation: cv-rise 260ms var(--ease) both; }
+
+@media (prefers-reduced-motion: reduce) {
+  .cv-site *, .cv-site *::before, .cv-site *::after { animation: none !important; transition: none !important; }
+  .cv-rig { transform: none !important; }
+  .cv-draw { stroke-dashoffset: 0; }
+}
