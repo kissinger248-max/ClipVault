@@ -2,3 +2,4 @@
 # Client IDs are public by design (Twitch: "Client IDs are considered public").
 # With it, anyone can "Sign in with Twitch" instead of creating developer keys.
 # Put the ID on the first line that does not start with '#'. Empty = sign-in is off.
+57sbmim87h7g3hszjazbqemlb52565
