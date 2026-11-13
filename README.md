@@ -1,9 +1,11 @@
 # ClipVault
 
-Watches a list of Twitch streamers, saves their best clips to a local library and,
-only for streamers who gave permission, posts vertical versions to TikTok and
-YouTube Shorts. See [docs/SPEC.md](docs/SPEC.md) for what it does and
-[docs/BUILD_PLAN.md](docs/BUILD_PLAN.md) for what is built so far.
+Watches a list of Twitch streamers, saves their best clips to a local library, and
+makes a phone-ready vertical version of each, with a headline and word-by-word
+captions. **[docs/HOW_IT_WORKS.md](docs/HOW_IT_WORKS.md) explains every feature and
+how the parts fit together, in plain language.** The technical rules are in
+[docs/SPEC.md](docs/SPEC.md), and [docs/BUILD_PLAN.md](docs/BUILD_PLAN.md) shows
+what is built so far.
 
 ## What works today, and what's coming
 
