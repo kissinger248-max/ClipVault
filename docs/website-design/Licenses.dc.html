@@ -1,0 +1,79 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>ClipVault open-source licences</title>
+<script src="./support.js"></script>
+<link rel="stylesheet" href="./site.css">
+</head>
+<body>
+<x-dc>
+<helmet>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&amp;family=Inter+Tight:wght@500;600;700;800&amp;family=Instrument+Serif:ital@1&amp;display=swap" rel="stylesheet">
+<style>body{margin:0}</style>
+</helmet>
+<div class="cv-site" data-theme="{{theme}}" style="min-height: 1700px; font-size: 17px; line-height: 1.6">
+
+<header class="cv-nav" style="position: sticky; top: 0; z-index: 10; background: var(--nav); border-bottom: 1px solid var(--sep)">
+  <nav aria-label="Main" style="max-width: 1160px; margin: 0 auto; padding: 12px 24px; display: flex; flex-wrap: wrap; align-items: center; gap: 12px 28px">
+    <a href="Main.dc.html" style="display: flex; align-items: center; gap: 10px; color: var(--label); font-weight: 700; font-size: 18px; text-decoration: none; margin-right: auto"><span aria-hidden="true" style="width: 30px; height: 30px; border-radius: 8px; background: var(--accent); display: flex; align-items: center; justify-content: center"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#FFFFFF" stroke-width="2" stroke-linejoin="round"><rect x="6" y="2.5" width="12" height="19" rx="3"/><path d="M10.5 9.2l4.2 2.8-4.2 2.8z" fill="#FFFFFF"/></svg></span>ClipVault</a>
+    <a href="Main.dc.html#features" style="color: var(--label); font-size: 15px">Features</a>
+    <a href="FAQ.dc.html" style="color: var(--label); font-size: 15px">FAQ</a>
+    <a href="About.dc.html" style="color: var(--label); font-size: 15px">About</a>
+    <a class="cv-btn" href="Main.dc.html#download" style="display: inline-flex; align-items: center; height: 36px; padding: 0 16px; border-radius: 18px; background: var(--accent); color: #FFFFFF; font-size: 15px; font-weight: 600">Download</a>
+  </nav>
+</header>
+
+<main style="max-width: 900px; margin: 0 auto; padding: 72px 24px 96px; display: flex; flex-direction: column; gap: 28px">
+  <div class="cv-rise" style="display: flex; flex-direction: column; gap: 10px">
+    <h1 style="margin: 0; font-size: 72px; line-height: 0.95; font-weight: 600; letter-spacing: -0.05em">Open-source <em style="font-size: 78px">thanks.</em></h1>
+    <p style="margin: 0; color: var(--label2)">ClipVault is built with, and works alongside, these free projects. Thank you to everyone who makes them. Full licence texts are included with each download, in the LICENSES folder.</p>
+  </div>
+
+  <div class="cv-rise r1" style="overflow-x: auto; border-radius: 20px; background: var(--card); border: 1px solid var(--sep); box-shadow: var(--shadow)">
+    <table style="width: 100%; min-width: 620px; border-collapse: collapse; text-align: left; font-size: 16px">
+      <thead><tr style="font-size: 13px; color: var(--label2)"><th scope="col" style="padding: 14px 20px; font-weight: 600; border-bottom: 1px solid var(--sep)">Project</th><th scope="col" style="padding: 14px 12px; font-weight: 600; border-bottom: 1px solid var(--sep)">What it does in ClipVault</th><th scope="col" style="padding: 14px 20px 14px 12px; font-weight: 600; border-bottom: 1px solid var(--sep)">Licence</th></tr></thead>
+      <tbody>
+        <sc-for list="{{rows}}" as="r" hint-placeholder-count="12">
+          <tr><td style="padding: 12px 20px; border-top: 1px solid var(--sep); font-weight: 600">{{r.name}}</td><td style="padding: 12px; border-top: 1px solid var(--sep); color: var(--label2)">{{r.use}}</td><td style="padding: 12px 20px 12px 12px; border-top: 1px solid var(--sep)">{{r.lic}}</td></tr>
+        </sc-for>
+      </tbody>
+    </table>
+  </div>
+  <p style="margin: 0; font-size: 14px; color: var(--label2)">Some tools, such as FFmpeg and TwitchDownloaderCLI, are installed separately and keep their own licences. Using them is subject to those licences. [Check this list against the exact versions you ship before each release.]</p>
+</main>
+
+<footer style="border-top: 1px solid var(--sep); background: var(--bg2)">
+  <div style="max-width: 1160px; margin: 0 auto; padding: 28px 24px; display: flex; flex-wrap: wrap; gap: 12px 24px; align-items: center; font-size: 14px; color: var(--label2)">
+    <span style="margin-right: auto">© 2026 [YOUR NAME]. Not affiliated with Twitch, TikTok, YouTube or Google.</span>
+    <a href="Privacy.dc.html">Privacy</a><a href="Terms.dc.html">Terms</a><a href="Licenses.dc.html" aria-current="page">Licences</a><a href="mailto:[CONTACT EMAIL]">Contact</a>
+  </div>
+</footer>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"appearance":{"editor":"enum","options":["System","Light","Dark"],"default":"System"},"$preview":{"width":1280,"height":1700}}'>
+class Component extends DCLogic {
+  renderVals() {
+    const rows = [
+      { name: 'FFmpeg', use: 'Cuts, converts and renders video', lic: 'LGPL 2.1 or later (GPL for some builds)' },
+      { name: 'yt-dlp', use: 'Fetches stream video for your archive', lic: 'Unlicense' },
+      { name: 'TwitchDownloader', use: 'Reads chat replays of finished streams', lic: 'MIT' },
+      { name: 'faster-whisper', use: 'Makes subtitles on your computer', lic: 'MIT' },
+      { name: 'OpenCV', use: 'Finds the face cam for the vertical layout', lic: 'Apache 2.0' },
+      { name: 'YuNet face model', use: 'Face detection model used with OpenCV', lic: 'MIT' },
+      { name: 'Montserrat', use: 'Headline and caption font in phone videos', lic: 'SIL Open Font License 1.1' },
+      { name: 'FastAPI', use: 'Runs the control panel', lic: 'MIT' },
+      { name: 'Jinja2', use: 'Builds the control panel pages', lic: 'BSD 3-Clause' },
+      { name: 'htmx', use: 'Makes the control panel respond without reloads', lic: '0BSD (2.x) or BSD 2-Clause (1.x)' },
+      { name: 'APScheduler', use: 'Runs jobs on a schedule', lic: 'MIT' },
+      { name: 'HTTPX', use: 'Talks to Twitch and other services', lic: 'BSD 3-Clause' },
+      { name: 'keyring', use: 'Stores keys in your system keychain', lic: 'MIT' },
+      { name: 'pystray', use: 'The icon next to the clock', lic: 'LGPL 3.0' },
+      { name: 'PyInstaller', use: 'Packages the app for download', lic: 'GPL 2.0 with bootloader exception' }
+    ];
+    return { theme: (this.props.appearance || 'System').toLowerCase(), rows };
+  }
+}
+</script>
+</body>
+</html>

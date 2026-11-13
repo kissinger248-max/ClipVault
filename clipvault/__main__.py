@@ -26,6 +26,7 @@ def build_parser() -> argparse.ArgumentParser:
     sub = parser.add_subparsers(dest="command", required=True)
 
     sub.add_parser("doctor", help="check that everything ClipVault needs is installed")
+    sub.add_parser("selftest", help="check that this build has every tool and file (offline)")
 
     discover = sub.add_parser("discover", help="find new clips for the streamers on the list")
     discover.add_argument("--streamer", metavar="LOGIN", help="only this streamer")
@@ -125,6 +126,7 @@ def main(argv: list[str] | None = None) -> int:
     log.info("command started: %s", args.command, extra=ctx(job=args.command))
     handlers = {
         "doctor": lambda _args: doctor.main(),
+        "selftest": lambda _args: __import__("clipvault.selftest", fromlist=["main"]).main(),
         "discover": _cmd_discover,
         "fetch": _cmd_fetch,
         "cleanup": _cmd_cleanup,
@@ -580,9 +582,12 @@ def _cmd_run(args: argparse.Namespace) -> int:
     from clipvault.notify import ntfy
 
     config = cfg.load_config()
+    from clipvault import desktop
+
     conn = db.open_db(cfg.db_path())  # also brings the database up to date before jobs start
     try:
         paused = is_paused(conn)
+        desktop.first_run(conn)  # installed app: start at login, local time zone (once)
     finally:
         conn.close()
     try:
@@ -598,10 +603,13 @@ def _cmd_run(args: argparse.Namespace) -> int:
             runner.start()
             quit_event = threading.Event()
             icon = None
+            main_thread_icon = False
             if panel is not None and not args.no_tray:
                 from clipvault import tray
 
-                icon = tray.start(panel.local_url, cfg.db_path(), quit_event.set)
+                main_thread_icon = tray.needs_main_thread()
+                icon = tray.start(panel.local_url, cfg.db_path(), quit_event.set,
+                                  on_main_thread=main_thread_icon)  # fmt: skip
             _say("ClipVault is running. Leave this window open; press Ctrl+C to stop.")
             if panel is not None:
                 _say(f"  Control panel: {panel.local_url}")
@@ -614,8 +622,11 @@ def _cmd_run(args: argparse.Namespace) -> int:
             if panel is not None and not args.no_browser:
                 webbrowser.open(panel.local_url)
             try:
-                while not quit_event.wait(1):
-                    pass
+                if icon is not None and main_thread_icon:
+                    tray.run_on_main_thread(icon)  # returns after Quit
+                else:
+                    while not quit_event.wait(1):
+                        pass
             except KeyboardInterrupt:
                 pass
             _say("Stopping; finishing the step that is running (this can take a minute)...")
@@ -625,6 +636,10 @@ def _cmd_run(args: argparse.Namespace) -> int:
             if panel is not None:
                 panel.stop()
     except app.AlreadyRunning as exc:
+        if cfg.is_packaged() and not args.no_browser:
+            # Opened again from the Start menu or Dock: show the running copy's panel.
+            webbrowser.open(f"http://127.0.0.1:{config.panel.port}")
+            return 0
         print(f"{exc}. Only one copy may run at a time.")
         return 1
     _say("Stopped.")

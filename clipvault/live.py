@@ -212,7 +212,7 @@ class LiveWatcher:
                 channel.subscription_id = None
             pending = list(self.channels.values())
         token = self.tokens.get()
-        client_id = cfg.get_secret("twitch_client_id") or ""
+        client_id = cfg.twitch_client_id() or ""
         for channel in pending:
             try:
                 channel.subscription_id = eventsub.subscribe_chat(
@@ -231,7 +231,7 @@ class LiveWatcher:
         self._handle(channel, channel.detector.flush())
         if channel.subscription_id not in (None, "refused") and self.session.session_id:
             try:
-                eventsub.unsubscribe(self.http, cfg.get_secret("twitch_client_id") or "",
+                eventsub.unsubscribe(self.http, cfg.twitch_client_id() or "",
                                      self.tokens.get(), channel.subscription_id)  # fmt: skip
             except user_auth.LoginNeeded:
                 pass

@@ -26,7 +26,26 @@ The exact rules for the phone-ready video (sizes, fonts, caption timing, safe
 area, loudness, automatic quality checks) are in [docs/SPEC.md](docs/SPEC.md),
 sections 8 to 11.
 
-## Quick start (about 5 minutes)
+## Install the app (no Python needed)
+
+Download the installer from the
+[latest release](https://github.com/kissinger248-max/ClipVault/releases/latest):
+
+- **Windows 10/11:** `ClipVault-Setup-Windows.exe`. If Windows says "Windows protected your
+  PC", choose **More info**, then **Run anyway** (the app isn't code-signed).
+- **Mac with Apple silicon:** `ClipVault-macOS.dmg`; drag ClipVault to Applications. The
+  first time, macOS asks you to confirm in **System Settings › Privacy & Security › Open
+  Anyway** (the app isn't notarised).
+
+Everything it needs is inside: Python, FFmpeg, the chat tool and the caption fonts. It
+opens the control panel in your browser, where you choose a password, **sign in with
+Twitch** (a code at twitch.tv/activate; no developer keys needed) and add streamers. It
+starts with the computer from then on (switch that off in Settings, Schedule). Settings
+and the database live in `%LOCALAPPDATA%\ClipVault` (Windows) or
+`~/Library/Application Support/ClipVault` (Mac); clips go to `~/Twitch Archive` unless
+you choose another folder. How the installers are built: [docs/PACKAGING.md](docs/PACKAGING.md).
+
+## Run from source (about 5 minutes)
 
 You need **Python 3.12+** and **FFmpeg**.
 

@@ -1,13 +1,16 @@
 """Settings loader: non-secret settings from ``config.yaml``, secrets from the OS keychain.
 
 The app's home folder holds ``config.yaml``, the database and ``logs/``. It is the
-current working directory unless the ``CLIPVAULT_HOME`` environment variable is set.
+``CLIPVAULT_HOME`` environment variable when set; otherwise the installed app uses
+its own data folder (``app_data_dir()``) and a source checkout uses the current
+working directory.
 """
 
 from __future__ import annotations
 
 import os
 import re
+import sys
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
@@ -18,6 +21,12 @@ import yaml
 CONFIG_FILENAME = "config.yaml"
 DB_FILENAME = "clipvault.db"
 KEYRING_SERVICE = "clipvault"
+
+
+def keyring_service() -> str:
+    """The keychain entry name; ``CLIPVAULT_KEYRING_SERVICE`` keeps test copies apart."""
+    return os.environ.get("CLIPVAULT_KEYRING_SERVICE") or KEYRING_SERVICE
+
 
 # Secrets the user types in (SPEC §17); settable with ``clipvault secrets set``.
 USER_SECRET_NAMES = (
@@ -117,9 +126,82 @@ class Config:
     unknown_keys: tuple[str, ...] = ()
 
 
+def is_packaged() -> bool:
+    """True when running from the installed app (a PyInstaller build), not from source."""
+    return bool(getattr(sys, "frozen", False))
+
+
+def app_data_dir() -> Path:
+    """Where the installed app keeps its settings, database and logs.
+
+    Windows: ``%LOCALAPPDATA%\\ClipVault``; macOS: ``~/Library/Application Support/ClipVault``;
+    elsewhere ``~/.local/share/clipvault``. The clip library itself is chosen separately
+    (``library_root``, by default ``~/Twitch Archive``).
+    """
+    if sys.platform == "win32":
+        base = os.environ.get("LOCALAPPDATA") or str(Path.home() / "AppData" / "Local")
+        return Path(base) / "ClipVault"
+    if sys.platform == "darwin":
+        return Path.home() / "Library" / "Application Support" / "ClipVault"
+    base = os.environ.get("XDG_DATA_HOME") or str(Path.home() / ".local" / "share")
+    return Path(base) / "clipvault"
+
+
 def home_dir() -> Path:
-    """Return the app's home folder (``CLIPVAULT_HOME`` or the current directory)."""
-    return Path(os.environ.get("CLIPVAULT_HOME") or Path.cwd()).expanduser().resolve()
+    """Return the app's home folder.
+
+    ``CLIPVAULT_HOME`` wins; the installed app uses ``app_data_dir()``; running from
+    source uses the current directory.
+    """
+    if os.environ.get("CLIPVAULT_HOME"):
+        return Path(os.environ["CLIPVAULT_HOME"]).expanduser().resolve()
+    if is_packaged():
+        return app_data_dir()
+    return Path.cwd().resolve()
+
+
+def resource_dir() -> Path:
+    """Folder holding files shipped next to the code (``assets/``, bundled ``tools/``)."""
+    if is_packaged():
+        return Path(getattr(sys, "_MEIPASS", Path(sys.executable).parent))
+    return Path(__file__).resolve().parent.parent
+
+
+def bundled_twitch_client_id() -> str | None:
+    """The public Twitch app ID shipped with ClipVault, used for "Sign in with Twitch".
+
+    Twitch client IDs are public by design. The app is registered as a *public*
+    client, so it has no secret: each person signs in with their own Twitch account
+    (device code at twitch.tv/activate) and ClipVault uses that sign-in for everything.
+    """
+    from importlib import resources
+
+    try:
+        text = resources.files("clipvault.data").joinpath("twitch_public_client_id.txt")
+        return first_setting_line(text.read_text(encoding="utf-8"))
+    except (FileNotFoundError, OSError):
+        return None
+
+
+def first_setting_line(text: str) -> str | None:
+    """The first line that is neither blank nor a ``#`` comment, stripped."""
+    for line in text.splitlines():
+        line = line.strip()
+        if line and not line.startswith("#"):
+            return line
+    return None
+
+
+def own_twitch_keys() -> tuple[str, str] | None:
+    """The user's own developer keys (client ID and secret), when both are stored."""
+    client_id = get_secret("twitch_client_id")
+    secret = get_secret("twitch_client_secret")
+    return (client_id, secret) if client_id and secret else None
+
+
+def twitch_client_id() -> str | None:
+    """The Twitch app ID in use: the user's own if they stored one, else the built-in one."""
+    return get_secret("twitch_client_id") or bundled_twitch_client_id()
 
 
 def config_path() -> Path:
@@ -406,7 +488,7 @@ def get_secret(name: str) -> str | None:
         return env_value
     import keyring
 
-    return keyring.get_password(KEYRING_SERVICE, name)
+    return keyring.get_password(keyring_service(), name)
 
 
 def set_secret(name: str, value: str) -> None:
@@ -414,7 +496,7 @@ def set_secret(name: str, value: str) -> None:
     _check_secret_name(name)
     import keyring
 
-    keyring.set_password(KEYRING_SERVICE, name, value)
+    keyring.set_password(keyring_service(), name, value)
 
 
 def delete_secret(name: str) -> None:
@@ -424,7 +506,7 @@ def delete_secret(name: str) -> None:
     from keyring.errors import PasswordDeleteError
 
     try:
-        keyring.delete_password(KEYRING_SERVICE, name)
+        keyring.delete_password(keyring_service(), name)
     except PasswordDeleteError:
         pass
 

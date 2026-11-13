@@ -16,7 +16,8 @@ import yaml
 
 from clipvault import config as cfg
 
-FONTS_DIR = Path(__file__).resolve().parent.parent.parent / "assets" / "fonts"
+# Source checkout: <repo>/assets/fonts. Installed app: bundled next to the code.
+FONTS_DIR = cfg.resource_dir() / "assets" / "fonts"
 
 
 class Look(dict):

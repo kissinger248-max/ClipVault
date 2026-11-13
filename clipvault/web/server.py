@@ -122,7 +122,10 @@ def create_app(home: Path | None = None) -> FastAPI:
 
     def back(url: str, message: str = "") -> RedirectResponse:
         if message:
-            url += ("&" if "?" in url else "?") + urlencode({"msg": message})
+            # The message goes before any "#section" part, which browsers never send.
+            path, hash_mark, section = url.partition("#")
+            path += ("&" if "?" in path else "?") + urlencode({"msg": message})
+            url = path + hash_mark + section
         return RedirectResponse(url, status_code=303)
 
     # --- security ----------------------------------------------------------------

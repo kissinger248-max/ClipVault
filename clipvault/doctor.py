@@ -145,11 +145,11 @@ def check_keyring() -> CheckResult:
         if isinstance(backend, fail_backend.Keyring):
             return CheckResult("Keyring", FAIL, "no keychain backend available", fix)
         probe_user, probe_value = "doctor_probe", "ok"
-        keyring.set_password(cfg.KEYRING_SERVICE, probe_user, probe_value)
+        keyring.set_password(cfg.keyring_service(), probe_user, probe_value)
         try:
-            read_back = keyring.get_password(cfg.KEYRING_SERVICE, probe_user)
+            read_back = keyring.get_password(cfg.keyring_service(), probe_user)
         finally:
-            keyring.delete_password(cfg.KEYRING_SERVICE, probe_user)
+            keyring.delete_password(cfg.keyring_service(), probe_user)
     except Exception as exc:  # any backend error means secrets can't be stored
         return CheckResult("Keyring", FAIL, f"keychain error: {exc}", fix)
     if read_back != probe_value:
@@ -158,8 +158,21 @@ def check_keyring() -> CheckResult:
 
 
 def check_twitch_keys() -> CheckResult:
-    """Twitch client ID and secret stored; needed for discovery, so a warning until set."""
+    """Twitch sign-in or developer keys; needed for discovery, so a warning until set."""
     try:
+        from clipvault.twitch import user_auth
+
+        if not cfg.own_twitch_keys() and user_auth.available():
+            token = user_auth.stored()
+            if token is not None:
+                return CheckResult("Twitch", OK, f"signed in as {token.login or 'a Twitch user'}")
+            return CheckResult(
+                "Twitch",
+                WARN,
+                "not signed in (needed to find clips)",
+                "Open the control panel and choose Sign in with Twitch, or run "
+                "'python -m clipvault twitch login'.",
+            )
         missing = [
             name
             for name in ("twitch_client_id", "twitch_client_secret")

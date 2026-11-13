@@ -8,3 +8,5 @@
 *.otf binary
 *.mp4 binary
 *.onnx binary
+*.woff2 binary
+*.icns binary

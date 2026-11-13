@@ -505,3 +505,7 @@ details.card > .inside { padding: 0 16px 14px; }
 .copy-row .btn { height: 34px; }
 .setup-card .add-form input { height: 42px !important; }
 .password-form .field { gap: 8px; }  /* SetupPassword: label, box and hint 8 px apart */
+
+/* setup step 2: Twitch sign-in code */
+.copy-row input.code-box { font-size: 20px; font-weight: 700; letter-spacing: 0.12em; text-transform: uppercase; }
+.note.bad { color: var(--red); }

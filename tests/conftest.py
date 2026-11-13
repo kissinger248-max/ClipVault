@@ -82,6 +82,14 @@ def no_real_downloads(monkeypatch: pytest.MonkeyPatch) -> None:
 
 
 @pytest.fixture(autouse=True)
+def no_bundled_twitch_app(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Tests start without the built-in "Sign in with Twitch" app ID; sign-in tests set one."""
+    from clipvault import config
+
+    monkeypatch.setattr(config, "bundled_twitch_client_id", lambda: None)
+
+
+@pytest.fixture(autouse=True)
 def fake_user_folder(tmp_path_factory: pytest.TempPathFactory, monkeypatch: pytest.MonkeyPatch):
     """Make ``~`` point at a temp folder, so the default library root is never the real one."""
     folder = tmp_path_factory.mktemp("userhome")
@@ -110,3 +118,35 @@ def conn(home: Path) -> sqlite3.Connection:
     connection = db.open_db(home / "clipvault.db")
     yield connection
     connection.close()
+
+
+# --- control panel ------------------------------------------------------------------------
+
+
+@pytest.fixture(autouse=True)
+def no_lan_lookup(monkeypatch: pytest.MonkeyPatch) -> None:
+    """The panel's phone address is made up, never looked up on the real network."""
+    monkeypatch.setattr("clipvault.web.settings_routes.lan_address", lambda: "192.168.1.5")
+
+
+@pytest.fixture
+def library(home: Path) -> Path:
+    """An empty clip library in the temp home folder, set in config.yaml."""
+    from clipvault import config as cfg
+
+    root = home / "library"
+    root.mkdir()
+    (root / ".clipvault-library").write_text("ClipVault library\n")
+    cfg.save_settings({"library_root": str(root)}, home / "config.yaml")
+    return root
+
+
+@pytest.fixture
+def client(home: Path, library: Path):
+    """The control panel, served in-process (no password set yet)."""
+    from fastapi.testclient import TestClient
+
+    from clipvault.web.server import create_app
+
+    db.open_db(home / "clipvault.db").close()
+    return TestClient(create_app(home), follow_redirects=False)

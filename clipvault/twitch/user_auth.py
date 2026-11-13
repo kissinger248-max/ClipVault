@@ -1,7 +1,9 @@
-"""Logging the user in to Twitch, for reading live chat (M14).
+"""Logging the user in to Twitch ("Sign in with Twitch").
 
 Live chat comes through EventSub, which needs a *user* token with the
-``user:read:chat`` scope; the app token can't read chat. The device-code flow is
+``user:read:chat`` scope; the app token can't read chat. Without the user's own
+developer keys, the same sign-in is also used for finding clips (Get Users, Clips,
+Videos and Streams accept a user token for any broadcaster). The device-code flow is
 used (docs checked 2026-11-13, /docs/authentication/getting-tokens-oauth/): the
 app shows a short code, the user enters it at twitch.tv/activate, and the app
 polls until it is approved. No redirect address and no HTTPS certificate needed.
@@ -35,6 +37,7 @@ SCOPES = ("user:read:chat",)
 SECRET = "twitch_user_token"
 RENEW_MARGIN = timedelta(minutes=10)
 DEVICE_GRANT = "urn:ietf:params:oauth:grant-type:device_code"
+_RENEW_LOCK = threading.Lock()  # one renewal at a time across every provider
 
 log = logging.getLogger(__name__)
 
@@ -69,10 +72,29 @@ class UserToken:
 
 
 def _credentials() -> tuple[str, str | None]:
-    client_id = cfg.get_secret("twitch_client_id")
-    if not client_id:
+    """The app ID to log in with, and its secret when the user's own app is confidential.
+
+    The user's own keys win. Without them, ClipVault's built-in *public* app is used,
+    which has no secret (Twitch: public clients "Do not need to maintain a client
+    secret" and refresh without one).
+    """
+    own_id = cfg.get_secret("twitch_client_id")
+    if own_id:
+        return own_id, cfg.get_secret("twitch_client_secret")
+    bundled = cfg.bundled_twitch_client_id()
+    if not bundled:
         raise LoginNeeded("the Twitch client ID is not set")
-    return client_id, cfg.get_secret("twitch_client_secret")
+    return bundled, None
+
+
+def client_id() -> str:
+    """The Twitch app ID that sign-ins (and Helix calls made with them) use."""
+    return _credentials()[0]
+
+
+def available() -> bool:
+    """Whether a Twitch sign-in can be started (an app ID is known)."""
+    return bool(cfg.twitch_client_id())
 
 
 def start_login(http: httpx.Client) -> DeviceLogin:
@@ -184,9 +206,21 @@ class UserTokenProvider:
         with self._lock:
             if self._token is None:
                 raise LoginNeeded("not logged in to Twitch")
-            if parse_rfc3339(self._token.expires_at) - utc_now() < RENEW_MARGIN:
-                self._refresh()
+            if self._due():
+                # Clip finding and live chat each hold a provider, and refresh tokens work
+                # once. Renew one at a time, and take a renewal another provider already
+                # stored instead of spending the old (now used) refresh token.
+                with _RENEW_LOCK:
+                    latest = stored()
+                    if latest is not None and latest.refresh_token != self._token.refresh_token:
+                        self._token = latest
+                    if self._due():
+                        self._refresh()
             return self._token.access_token
+
+    def _due(self) -> bool:
+        assert self._token is not None
+        return parse_rfc3339(self._token.expires_at) - utc_now() < RENEW_MARGIN
 
     def invalidate(self) -> None:
         """Twitch rejected the token: refresh it on the next ``get``."""

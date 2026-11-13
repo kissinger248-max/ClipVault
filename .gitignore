@@ -39,3 +39,9 @@ clipvault.lock
 
 # Panel thumbnails
 /cache/
+
+# Packaging: downloaded tools, generated icons and build output
+packaging/tools/
+packaging/build/
+packaging/icons/
+packaging/build-log.txt

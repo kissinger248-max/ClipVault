@@ -8,6 +8,7 @@ still works. Without the ``desktop`` extra (pystray) there is simply no icon.
 from __future__ import annotations
 
 import logging
+import sys
 import threading
 import webbrowser
 from collections.abc import Callable
@@ -45,7 +46,9 @@ def _image(color: str) -> Any:
     return image
 
 
-def start(url: str, db_path: Path, on_quit: Callable[[], None]) -> Any | None:
+def start(
+    url: str, db_path: Path, on_quit: Callable[[], None], *, on_main_thread: bool = False
+) -> Any | None:
     """Show the tray icon; returns it (call ``.stop()`` on exit), or None when unavailable."""
     try:
         import pystray
@@ -101,11 +104,31 @@ def start(url: str, db_path: Path, on_quit: Callable[[], None]) -> Any | None:
         original_stop()
 
     icon.stop = stop_all
+
+    def begin(icon: Any) -> None:
+        icon.visible = True
+        refresh(icon)
+        threading.Thread(target=keep_fresh, name="tray-refresh", daemon=True).start()
+
+    if on_main_thread:
+        # macOS draws menu-bar icons only from the main thread: the caller runs it
+        # with ``run_on_main_thread`` instead of waiting on its own loop.
+        icon._clipvault_begin = begin
+        return icon
     try:
         icon.run_detached()
     except Exception as exc:  # no desktop session (a server, a remote shell)
         log.info("no tray icon: %s", exc, extra=ctx(job="tray"))
         return None
-    refresh(icon)
-    threading.Thread(target=keep_fresh, name="tray-refresh", daemon=True).start()
+    begin(icon)
     return icon
+
+
+def needs_main_thread() -> bool:
+    """macOS needs the icon on the main thread; Windows and Linux run it on its own."""
+    return sys.platform == "darwin"
+
+
+def run_on_main_thread(icon: Any) -> None:
+    """Show the icon and block until it is stopped (Quit, or ``icon.stop()``)."""
+    icon.run(setup=icon._clipvault_begin)

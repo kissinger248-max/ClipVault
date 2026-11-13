@@ -3,36 +3,14 @@ from __future__ import annotations
 import re
 from pathlib import Path
 
-import pytest
 from fastapi.testclient import TestClient
 
 from clipvault import alerts, db
 from clipvault import config as cfg
 from clipvault.web import auth
-from clipvault.web.server import create_app
 from tests.helpers import add_clip, add_streamer
 
 PASSWORD = "correct horse battery"
-
-
-@pytest.fixture(autouse=True)
-def no_lan_lookup(monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setattr("clipvault.web.settings_routes.lan_address", lambda: "192.168.1.5")
-
-
-@pytest.fixture
-def library(home: Path) -> Path:
-    root = home / "library"
-    root.mkdir()
-    (root / ".clipvault-library").write_text("ClipVault library\n")
-    cfg.save_settings({"library_root": str(root)}, home / "config.yaml")
-    return root
-
-
-@pytest.fixture
-def client(home: Path, library: Path) -> TestClient:
-    db.open_db(home / "clipvault.db").close()
-    return TestClient(create_app(home), follow_redirects=False)
 
 
 def login(client: TestClient) -> TestClient:

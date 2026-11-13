@@ -120,13 +120,16 @@ def register(
         current = config()
         keys = {name: bool(cfg.get_secret(name)) for name in cfg.USER_SECRET_NAMES}
         estimate = estimate_gb_per_month(streamer_rows(), current.quality)
+        from clipvault import autostart
         from clipvault.twitch import user_auth
 
         token = user_auth.stored()
+        starts_at_login = autostart.is_enabled() if autostart.supported() else None
         return page(request, "settings.html", tab="settings", config=current, keys=keys,
-                    estimate=estimate, twitch_user=token.login if token else "",
-                    twitch_login=app.state.panel.twitch_login, **phone_info(current),
-                    **folder_info(current))  # fmt: skip
+                    starts_at_login=starts_at_login,
+                    estimate=estimate, twitch_user=(token.login or "your account") if token else "",
+                    twitch_login=app.state.panel.twitch_login, sign_in_mode=sign_in_mode(),
+                    **phone_info(current), **folder_info(current))  # fmt: skip
 
     @app.post("/settings/storage")
     def save_storage(
@@ -155,7 +158,15 @@ def register(
         battery: str = Form(""),
         transcripts: str = Form(""),
         timezone: str = Form("America/Chicago"),
+        autostart_on: str = Form(""),
     ):
+        from clipvault import autostart
+
+        if autostart.supported() and autostart.is_enabled() != bool(autostart_on):
+            try:
+                autostart.set_enabled(bool(autostart_on))
+            except OSError as exc:
+                return back("/settings", f"Could not change starting at login: {exc}")
         try:
             minutes = int(interval)
         except ValueError:
@@ -247,7 +258,9 @@ def register(
     # --- Twitch login for live chat ---------------------------------------------------------
 
     @app.post("/settings/twitch-login")
-    def twitch_login_start():
+    def twitch_login_start(next: str = Form("/settings#twitch-login")):
+        if not next.startswith("/") or next.startswith("//"):
+            next = "/settings#twitch-login"  # only ever back into the panel
         import threading
 
         import httpx
@@ -260,7 +273,7 @@ def register(
             login = user_auth.start_login(http)
         except (user_auth.LoginNeeded, httpx.HTTPError) as exc:
             http.close()
-            return back("/settings#twitch-login", f"Can't start the login: {exc}")
+            return back(next, f"Can't start the sign-in: {exc}")
         state.twitch_login = {"code": login.user_code, "url": login.verification_uri,
                               "error": ""}  # fmt: skip
 
@@ -274,13 +287,16 @@ def register(
                 http.close()
 
         threading.Thread(target=wait, name="twitch-login", daemon=True).start()
-        return back("/settings#twitch-login")
+        return back(next)
 
     @app.post("/settings/twitch-logout")
     def twitch_logout():
         from clipvault.twitch import user_auth
 
         user_auth.logout()
+        if sign_in_mode():
+            message = "Signed out of Twitch. Sign in again to keep finding clips."
+            return back("/settings#twitch-login", message)
         return back("/settings#twitch-login", "Logged out of Twitch. Live chat is no longer read.")
 
     # --- look editor ----------------------------------------------------------------------
@@ -354,9 +370,14 @@ def register(
         step = min(max(step, 1), WIZARD_STEPS)
         current = config()
         streamers = streamer_rows()
-        keys = cfg.get_secret("twitch_client_id") and cfg.get_secret("twitch_client_secret")
+        keys = cfg.own_twitch_keys()
+        from clipvault.twitch import user_auth
+
+        token = user_auth.stored()
         return page(request, "setup.html", step=step, steps=WIZARD_STEPS, config=current,
-                    streamers=streamers, has_keys=bool(keys),
+                    streamers=streamers, has_keys=bool(keys), sign_in_mode=sign_in_mode(),
+                    twitch_user=(token.login or "your account") if token else "",
+                    twitch_login=app.state.panel.twitch_login,
                     estimate=estimate_gb_per_month(streamers, current.quality),
                     **phone_info(current), **folder_info(current))  # fmt: skip
 
@@ -374,6 +395,15 @@ def register(
         finally:
             c.close()
         return back("/", "All set. ClipVault looks for clips on its own while it runs.")
+
+
+def sign_in_mode() -> bool:
+    """True when ClipVault connects through the user's Twitch sign-in (no own developer keys)."""
+    from clipvault.twitch import user_auth
+
+    return (
+        not cfg.own_twitch_keys() and bool(cfg.bundled_twitch_client_id()) and user_auth.available()
+    )
 
 
 def _check_twitch() -> str:
