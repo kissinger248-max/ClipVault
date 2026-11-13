@@ -38,7 +38,8 @@ Download the installer from the
   Anyway** (the app isn't notarised).
 
 Everything it needs is inside: Python, FFmpeg, the chat tool and the caption fonts. It
-opens the control panel in your browser, where you choose a password, **sign in with
+opens in its own window (closing it keeps ClipVault running from the tray), where you
+choose a password, **sign in with
 Twitch** (a code at twitch.tv/activate; no developer keys needed) and add streamers. It
 starts with the computer from then on (switch that off in Settings, Schedule). Settings
 and the database live in `%LOCALAPPDATA%\ClipVault` (Windows) or

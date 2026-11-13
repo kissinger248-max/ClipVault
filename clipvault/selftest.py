@@ -73,6 +73,21 @@ def _libraries() -> str:
     return f"{len(names)} libraries import"
 
 
+def _app_window() -> str:
+    """The app window's library and this system's backend load."""
+    import webview  # noqa: F401
+
+    if sys.platform == "win32":
+        from webview.platforms import edgechromium  # noqa: F401  (loads .NET and WebView2)
+
+        return "pywebview with WebView2"
+    if sys.platform == "darwin":
+        from webview.platforms import cocoa  # noqa: F401
+
+        return "pywebview with WebKit"
+    return "pywebview (no window backend checked on this system)"
+
+
 def _whisper_assets() -> str:
     import faster_whisper
 
@@ -186,6 +201,7 @@ CHECKS: list[Check] = [
     ("Tools", _tools),
     ("Downloader", _downloader),
     ("Libraries", _libraries),
+    ("App window", _app_window),
     ("Speech model files", _whisper_assets),
     ("Face model", _face_model),
     ("Caption fonts", _fonts),

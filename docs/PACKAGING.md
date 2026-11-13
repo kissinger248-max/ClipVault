@@ -22,6 +22,11 @@ with their licences, and refuses an FFmpeg without the `subtitles` filter.
 - **Start:** `clipvault/desktop.py`. With no arguments it runs `clipvault run`:
   scheduler, panel, tray icon (menu bar on Mac), and the panel opens in the browser.
   Opening it again while it runs just opens the panel.
+- **App window** (`clipvault/window.py`): the panel opens in ClipVault's own window
+  (pywebview: WebView2 on Windows, WebKit on macOS), which signs itself in with a token
+  held only in the running app. Closing the window hides it, and opening ClipVault again
+  brings it forward (`/app/show`). It falls back to the browser if the window can't
+  start. From source, `run --window`.
 - **No console window.** Output goes to the log files. On Windows the tools it starts
   get no window either. `ClipVault-console.exe` (Windows) runs the other commands,
   for example `ClipVault-console doctor`.

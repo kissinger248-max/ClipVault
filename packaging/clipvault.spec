@@ -27,15 +27,20 @@ datas = [
     *collect_data_files("clipvault", excludes=["**/__pycache__/**"]),
     *collect_data_files("faster_whisper"),  # the voice-activity model
     *collect_data_files("certifi"),
+    *collect_data_files("webview"),  # the app window's scripts and (Windows) WebView2 DLLs
     (str(ROOT / "assets" / "fonts"), "assets/fonts"),
     (str(TOOLS), "tools"),
 ]
 binaries = [*collect_dynamic_libs("ctranslate2")]
+if sys.platform == "win32":  # the app window drives WebView2 through .NET (pythonnet)
+    binaries += [*collect_dynamic_libs("pythonnet"), *collect_dynamic_libs("clr_loader")]
+    datas += [*collect_data_files("pythonnet"), *collect_data_files("clr_loader")]
 hiddenimports = [
     *collect_submodules("clipvault"),
     *collect_submodules("uvicorn"),
     *collect_submodules("yt_dlp"),
     *collect_submodules("tzlocal"),
+    *collect_submodules("webview"),
     "keyring.backends.Windows" if sys.platform == "win32" else "keyring.backends.macOS",
     "pystray._win32" if sys.platform == "win32" else "pystray._darwin",
     "multipart",

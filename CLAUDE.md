@@ -85,7 +85,7 @@ assets/fonts/        # Montserrat (OFL) and any other bundled fonts
 python -m venv .venv && source .venv/bin/activate   # Windows: .venv\Scripts\activate
 pip install -e ".[dev]"
 python -m clipvault doctor        # checks ffmpeg, yt-dlp, TwitchDownloaderCLI, config, keyring
-python -m clipvault run [--no-panel] [--no-tray] [--no-browser]   # scheduler + control panel (127.0.0.1:8765) + tray icon
+python -m clipvault run [--no-panel] [--no-tray] [--no-browser] [--window | --no-window]   # scheduler + control panel (127.0.0.1:8765) + tray icon; the installed app shows the panel in its own window
 python -m clipvault panel reset-password   # forget the panel password (choose a new one on next open)
 python -m clipvault twitch login | logout | status   # user login for reading live chat (device code at twitch.tv/activate)
 python -m clipvault live          # watch live chat in the foreground (run does this too)

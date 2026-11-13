@@ -92,6 +92,13 @@ def build_parser() -> argparse.ArgumentParser:
     run.add_argument("--no-panel", action="store_true", help="no control panel (scheduler only)")
     run.add_argument("--no-tray", action="store_true", help="no tray icon")
     run.add_argument("--no-browser", action="store_true", help="don't open the panel on start")
+    shown = run.add_mutually_exclusive_group()
+    shown.add_argument(
+        "--window",
+        action="store_true",
+        help="show the panel in ClipVault's own window (default for the installed app)",
+    )
+    shown.add_argument("--no-window", action="store_true", help="use the web browser instead")
     twitch_cmd = sub.add_parser("twitch", help="your Twitch login (needed to read live chat)")
     twitch_sub = twitch_cmd.add_subparsers(dest="action", required=True)
     twitch_sub.add_parser("login", help="log in with a code at twitch.tv/activate")
@@ -603,19 +610,28 @@ def _cmd_run(args: argparse.Namespace) -> int:
             runner = app.App(config)
             runner.start()
             quit_event = threading.Event()
+            from clipvault import window
+
+            wanted = (cfg.is_packaged() or args.window) and not args.no_window
+            use_window = panel is not None and wanted and window.available()
             icon = None
             main_thread_icon = False
-            if panel is not None and not args.no_tray:
-                from clipvault import tray
-
-                main_thread_icon = tray.needs_main_thread()
-                icon = tray.start(panel.local_url, cfg.db_path(), quit_event.set,
-                                  on_main_thread=main_thread_icon)  # fmt: skip
 
             def stop_everything() -> None:
                 quit_event.set()
+                if use_window:
+                    window.close()  # ends window.run on the main thread
                 if icon is not None and main_thread_icon:
                     icon.stop()  # ends run_on_main_thread on macOS
+
+            if panel is not None and not args.no_tray:
+                from clipvault import tray
+
+                # With the app window, the window system owns the main thread and the
+                # tray icon joins it; without it, macOS needs the icon on the main thread.
+                main_thread_icon = tray.needs_main_thread() and not use_window
+                icon = tray.start(panel.local_url, cfg.db_path(), stop_everything,
+                                  on_main_thread=main_thread_icon, on_open=window.show)  # fmt: skip
 
             lifecycle.mark_started()
             lifecycle.stopping.clear()
@@ -629,14 +645,28 @@ def _cmd_run(args: argparse.Namespace) -> int:
             if ntfy.get_topic() is None:
                 _say("  Phone notifications are off; set them up in the panel's Settings.")
             _say(f"  What it does is written to {cfg.logs_dir()}")
-            if panel is not None and not args.no_browser:
-                webbrowser.open(panel.local_url)
             try:
-                if icon is not None and main_thread_icon:
-                    tray.run_on_main_thread(icon)  # returns after Quit
+                if use_window:
+                    try:
+                        window.run(panel.local_url, cfg.home_dir() / "webview",
+                                   visible=not args.no_browser)  # fmt: skip
+                    except Exception as exc:  # no window system: fall back to the browser
+                        logging.getLogger("clipvault.cli").warning(
+                            "app window unavailable, using the browser: %s", exc,
+                            extra=ctx(job="window"))  # fmt: skip
+                        use_window = False
+                        if not args.no_browser:
+                            webbrowser.open(panel.local_url)
+                        while not quit_event.wait(1):
+                            pass
                 else:
-                    while not quit_event.wait(1):
-                        pass
+                    if panel is not None and not args.no_browser:
+                        webbrowser.open(panel.local_url)
+                    if icon is not None and main_thread_icon:
+                        tray.run_on_main_thread(icon)  # returns after Quit
+                    else:
+                        while not quit_event.wait(1):
+                            pass
             except KeyboardInterrupt:
                 pass
             _say("Stopping; finishing the step that is running (this can take a minute)...")
@@ -648,13 +678,27 @@ def _cmd_run(args: argparse.Namespace) -> int:
             lifecycle.on_quit(None)
     except app.AlreadyRunning as exc:
         if cfg.is_packaged() and not args.no_browser:
-            # Opened again from the Start menu or Dock: show the running copy's panel.
-            webbrowser.open(f"http://127.0.0.1:{config.panel.port}")
+            # Opened again (desktop icon, Start menu): bring the running copy's window
+            # forward, or open its panel in the browser when it has no window.
+            if not _show_running_window(config.panel.port):
+                webbrowser.open(f"http://127.0.0.1:{config.panel.port}")
             return 0
         print(f"{exc}. Only one copy may run at a time.")
         return 1
     _say("Stopped.")
     return 0
+
+
+def _show_running_window(port: int) -> bool:
+    """Ask the ClipVault that is already running to bring its window forward."""
+    import json
+    import urllib.request
+
+    try:
+        with urllib.request.urlopen(f"http://127.0.0.1:{port}/app/show", timeout=5) as reply:
+            return bool(json.load(reply).get("shown"))
+    except (OSError, ValueError):
+        return False
 
 
 def _cmd_twitch(args: argparse.Namespace) -> int:

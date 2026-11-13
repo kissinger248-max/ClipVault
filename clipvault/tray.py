@@ -40,7 +40,12 @@ def _image(color: str) -> Any:
 
 
 def start(
-    url: str, db_path: Path, on_quit: Callable[[], None], *, on_main_thread: bool = False
+    url: str,
+    db_path: Path,
+    on_quit: Callable[[], None],
+    *,
+    on_main_thread: bool = False,
+    on_open: Callable[[], bool] | None = None,
 ) -> Any | None:
     """Show the tray icon; returns it (call ``.stop()`` on exit), or None when unavailable."""
     try:
@@ -90,6 +95,11 @@ def start(
 
         updates.update_now_in_background(db_path)
 
+    def open_panel() -> None:
+        # The app window when there is one, else the browser.
+        if on_open is None or not on_open():
+            webbrowser.open(url)
+
     def quit_app(icon: Any, item: Any) -> None:
         icon.stop()
         on_quit()
@@ -105,9 +115,7 @@ def start(
                       "red": "ClipVault: needs you"}[color]  # fmt: skip
 
     menu = pystray.Menu(
-        pystray.MenuItem(
-            "Open control panel", lambda icon, item: webbrowser.open(url), default=True
-        ),  # fmt: skip
+        pystray.MenuItem("Open ClipVault", lambda icon, item: open_panel(), default=True),
         pystray.MenuItem(paused_label, toggle_pause),
         pystray.MenuItem(update_label, update_now, visible=update_waiting),
         pystray.MenuItem("Quit ClipVault", quit_app),

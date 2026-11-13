@@ -34,7 +34,8 @@ from clipvault.logging_setup import ctx
 from clipvault.web import auth
 
 HERE = Path(__file__).parent
-PUBLIC_PATHS = ("/login", "/setup-password", "/static/", "/manifest.webmanifest", "/healthz")
+PUBLIC_PATHS = ("/login", "/setup-password", "/static/", "/manifest.webmanifest", "/healthz",
+                "/app/")  # fmt: skip
 LOCAL_HOSTS = {"127.0.0.1", "::1", "localhost", "testclient"}
 PAGE_SIZE = 24
 LIVE_CACHE_S = 120
@@ -168,6 +169,28 @@ def create_app(home: Path | None = None) -> FastAPI:
     @app.get("/healthz")
     def healthz() -> dict:
         return {"ok": True, "version": __version__}
+
+    # --- the app window (clipvault/window.py) ----------------------------------------
+
+    @app.get("/app/enter")
+    def app_enter(request: Request, t: str = ""):
+        """The ClipVault window signs itself in with its in-process token."""
+        from clipvault import window
+
+        if not _is_local(request) or not window.token_ok(t):
+            return back("/login")
+        if not auth.has_password():
+            return back("/setup-password")  # the first password is still chosen once
+        return _logged_in(back("/"))
+
+    @app.get("/app/show")
+    def app_show(request: Request) -> dict:
+        """Opening ClipVault again brings the running window forward."""
+        from clipvault import window
+
+        if not _is_local(request):
+            return {"shown": False}
+        return {"shown": window.show()}
 
     @app.get("/setup-password", response_class=HTMLResponse)
     def setup_password_form(request: Request):
