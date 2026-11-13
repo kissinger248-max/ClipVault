@@ -22,6 +22,7 @@ document.addEventListener("DOMContentLoaded", () => {
       const data = new FormData(look);
       const query = new URLSearchParams({
         style: data.get("style"), accent: data.get("accent"), size: data.get("size"),
+        credit: data.get("credit") ? "1" : "0",
       });
       const label = look.querySelector("[data-size-label]");
       if (label) label.textContent = `${data.get("size")} px`;
@@ -29,7 +30,7 @@ document.addEventListener("DOMContentLoaded", () => {
         img.src = `/look/preview/${img.dataset.layout}.jpg?${query}`;
       });
     };
-    look.querySelectorAll("select, input[type=color], input[type=range]").forEach((input) => {
+    look.querySelectorAll("select, input[type=color], input[type=range], input[type=checkbox]").forEach((input) => {
       input.addEventListener("change", update);
     });
   }

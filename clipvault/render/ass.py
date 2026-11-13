@@ -498,7 +498,7 @@ def build_overlay(
         overlay.boxes.append(Box(name, centre - half, top, centre + half, bottom))
         return bottom
 
-    credit = look.credit.text.format(login=login)
+    credit = look.credit.text.format(login=login) if look.credit.get("enabled", True) else ""
     if credit:
         below = line_of_text(
             "credit", look.credit, credit, below + look.credit.gap, duration, look.credit.opacity

@@ -6,12 +6,13 @@
       <option value="box" {{ 'selected' if config.look.headline_style == 'box' }}>White box</option>
       <option value="outline" {{ 'selected' if config.look.headline_style == 'outline' }}>Outlined text</option></select></label>
     <label>Highlight colour <input type="color" name="accent" value="{{ config.look.accent }}"></label>
+    <label class="check"><input type="checkbox" name="credit" value="1" {{ 'checked' if config.look.show_credit }}> Show “@streamer on Twitch” under the headline</label>
     <label>Caption size <input type="range" name="size" min="56" max="96" step="4" value="{{ config.look.caption_size }}"> <span data-size-label>{{ config.look.caption_size }} px</span></label>
   </div>
   <div class="previews">
     {% for layout, label in [('letterbox', 'Letterbox'), ('split', 'Facecam on top'), ('native', "Twitch's own vertical")] %}
     <figure><img data-layout="{{ layout }}" alt="{{ label }} preview" loading="lazy"
-      src="/look/preview/{{ layout }}.jpg?style={{ config.look.headline_style }}&accent={{ config.look.accent|urlpart }}&size={{ config.look.caption_size }}">
+      src="/look/preview/{{ layout }}.jpg?style={{ config.look.headline_style }}&accent={{ config.look.accent|urlpart }}&size={{ config.look.caption_size }}&credit={{ 1 if config.look.show_credit else 0 }}">
       <figcaption>{{ label }}</figcaption></figure>
     {% endfor %}
   </div>

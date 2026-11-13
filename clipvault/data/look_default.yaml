@@ -32,6 +32,7 @@ headline:
   uppercase: false
 
 credit:
+  enabled: false          # the "@login on Twitch" line under the headline (look.show_credit)
   font: Montserrat-SemiBold
   size: 36
   color: "#FFFFFF"

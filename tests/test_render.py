@@ -22,6 +22,7 @@ from tests.helpers import FakeDownloader, add_clip, add_streamer, clip_row, make
 
 NOW = datetime(2026, 11, 12, 12, 0, tzinfo=UTC)
 LOOK = load_look()
+CREDITED = load_look(cfg.Config(look=cfg.LookConfig(show_credit=True)))
 SOURCE = MediaInfo(1280, 720, 60.0, 30.0, True, "hevc")
 
 
@@ -158,7 +159,7 @@ def test_words_before_a_trimmed_start_are_dropped() -> None:
 @pytest.mark.parametrize("layout", ["letterbox", "split", "native"])
 def test_overlay_text_is_inside_the_safe_box_for_every_layout(layout: str) -> None:
     overlay = ass.build_overlay(
-        look=LOOK,
+        look=CREDITED,
         layout=layout,
         duration=30.0,
         headline="Kai loses it over GTA cops",
@@ -167,13 +168,13 @@ def test_overlay_text_is_inside_the_safe_box_for_every_layout(layout: str) -> No
         disclosure="#ad Paid partnership with @kaicenat",
     )
     assert {b.name for b in overlay.boxes} == {"headline", "credit", "disclosure", "caption"}
-    assert all(b.inside(LOOK.safe_box) for b in overlay.boxes), overlay.boxes
+    assert all(b.inside(CREDITED.safe_box) for b in overlay.boxes), overlay.boxes
     assert overlay.headline_fits and overlay.headline_lines == 2
 
 
 def test_ass_file_structure_and_karaoke_events() -> None:
     overlay = ass.build_overlay(
-        look=LOOK,
+        look=CREDITED,
         layout="letterbox",
         duration=10.0,
         headline="Big {play}",
@@ -497,3 +498,12 @@ def test_cli_render_reports_results(home: Path, capsys, fake_ffmpeg, monkeypatch
     assert "Nothing to render" in capsys.readouterr().out
     assert main(["render", "nope"]) == 1
     assert "FAILED - no clip with id nope" in capsys.readouterr().out
+
+
+def test_the_credit_line_is_off_unless_switched_on() -> None:
+    plain = ass.build_overlay(look=load_look(cfg.Config()), layout="letterbox", duration=20.0,
+                              headline="Clutch play", login="alpha", words=())  # fmt: skip
+    assert "on Twitch" not in plain.ass and "credit" not in {b.name for b in plain.boxes}
+    shown = ass.build_overlay(look=CREDITED, layout="letterbox", duration=20.0,
+                              headline="Clutch play", login="alpha", words=())  # fmt: skip
+    assert "@alpha on Twitch" in shown.ass

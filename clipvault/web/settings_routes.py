@@ -269,7 +269,9 @@ def register(
     # --- look editor ----------------------------------------------------------------------
 
     @app.get("/look/preview/{layout}.jpg")
-    def look_preview(layout: str, style: str = "", accent: str = "", size: int = 0):
+    def look_preview(
+        layout: str, style: str = "", accent: str = "", size: int = 0, credit: str = ""
+    ):
         import dataclasses
         import hashlib
 
@@ -289,6 +291,7 @@ def register(
             headline_style=style if style in ("box", "outline") else current.look.headline_style,
             accent=accent if _COLOR.match(accent or "") else current.look.accent,
             caption_size=size if 56 <= size <= 96 else current.look.caption_size,
+            show_credit=credit == "1" if credit in ("0", "1") else current.look.show_credit,
         )
         look = load_look(dataclasses.replace(current, look=wanted))
         c = conn()
@@ -312,6 +315,7 @@ def register(
         style: str = Form("box"),
         accent: str = Form("#FFD400"),
         size: str = Form("72"),
+        credit: str = Form(""),
         next: str = Form("/settings#look"),
     ):
         try:
@@ -322,6 +326,7 @@ def register(
             "look.headline_style": style,
             "look.accent": accent.upper(),
             "look.caption_size": caption_size,
+            "look.show_credit": bool(credit),
         }
         return save(updates, next, "Look saved. New vertical copies use it.")
 

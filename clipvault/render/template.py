@@ -52,6 +52,7 @@ def load_look(config: cfg.Config | None = None) -> Look:
             values = _merge(values, yaml.safe_load(path.read_text(encoding="utf-8")) or {})
         values["accent"] = config.look.accent
         values["headline_style"] = config.look.headline_style
+        values["credit"] = {**values["credit"], "enabled": config.look.show_credit}
         if config.look.caption_size != cfg.LookConfig().caption_size:  # set by the user
             # Bigger captions also need a bigger lower limit for over-long words.
             values["caption"] = {**values["caption"], "size": config.look.caption_size,

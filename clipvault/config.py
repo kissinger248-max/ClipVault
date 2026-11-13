@@ -66,6 +66,7 @@ class LookConfig:
     accent: str = "#FFD400"
     headline_style: str = "box"
     caption_size: int = 72
+    show_credit: bool = False  # "@login on Twitch" under the headline
 
 
 @dataclass(frozen=True)
@@ -220,6 +221,7 @@ def _build(raw: dict[str, Any]) -> Config:
             accent=reader.color("look.accent", "#FFD400"),
             headline_style=reader.choice("look.headline_style", ("box", "outline"), "box"),
             caption_size=reader.integer("look.caption_size", 72, minimum=56, maximum=96),
+            show_credit=reader.boolean("look.show_credit", False),
         ),
         notifications=NotificationsConfig(
             quiet_hours=reader.time_pair("notifications.quiet_hours", ("23:00", "08:00")),
