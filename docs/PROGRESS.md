@@ -638,3 +638,32 @@ Request: "announce updates and auto update, i also want the app for myself with 
 - The owner's move is waiting for the double-click.
 - Versions before 0.3.0 can't update themselves; anyone on 0.2.0 installs once by hand.
 - macOS update swap is untested on a real Mac (CI can't run it).
+
+## 2026-11-13: ClipVault in its own app window (0.3.2)
+
+Request: "it just opens a webpage … it cant be its own app?"
+
+**What changed**
+- **Its own window** (`clipvault/window.py`, pywebview: WebView2 on Windows, WebKit on macOS). The panel opens in a ClipVault window with its own taskbar button and icon, instead of a browser tab.
+  - Closing it hides it; ClipVault keeps running from the tray.
+  - Quit and updates close it for real (`lifecycle.request_quit` → `window.close`).
+  - At login the app starts with the window hidden (`run --no-browser`).
+- **Signs itself in:** `/app/enter` with a token held only by the running app sets the normal login cookie. A wrong token goes to `/login`. The first password is still chosen once. The panel password still guards phones and browsers.
+- **Opening ClipVault again** (desktop icon, Start menu) asks the running copy to bring its window forward (`/app/show`, local requests only), then exits. The tray's Open does the same.
+- **Fallback:** if the window can't start, the browser is used as before. From source: `run --window` / `--no-window`.
+- **Packaging:** pywebview (and pythonnet on Windows) is bundled; `selftest` gained an "App window" check; the site, README and docs describe the window.
+
+**Verified, and how**
+- `pytest -q`: 400 passed (new: tests/test_window.py with a stand-in window). `ruff` clean.
+- **From source** (`run --window`, test copy): the window opened signed in on Home; ✕ hid it while the app kept serving; `/app/show` brought it back.
+- **Packaged app built here, test copy:**
+  - selftest "App window: pywebview with WebView2";
+  - a double-click start opened the window with the ClipVault icon, signed in, on the setup wizard;
+  - with the window hidden, a second launch brought it back and exited after 2 s;
+  - a pretend update served locally ("9.9.9", installer = whoami.exe) made it download, verify, start the "installer", close the window and stop in 0.4 s.
+  - Test copies, the fake feed and the test keychain entries were removed.
+- **v0.3.2 on GitHub:** Windows and Mac selftests passed "App window" (WebView2 / WebKit), and both smoke tests passed.
+
+**Open issues**
+- On macOS, ClipVault stays a menu-bar app (no Dock icon): the window opens from the menu-bar icon. Not tried on a real Mac.
+- The owner's installed 0.3.1 updates itself to 0.3.2. Its next check is within 6 hours; it then installs in the quiet hours (from 23:00), or at once via Settings › Updates › Check Now, then Update Now.
