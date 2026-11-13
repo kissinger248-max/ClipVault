@@ -29,7 +29,7 @@ jobs:
             os: windows-latest
             file: packaging/build/ClipVault-Setup-Windows.exe
           - name: macOS
-            os: macos-14   # Apple silicon
+            os: macos-latest   # Apple silicon
             file: packaging/build/ClipVault-macOS.dmg
     runs-on: ${{ matrix.os }}
     timeout-minutes: 60
