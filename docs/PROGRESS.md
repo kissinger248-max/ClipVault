@@ -402,3 +402,5 @@ The user chose not to post at all ("No, go to M14"), so M9 to M12 are skipped an
 
 **Not done yet (needs the user)**
 - "Done when": the user logs in to Twitch once (Settings, Live chat, or `python -m clipvault twitch login`), leaves `run` going while one of the streamers is live, and at least one live moment is created and saved. Until then no real chat has been read through EventSub; subscribing to another channel's chat with a regular viewer's token is what the docs describe but is only proven by that first live run.
+
+**2026-11-13, later: user logged in.** `python -m clipvault twitch login` (device code, approved by the user at twitch.tv/activate) stored a user token. With it, a `channel.chat.message` subscription to a channel the user has no relation to (a 42,000-viewer live stream) was accepted, and 27 chat messages arrived in 20 seconds, about 0.4 s after they were sent. So a regular viewer token with `user:read:chat` can read any channel's chat. Still to see: one of the saved streamers live with `run` going, and a live moment saved and cut ("Done when").
