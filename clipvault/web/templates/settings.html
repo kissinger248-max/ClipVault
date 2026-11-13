@@ -41,6 +41,19 @@
     <button>Save and check</button>
   </form>
 </section>
+<section class="card" id="twitch-login">
+  <h2>Live chat</h2>
+  {% if twitch_login and not twitch_login.error %}
+  <p class="busy" data-reload="5">Open <a href="{{ twitch_login.url }}" target="_blank" rel="noopener">{{ twitch_login.url }}</a> and enter the code <b class="code">{{ twitch_login.code }}</b>. This page updates by itself.</p>
+  {% elif twitch_user %}
+  <p>Logged in to Twitch as <b>{{ twitch_user }}</b>. While ClipVault runs, it reads the chat of saved streamers who are live and keeps the moments where chat goes wild.</p>
+  <form method="post" action="/settings/twitch-logout"><input type="hidden" name="csrf" value="{{ csrf }}"><button class="link danger">Log out of Twitch</button></form>
+  {% else %}
+  {% if twitch_login and twitch_login.error %}<p class="error">{{ twitch_login.error }}</p>{% endif %}
+  <p>To catch moments while a stream is live, ClipVault reads its chat with your Twitch account (read only; it never writes in chat).</p>
+  <form method="post" action="/settings/twitch-login"><input type="hidden" name="csrf" value="{{ csrf }}"><button class="primary">Log in to Twitch</button></form>
+  {% endif %}
+</section>
 <section class="card" id="phone">
   <h2>Phone</h2>
   {% include "_phone.html" %}

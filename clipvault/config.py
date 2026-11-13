@@ -34,6 +34,7 @@ SECRET_NAMES = (
     "ntfy_topic",
     "panel_password_hash",
     "panel_session_key",
+    "twitch_user_token",
 )
 
 _TIME_RE = re.compile(r"^([01]\d|2[0-3]):[0-5]\d$")

@@ -376,3 +376,29 @@ Built ahead of M3 to M5 at the user's request ("Phone-ready video"). Both milest
 
 **Still to do (user)**
 - M4 "Done when": the user watches the moments from 2 real VODs and judges at least half worth keeping. The three are in `Twitch Archive/valkyrae/2026-11/` with `_chat_` in their names, and on the Clips screen under "Chat moments". Nine more finished VODs are waiting and will be searched by `run` (3 per hour) or `python -m clipvault vods`.
+
+## 2026-11-13: M14 (live chat-spike moments), built; waiting for the user's Twitch login
+
+The user chose not to post at all ("No, go to M14"), so M9 to M12 are skipped and marked so in BUILD_PLAN.md.
+
+**What changed**
+- `clipvault/twitch/user_auth.py`: user login with Twitch's device-code flow (code entered at twitch.tv/activate; no redirect URL or HTTPS certificate), scope `user:read:chat`, token in the keychain (`twitch_user_token`), validated for login and user id, refreshed 10 minutes before expiry (refresh tokens are single-use, so the new pair is stored at once; a refused refresh forgets the login).
+- `clipvault/twitch/eventsub.py`: EventSub WebSocket session (welcome, keepalive, reconnect to the given URL, revocation), `channel.chat.message` v1 subscribe/unsubscribe through Helix, nanosecond timestamps parsed.
+- `clipvault/discover/live_spikes.py`: rolling detector with exactly the M4 thresholds (10 s windows, emote weight, mean + 3 sd of the last 10 minutes and at least 2x, minimum score 10); a run of spiking windows is reported once, at its peak, when it ends (or when the stream ends).
+- `clipvault/live.py`: `LiveWatcher` thread started by `run`: every 2 minutes asks Helix who is live, finds the in-progress recording, subscribes to chat, closes quiet windows every second, and saves each spike as clip `live:<vod_id>:<offset>` (source `live_spike`, state `found`, `retry_at` 3 minutes after the moment). The download step cuts it like a chat moment (`CUT_SOURCES`). Pause stops watching; without a login it waits quietly; a refused login raises a "relogin" alert with a link to the panel.
+- CLI `twitch login|logout|status` and `live`; panel Settings "Live chat" with a Log in to Twitch button that shows the code and refreshes until approved; "live moment" badge; the Clips filter "Chat moments" includes live ones. New dependency: `websockets`.
+
+**Decisions worth knowing**
+- **EventSub, not IRC.** Twitch's docs (2026-11-13) call EventSub "the preferred method" and recommend it over IRC; anonymous IRC reading isn't documented. EventSub needs a user token, hence the one-time login.
+- **The in-progress recording is listed by Get Videos while the stream runs** (not stated in the docs; checked live on 4 channels: an archive with the live stream's `stream_id` and a growing duration). Cutting from it works: 40 s from 5 minutes before the live edge of a running stream took 9.8 s, 1280x720, 39.7 s.
+- **Cuts wait 3 minutes** after the moment so the recording contains it; the cut times are in recording time (peak minus the recording's `created_at`).
+- **No duplicates with M4:** a live moment carries `vod_id` + `vod_offset`, so when the finished stream's chat is searched later, that stretch counts as already clipped; the same live moment found twice is refused by the overlap check.
+- **One connection** for all live channels (Twitch allows 300 subscriptions per connection). When nobody is live it is closed, because Twitch closes unused connections itself (code 4003 after 10 seconds, seen live). Messages missed during a reconnect are not replayed (Twitch doesn't); a moment may be missed then, and M4 still finds it after the stream.
+- Create Clip From VOD for permissioned streamers is not built (no posting, no permissions).
+
+**Verified**
+- `pytest -q`: 338 passed; ruff clean. 16 new tests: steady chat gives nothing, a burst is reported once after it ends, silence still closes windows, flush at stream end, session welcome/chat/keepalive/reconnect/errors, subscription request shape and 401, device login waiting then storing, refresh and refused refresh, watcher saving a moment with the right recording offset and 3-minute wait, no duplicate, stream end, no recording, pause, no login, refused login alert, connection closed when nobody is live; panel login flow.
+- Live: the EventSub WebSocket welcomes in 0.34 s and closes an unused connection with 4003 as documented; in-progress recordings found and cut on a running stream (above).
+
+**Not done yet (needs the user)**
+- "Done when": the user logs in to Twitch once (Settings, Live chat, or `python -m clipvault twitch login`), leaves `run` going while one of the streamers is live, and at least one live moment is created and saved. Until then no real chat has been read through EventSub; subscribing to another channel's chat with a regular viewer's token is what the docs describe but is only proven by that first live run.

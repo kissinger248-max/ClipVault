@@ -21,6 +21,7 @@ dependencies = [
     "psutil>=5.9",
     "python-multipart>=0.0.9",
     "qrcode>=7.4",
+    "websockets>=13",
     "tzdata",
 ]
 

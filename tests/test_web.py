@@ -331,3 +331,30 @@ def test_look_is_saved_and_previews_are_cached(client, home, library, monkeypatc
     assert first.headers["content-type"] == "image/jpeg" and again.content == first.content
     assert drawn == [("letterbox", "box", "#00FF00", 64)]  # made once, then served from cache
     assert "Look of vertical videos" in client.get("/settings").text
+
+
+def test_twitch_login_from_the_panel_shows_the_code(client, monkeypatch) -> None:
+    import threading
+
+    from clipvault.twitch import user_auth
+
+    login(client)
+    approved = threading.Event()
+    login_code = user_auth.DeviceLogin(
+        "dev", "WXYZ-9876", "https://www.twitch.tv/activate", 5, 1800
+    )
+    monkeypatch.setattr(user_auth, "start_login", lambda http: login_code)
+    monkeypatch.setattr(user_auth, "finish_login", lambda http, code: approved.wait(5) or None)
+    client.post("/settings/twitch-login", data={"csrf": csrf(client)})
+    page = client.get("/settings").text
+    assert "WXYZ-9876" in page and "twitch.tv/activate" in page
+    future = "2099-01-01T00:00:00Z"
+    user_auth.store(user_auth.UserToken("a", "r", future, "42", "viewer"))
+    approved.set()
+    for _ in range(50):
+        if client.app.state.panel.twitch_login is None:
+            break
+        threading.Event().wait(0.05)
+    assert "Logged in to Twitch as <b>viewer</b>" in client.get("/settings").text
+    client.post("/settings/twitch-logout", data={"csrf": csrf(client)})
+    assert user_auth.stored() is None

@@ -161,3 +161,4 @@ mark { background: var(--mark); color: inherit; padding: 0 2px; }
 .previews figcaption { font-size: 0.75rem; color: var(--muted); text-align: center; margin-top: 4px; }
 input[type=color] { padding: 4px; height: 44px; }
 input[type=range] { width: 100%; }
+.code { font-size: 1.3rem; letter-spacing: 2px; font-family: ui-monospace, monospace; }

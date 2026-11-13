@@ -53,6 +53,8 @@ MAX_FAILURES = len(RETRY_DELAYS_MIN) + 1
 DOWNLOADER_ALERT_AFTER = 3
 _FAILURE_STREAK_SETTING = "fetch.consecutive_failures"
 SILENT_LUFS = -50.0  # quieter than this is treated as muted
+# Moments cut from a stream recording rather than downloaded as a Twitch clip.
+CUT_SOURCES = ("vod_spike", "live_spike")
 DOWNLOADER_ALERT = "Clip downloads keep failing; the downloader (yt-dlp) may need an update."
 
 FETCH_JOB = "fetch"
@@ -197,7 +199,7 @@ def run_fetch(
     pending = conn.execute(query + " ORDER BY c.view_count DESC, c.id", params).fetchall()
     due = [c for c in pending if not c["retry_at"] or parse_rfc3339(c["retry_at"]) <= now]
     if not allow_vod_cuts:
-        due = [c for c in due if c["source"] != "vod_spike"]
+        due = [c for c in due if c["source"] not in CUT_SOURCES]
     summary.waiting = len(pending) - len(due)
     todo = due[:limit] if limit else due
 
@@ -226,7 +228,7 @@ def run_fetch(
 
         path = storage.resolve(library, relpath)
         try:
-            if path is None and clip["source"] == "vod_spike":
+            if path is None and clip["source"] in CUT_SOURCES:
                 start = clip["vod_offset"] or 0
                 end = start + (clip["duration"] or 0)
                 path = cut(clip["url"], library.write_base / relpath, config.quality, start, end)
@@ -264,7 +266,7 @@ def run_fetch(
             continue
 
         done = index
-        if clip["source"] == "vod_spike" and (is_silent or _is_silent)(path):
+        if clip["source"] in CUT_SOURCES and (is_silent or _is_silent)(path):
             conn.execute("UPDATE clips SET reject_reason = 'muted' WHERE id = ?", (clip["id"],))
             log.info("VOD cut has no sound (muted by Twitch?)", extra=log_ctx)
         size = path.stat().st_size

@@ -48,6 +48,7 @@ class PanelState:
     def __init__(self, home: Path) -> None:
         self.home = home
         self.rendering: set[str] = set()
+        self.twitch_login: dict | None = None  # code being entered at twitch.tv/activate
         self.render_errors: dict[str, str] = {}
         self.executor = ThreadPoolExecutor(1, thread_name_prefix="panel-render")
         self.live: dict[str, str] = {}
@@ -224,7 +225,7 @@ def create_app(home: Path | None = None) -> FastAPI:
             where.append("s.login = ?")
             params.append(filters["streamer"])
         if filters["source"] == "chat":
-            where.append("c.source = 'vod_spike'")
+            where.append("c.source IN ('vod_spike', 'live_spike')")
         elif filters["source"] == "viewer":
             where.append("c.source IN ('viewer', 'auto')")
         if filters["starred"]:

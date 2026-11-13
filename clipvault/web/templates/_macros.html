@@ -3,7 +3,7 @@
   <a class="thumb" href="/clips/{{ clip.id|urlpart }}">
     <img src="/thumb/{{ clip.id|urlpart }}" alt="" loading="lazy" width="480" height="270">
     <span class="len">{{ clip.duration|clock }}</span>
-    {% if clip.source == 'vod_spike' %}<span class="badge chat">chat moment</span>{% endif %}
+    {% if clip.source == 'vod_spike' %}<span class="badge chat">chat moment</span>{% elif clip.source == 'live_spike' %}<span class="badge chat">live moment</span>{% endif %}
     {% if clip.renders %}<span class="badge vert">9:16</span>{% endif %}
   </a>
   <div class="meta">

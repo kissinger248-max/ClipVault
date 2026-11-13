@@ -17,7 +17,8 @@ YouTube Shorts. See [docs/SPEC.md](docs/SPEC.md) for what it does and
 | Subtitles | Transcripts with word-by-word timing, searchable | Working (M6) |
 | Phone-ready video | Vertical 9:16 versions with a headline and captions kept clear of TikTok and Shorts buttons | Working (M7), waiting for a check on a real phone |
 | Headlines and look | Hook headline writer, style editor with live preview | Built (M8); headlines need an AI key |
-| Posting | TikTok and YouTube Shorts, only for streamers who gave permission | M9 onward |
+| Live moments | Catches moments from chat while a stream is live | Working (M14), needs your Twitch login |
+| Posting | TikTok and YouTube Shorts, only for streamers who gave permission | Not planned for now |
 
 The exact rules for the phone-ready video (sizes, fonts, caption timing, safe
 area, loudness, automatic quality checks) are in [docs/SPEC.md](docs/SPEC.md),
@@ -148,6 +149,19 @@ or switched off are skipped. Twitch mutes copyrighted music in recordings; a
 moment with no sound is kept but marked `muted` and never suggested for posting.
 
 Try it by hand with `python -m clipvault vods`; `run` does it every hour.
+
+## Moments while a stream is live
+
+ClipVault can also watch chat while a streamer on your list is live. When chat
+suddenly goes wild, it waits 3 minutes (so Twitch's recording has caught up) and
+then cuts those 40 seconds from the stream's recording, while the stream is
+still going. These show up as "live moment" on the Clips screen.
+
+Reading chat needs your own Twitch account (read only; it never writes in chat).
+In the panel go to Settings, "Live chat", press **Log in to Twitch**, open
+twitch.tv/activate and type the code shown. Or run `python -m clipvault twitch login`.
+If a streamer has recordings switched off, nothing can be cut; the moment is
+only noted in the log.
 
 ## Leaving it running
 

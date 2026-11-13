@@ -137,6 +137,8 @@ Accounts and keys the user needs, by milestone:
 
 ### M9. Publishing with review mode
 
+> **Skipped for now (2026-11-13):** asked whether ClipVault should post at all, the user said no. M9 to M12 are about posting and stay unbuilt unless that changes.
+
 - [ ] Permission fields and badges in Streamers; Post switch locked until permission is recorded; authorize-with-Twitch flow (user token, `channel:manage:clips`) for official downloads via Get Clips Download (SPEC §6)
 - [ ] Posting gate in the publish path + unit test proving a non-permissioned streamer can never be posted
 - [ ] Music tagger (YAMNet or PANNs, moved here from M7); clips with no music score are never auto-posted
@@ -197,9 +199,9 @@ Accounts and keys the user needs, by milestone:
 
 Requested by the user on 2026-11-12 (no longer optional). Needs M3 (the app must be running while a streamer is live) and M4 (shared spike detector). Can be built any time after those; it does not have to wait for M13.
 
-- [ ] EventSub chat listener while a streamer on the list is live (check the docs for the token and scope needed to read another channel's chat)
-- [ ] Live spike detection on a rolling window, reusing the M4 detector
-- [ ] Archive-only streamers: cut the moment from the stream's in-progress recording a few minutes later (`yt-dlp --download-sections`), saved as `live_spike`
-- [ ] Permissioned streamers: Create Clip From VOD with padding (SPEC §5.3)
+- [x] EventSub chat listener while a streamer on the list is live (check the docs for the token and scope needed to read another channel's chat)
+- [x] Live spike detection on a rolling window, reusing the M4 detector
+- [x] Archive-only streamers: cut the moment from the stream's in-progress recording a few minutes later (`yt-dlp --download-sections`), saved as `live_spike`
+- [ ] Permissioned streamers: Create Clip From VOD with padding (SPEC §5.3). Not built: the user chose no posting (2026-11-13) and no streamer has permission recorded
 
 **Done when:** during one live stream, at least one live-spike clip is created and saved.

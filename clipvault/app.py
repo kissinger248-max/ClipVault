@@ -171,11 +171,14 @@ class Heartbeat:
 class App:
     """The scheduler and its jobs. ``start`` returns at once; ``stop`` waits for running jobs."""
 
-    def __init__(self, config: cfg.Config) -> None:
+    def __init__(self, config: cfg.Config, watch_live: bool = True) -> None:
         from apscheduler.executors.pool import ThreadPoolExecutor
         from apscheduler.schedulers.background import BackgroundScheduler
 
         self.config = config
+        self.watch_live = watch_live
+        self._live_stop = threading.Event()
+        self._live_thread: threading.Thread | None = None
         self.scheduler = BackgroundScheduler(
             timezone=ZoneInfo(config.timezone),
             executors={"default": ThreadPoolExecutor(4)},
@@ -222,7 +225,19 @@ class App:
               seconds=TICK_EVERY.total_seconds())  # fmt: skip
         self.scheduler.start()
         log.info("scheduler started", extra=ctx(job="app", pid=os.getpid()))
+        if self.watch_live:
+            from clipvault.live import LiveWatcher
+
+            self._live_stop = threading.Event()
+            watcher = LiveWatcher(self.config)
+            self._live_thread = threading.Thread(
+                target=watcher.run, args=(self._live_stop,), name="live-chat", daemon=True
+            )
+            self._live_thread.start()
 
     def stop(self) -> None:
+        if self._live_thread is not None:
+            self._live_stop.set()
+            self._live_thread.join(timeout=15)
         self.scheduler.shutdown(wait=True)
         log.info("scheduler stopped", extra=ctx(job="app"))

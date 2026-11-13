@@ -100,8 +100,12 @@ def register(
         current = config()
         keys = {name: bool(cfg.get_secret(name)) for name in cfg.USER_SECRET_NAMES}
         estimate = estimate_gb_per_month(streamer_rows(), current.quality)
+        from clipvault.twitch import user_auth
+
+        token = user_auth.stored()
         return page(request, "settings.html", tab="settings", config=current, keys=keys,
-                    estimate=estimate, **phone_info(current))  # fmt: skip
+                    estimate=estimate, twitch_user=token.login if token else "",
+                    twitch_login=app.state.panel.twitch_login, **phone_info(current))  # fmt: skip
 
     @app.post("/settings/storage")
     def save_storage(
@@ -218,6 +222,45 @@ def register(
         except ValueError as exc:
             return back("/settings#password", str(exc).capitalize() + ".")
         return back("/login", "Password changed. Log in again (other devices are logged out too).")
+
+    # --- Twitch login for live chat ---------------------------------------------------------
+
+    @app.post("/settings/twitch-login")
+    def twitch_login_start():
+        import threading
+
+        import httpx
+
+        from clipvault.twitch import user_auth
+
+        state = app.state.panel
+        http = httpx.Client(timeout=15.0)
+        try:
+            login = user_auth.start_login(http)
+        except (user_auth.LoginNeeded, httpx.HTTPError) as exc:
+            http.close()
+            return back("/settings#twitch-login", f"Can't start the login: {exc}")
+        state.twitch_login = {"code": login.user_code, "url": login.verification_uri,
+                              "error": ""}  # fmt: skip
+
+        def wait() -> None:
+            try:
+                user_auth.finish_login(http, login)
+                state.twitch_login = None
+            except Exception as exc:  # shown on the page
+                state.twitch_login = {**state.twitch_login, "error": str(exc)}
+            finally:
+                http.close()
+
+        threading.Thread(target=wait, name="twitch-login", daemon=True).start()
+        return back("/settings#twitch-login")
+
+    @app.post("/settings/twitch-logout")
+    def twitch_logout():
+        from clipvault.twitch import user_auth
+
+        user_auth.logout()
+        return back("/settings#twitch-login", "Logged out of Twitch. Live chat is no longer read.")
 
     # --- look editor ----------------------------------------------------------------------
 

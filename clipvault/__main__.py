@@ -91,6 +91,12 @@ def build_parser() -> argparse.ArgumentParser:
     run.add_argument("--no-panel", action="store_true", help="no control panel (scheduler only)")
     run.add_argument("--no-tray", action="store_true", help="no tray icon")
     run.add_argument("--no-browser", action="store_true", help="don't open the panel on start")
+    twitch_cmd = sub.add_parser("twitch", help="your Twitch login (needed to read live chat)")
+    twitch_sub = twitch_cmd.add_subparsers(dest="action", required=True)
+    twitch_sub.add_parser("login", help="log in with a code at twitch.tv/activate")
+    twitch_sub.add_parser("logout", help="forget the Twitch login")
+    twitch_sub.add_parser("status", help="show who is logged in")
+    sub.add_parser("live", help="watch live chat of saved streamers now (Ctrl+C stops)")
     panel = sub.add_parser("panel", help="control-panel helpers")
     panel_sub = panel.add_subparsers(dest="action", required=True)
     panel_sub.add_parser(
@@ -130,6 +136,8 @@ def main(argv: list[str] | None = None) -> int:
         "secrets": _cmd_secrets,
         "run": _cmd_run,
         "panel": _cmd_panel,
+        "twitch": _cmd_twitch,
+        "live": _cmd_live,
         "vods": _cmd_vods,
         "pause": lambda _args: _set_paused(True),
         "resume": lambda _args: _set_paused(False),
@@ -620,6 +628,71 @@ def _cmd_run(args: argparse.Namespace) -> int:
         print(f"{exc}. Only one copy may run at a time.")
         return 1
     _say("Stopped.")
+    return 0
+
+
+def _cmd_twitch(args: argparse.Namespace) -> int:
+    import webbrowser
+
+    import httpx
+
+    from clipvault.twitch import user_auth
+
+    if args.action == "logout":
+        user_auth.logout()
+        print("Twitch login forgotten. Live chat is no longer read.")
+        return 0
+    if args.action == "status":
+        token = user_auth.stored()
+        print(f"Logged in to Twitch as {token.login}." if token else "Not logged in to Twitch.")
+        return 0
+    with httpx.Client(timeout=15.0) as http:
+        try:
+            login = user_auth.start_login(http)
+        except user_auth.LoginNeeded as exc:
+            print(f"Can't start the login: {exc}")
+            return 1
+        print("To let ClipVault read live chat, log in to Twitch:")
+        print(f"  1. Open {login.verification_uri} (opening it in your browser now)")
+        print(f"  2. Enter this code: {login.user_code}")
+        print("Waiting for you to approve it... (Ctrl+C cancels)")
+        webbrowser.open(login.verification_uri)
+        try:
+            token = user_auth.finish_login(http, login)
+        except user_auth.LoginNeeded as exc:
+            print(f"Login didn't work: {exc}")
+            return 1
+        except KeyboardInterrupt:
+            print("Cancelled.")
+            return 1
+    print(f"Logged in as {token.login}. ClipVault reads live chat while it runs.")
+    return 0
+
+
+def _cmd_live(args: argparse.Namespace) -> int:
+    import threading
+
+    from clipvault.live import LiveWatcher
+    from clipvault.twitch import user_auth
+
+    if user_auth.stored() is None:
+        print("Log in to Twitch first: python -m clipvault twitch login")
+        return 1
+    stop = threading.Event()
+    watcher = LiveWatcher(cfg.load_config())
+    thread = threading.Thread(target=watcher.run, args=(stop,), daemon=True)
+    thread.start()
+    _say("Watching live chat; moments are logged and cut a few minutes later by 'fetch' or 'run'.")
+    _say("Press Ctrl+C to stop.")
+    try:
+        while thread.is_alive():
+            thread.join(timeout=30)
+            live = ", ".join(f"{c.login} ({c.spikes} spikes)" for c in watcher.channels.values())
+            _say(f"  live now: {live or 'nobody'}")
+    except KeyboardInterrupt:
+        pass
+    stop.set()
+    thread.join(timeout=15)
     return 0
 
 

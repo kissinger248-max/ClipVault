@@ -60,6 +60,8 @@ clipvault/
   jobs.py            # job definitions and state transitions
   scheduler.py       # scheduled steps (discover, worker, cleanup, summary, notify) + bookkeeping
   power.py           # on battery? heavy steps wait for mains power
+  live.py            # live chat watcher: EventSub chat -> rolling spikes -> live_spike clips
+  tray.py            # tray icon
   alerts.py          # alerts table + settings table helpers
   runs.py            # job cursors and last-run bookkeeping (runs table)
   secret_prompt.py   # asking for a key (hidden terminal prompt or pop-up window)
@@ -85,6 +87,8 @@ pip install -e ".[dev]"
 python -m clipvault doctor        # checks ffmpeg, yt-dlp, TwitchDownloaderCLI, config, keyring
 python -m clipvault run [--no-panel] [--no-tray] [--no-browser]   # scheduler + control panel (127.0.0.1:8765) + tray icon
 python -m clipvault panel reset-password   # forget the panel password (choose a new one on next open)
+python -m clipvault twitch login | logout | status   # user login for reading live chat (device code at twitch.tv/activate)
+python -m clipvault live          # watch live chat in the foreground (run does this too)
 python -m clipvault pause | resume   # stop/restart scheduled work (setting in the database)
 python -m clipvault notify setup | test | status   # ntfy phone notifications
 python -m clipvault secrets set NAME [--window]   # store a key in the OS keychain; --window asks in a pop-up (also: secrets list / delete NAME)
