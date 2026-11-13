@@ -139,7 +139,7 @@ Read on 2026-11-12: Get Clips, Get Users, Get Games, client credentials flow, AP
 ## 2026-11-12 (fourth session): M2 downloads and the library folder (done)
 
 **M2 "Done when": all four checks passed on real data.**
-- First run for `valkyrae`, `xqc`, `kaicenat`: 118 clips saved to `C:\Users\oncho\Twitch Archive` (733 MB), 0 failures, about 5 s per clip. 2 further clips were rejected as repeats of a more-viewed clip of the same moment (checked by hand: 10 s and 4 s offsets on the same VOD).
+- First run for `valkyrae`, `xqc`, `kaicenat`: 118 clips saved to the default `Twitch Archive` folder in the user folder (733 MB), 0 failures, about 5 s per clip. 2 further clips were rejected as repeats of a more-viewed clip of the same moment (checked by hand: 10 s and 4 s offsets on the same VOD).
 - Second run straight after: 0 downloaded.
 - One file taken out of the library by hand: `cleanup` marked it, `fetch` did not download it again, nothing crashed. After the file was put back, `cleanup` un-marked it.
 - Disk guard with `min_free_space_pct: 90` (the disk is 64% free): `fetch` stopped before downloading, exit code 1, storage alert opened once; `cleanup` reported "TOO FULL". With the normal setting the two waiting clips downloaded and the alert closed.
