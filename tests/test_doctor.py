@@ -128,5 +128,5 @@ def test_twitch_keys_check(memory_keyring) -> None:
 
 
 def test_planned_commands_say_when_they_arrive(capsys: pytest.CaptureFixture[str]) -> None:
-    assert main(["fetch"]) == 2
-    assert "M2" in capsys.readouterr().out
+    assert main(["render"]) == 2
+    assert "M7" in capsys.readouterr().out

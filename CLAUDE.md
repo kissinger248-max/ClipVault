@@ -58,7 +58,9 @@ clipvault/
   notify/            # ntfy.py
   web/               # routes/, templates/, static/
   jobs.py            # job definitions and state transitions
+  alerts.py          # alerts table + settings table helpers
   runs.py            # job cursors and last-run bookkeeping (runs table)
+  secret_prompt.py   # asking for a key (hidden terminal prompt or pop-up window)
   streamers.py       # streamer list: streamers.txt import, Twitch profile cache
   doctor.py          # the doctor checks
   logging_setup.py   # JSON-lines logging
@@ -80,9 +82,11 @@ python -m venv .venv && source .venv/bin/activate   # Windows: .venv\Scripts\act
 pip install -e ".[dev]"
 python -m clipvault doctor        # checks ffmpeg, yt-dlp, TwitchDownloaderCLI, config, keyring
 python -m clipvault run           # starts everything
-python -m clipvault secrets set NAME      # store a key in the OS keychain (also: secrets list / delete NAME)
+python -m clipvault secrets set NAME [--window]   # store a key in the OS keychain; --window asks in a pop-up (also: secrets list / delete NAME)
 python -m clipvault streamers import [FILE]   # add streamers from streamers.txt (also: streamers list)
-python -m clipvault discover [--streamer LOGIN] [--since 7d]   # find new clips
+python -m clipvault discover [--streamer LOGIN] [--since 7d] [--all]   # find new clips
+python -m clipvault fetch [--streamer LOGIN] [--limit N]   # download found clips into the library
+python -m clipvault cleanup [--dry-run]       # retention, disk check, files deleted by hand
 python scripts/twitch_live_check.py LOGIN...  # manual live check of the Twitch API (needs real keys)
 pytest -q
 ruff check . && ruff format --check .

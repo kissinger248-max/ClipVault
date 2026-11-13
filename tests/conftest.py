@@ -62,6 +62,26 @@ def no_network(monkeypatch: pytest.MonkeyPatch) -> None:
 
 
 @pytest.fixture(autouse=True)
+def no_real_downloads(monkeypatch: pytest.MonkeyPatch) -> None:
+    """yt-dlp and pip run as separate processes, which the socket guard can't see."""
+    from clipvault.fetch import ytdlp
+
+    def refuse(command, *args, **kwargs):
+        raise AssertionError(f"unit test tried to start a real process: {command[:4]}")
+
+    monkeypatch.setattr(ytdlp, "_run", refuse)
+
+
+@pytest.fixture(autouse=True)
+def fake_user_folder(tmp_path_factory: pytest.TempPathFactory, monkeypatch: pytest.MonkeyPatch):
+    """Make ``~`` point at a temp folder, so the default library root is never the real one."""
+    folder = tmp_path_factory.mktemp("userhome")
+    monkeypatch.setenv("USERPROFILE", str(folder))
+    monkeypatch.setenv("HOME", str(folder))
+    return folder
+
+
+@pytest.fixture(autouse=True)
 def home(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
     """Point CLIPVAULT_HOME at a temp folder and undo logging handlers afterwards."""
     monkeypatch.setenv("CLIPVAULT_HOME", str(tmp_path))

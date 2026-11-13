@@ -38,19 +38,19 @@ Accounts and keys the user needs, by milestone:
 - [x] Selection: `top_n` per streamer per day or `min_views`; skip known ids; insert as `found`
 - [x] `streamers.txt` import (one login per line, optional `key=value` settings)
 - [x] CLI: `python -m clipvault discover [--streamer LOGIN] [--since 7d]`
-- [ ] Unit tests with recorded API responses
+- [x] Unit tests with recorded API responses
 - [ ] Check whether Twitch Auto Clips show up in results for a streamer known to use them; record the answer in PROGRESS.md
 
 **Done when:** running `discover` for 3 real streamers lists their top recent clips; running it again adds nothing new.
 
 ### M2. Downloads and the library folder
 
-- [ ] Clip download with yt-dlp (quality from config) → `fetched`; `downloaded_via = unofficial`
-- [ ] File naming, folders and JSON sidecar exactly as SPEC §13
-- [ ] Dedupe of overlapping clips (SPEC §7, first rule)
-- [ ] Retention rules and disk guard (SPEC §13)
-- [ ] Daily yt-dlp update; "downloader may need an update" alert after 3 consecutive failures
-- [ ] Measure and record average MB per 30 s at 720p and 1080p in PROGRESS.md
+- [x] Clip download with yt-dlp (quality from config) → `fetched`; `downloaded_via = unofficial`
+- [x] File naming, folders and JSON sidecar exactly as SPEC §13
+- [x] Dedupe of overlapping clips (SPEC §7, first rule)
+- [x] Retention rules and disk guard (SPEC §13)
+- [x] Daily yt-dlp update; "downloader may need an update" alert after 3 consecutive failures
+- [x] Measure and record average MB per 30 s at 720p and 1080p in PROGRESS.md
 
 **Done when:** a first run for 3 streamers fills the library correctly; a second run downloads nothing twice; deleting a file by hand doesn't crash anything; disk guard pauses downloads when tested with a tiny fake threshold.
 
@@ -191,9 +191,13 @@ Accounts and keys the user needs, by milestone:
 
 **Done when:** a non-technical person can install the laptop app from the installer alone, and the server comes up with one command.
 
-### M14. Live chat-spike clipping (optional)
+### M14. Live chat-spike clipping
 
-- [ ] EventSub chat listener for live permissioned streamers
-- [ ] Create Clip From VOD with padding (SPEC §5.3)
+Requested by the user on 2026-11-12 (no longer optional). Needs M3 (the app must be running while a streamer is live) and M4 (shared spike detector). Can be built any time after those; it does not have to wait for M13.
+
+- [ ] EventSub chat listener while a streamer on the list is live (check the docs for the token and scope needed to read another channel's chat)
+- [ ] Live spike detection on a rolling window, reusing the M4 detector
+- [ ] Archive-only streamers: cut the moment from the stream's in-progress recording a few minutes later (`yt-dlp --download-sections`), saved as `live_spike`
+- [ ] Permissioned streamers: Create Clip From VOD with padding (SPEC §5.3)
 
 **Done when:** during one live stream, at least one live-spike clip is created and saved.

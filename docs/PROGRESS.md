@@ -92,3 +92,108 @@ Read on 2026-11-12: Get Clips, Get Users, Get Games, client credentials flow, AP
 - M13: `keyring` has no backend in a plain Docker container, and PyInstaller must be told to bundle `clipvault/migrations/*.sql`. Both need a decision before packaging.
 - The app home folder is the current directory unless `CLIPVAULT_HOME` is set, so starting the app from another folder would create a second, empty database. `doctor` now prints the folder; the installers (M13) should set it explicitly.
 - `clipvault-brief/` is still in the repo as a redundant copy of the docs.
+
+**Twitch application registered (2026-11-12)**
+- Name `Auto_Clipper`, category Application Integration, client type Confidential (a client secret is required for the client credentials flow).
+- Registered redirect URL: `https://localhost:8765/auth/twitch/callback` (HTTPS, not the `http://` URL written in BUILD_PLAN.md, README.md and the `doctor` text).
+- Why: the console kept showing "Redirect URIs must use HTTPS protocol". The real cause turned out to be a blank second URL row on the form, not the URL itself, so it is still unknown whether the console accepts `http://localhost:8765/auth/twitch/callback`.
+- Nothing built so far uses the redirect URL. To settle before M9 (authorize-with-Twitch): try adding the `http://localhost...` URL to the application (with no blank row left on the form). If accepted, use it and keep the docs as they are. If refused, either serve the local callback over HTTPS or use a Twitch flow that needs no redirect, and update the URL in the three places above.
+
+## 2026-11-12 (third session): M1 verified against the real Twitch API
+
+**M1 "Done when": passed.** With real keys stored and `valkyrae`, `xqc`, `kaicenat` on the list:
+- First `discover`: 120 new clips (40 per streamer = 5 per local day over 8 days), 0 failures, about 25 requests.
+- Second `discover` straight after: 0 new clips for all three. Exit code 0 both times.
+- Database afterwards: 120 clips in state `found`, all three streamers have Twitch id, display name and avatar, 11 game names cached, every clip has a game name, one cursor per streamer.
+- Durations in the sample range from 6.2 s to 60.0 s, so the 15-59 s posting rule will trim or reject some.
+- The log file for the day contains no token or secret.
+
+**Auto Clips question (SPEC 18): not settled, box left unticked.**
+- The live responses have exactly the 17 documented fields on every clip (2,255 clips across the three streamers), so nothing marks an Auto Clip.
+- No clip was created by the broadcaster's own account or by an obviously Twitch-owned account; every `creator_name` looks like a viewer. `is_featured` was false on all of them.
+- So either these three don't use Auto Clips, or Auto Clips aren't returned by Get Clips; this sample can't tell which. To settle it, run `python scripts/twitch_live_check.py LOGIN` for a streamer known to have Auto Clips on and look at the creator names.
+- This does not block M2: whatever the answer, such clips can only be stored as `source = 'viewer'`, because the API gives no way to tell them apart.
+
+**What real data showed that the docs didn't**
+- Clip URLs come back as `https://www.twitch.tv/<login>/clip/<id>`, not `clips.twitch.tv/<id>`. Nothing depends on the form, but M2 should pass the URL to yt-dlp as given.
+- Clip ids always have a suffix after a dash (`Slug-XXXXXXXXXXXXXXXX`), up to about 60 characters. File names in M2 must allow for that length.
+- Many clips keep the stream title as their title (115 of xQc's 711 share one), and titles are full of emoji and symbols. The M2 file-name slug and the M8 headline writer can't rely on the title being meaningful.
+- Big channels get 100+ clips a day (KaiCenat: 880 in 7 days), so "one page of 100 per day" is what keeps discovery cheap; the top of the page is what matters.
+- A few clips (9 of 2,255) already had no VOD (`video_id` empty, `vod_offset` null) within a week.
+
+**What changed**
+- Test fixtures in `tests/fixtures/twitch/` are now real recorded responses (clip creators' handles replaced; the token fixture stays made up). See the README there.
+- `secrets set NAME --window`: asks in a small pop-up window with a masked box, because pasting into the hidden terminal prompt was confusing. A value that is empty or contains control characters or spaces is refused instead of stored.
+- `discover` prints the top 5 new clips per streamer and a count of the rest; `--all` lists everything.
+- `streamers.txt` created locally with the three test streamers (git-ignored).
+
+**Verified**
+- `pytest -q`: 133 passed. `ruff check .` and `ruff format --check .`: clean.
+- The pop-up window was opened for real and driven automatically (paste, save, cancel) before the user used it.
+
+**Open issues**
+- Auto Clips question, as above.
+- Top-N growth over a day has not been measured yet; compare clip counts per streamer per day after discovery has run for a day or two (expected 5, more means growth).
+- Redirect URL question for M9 (see the note above about the registered application).
+
+## 2026-11-12 (fourth session): M2 downloads and the library folder (done)
+
+**M2 "Done when": all four checks passed on real data.**
+- First run for `valkyrae`, `xqc`, `kaicenat`: 118 clips saved to `C:\Users\oncho\Twitch Archive` (733 MB), 0 failures, about 5 s per clip. 2 further clips were rejected as repeats of a more-viewed clip of the same moment (checked by hand: 10 s and 4 s offsets on the same VOD).
+- Second run straight after: 0 downloaded.
+- One file taken out of the library by hand: `cleanup` marked it, `fetch` did not download it again, nothing crashed. After the file was put back, `cleanup` un-marked it.
+- Disk guard with `min_free_space_pct: 90` (the disk is 64% free): `fetch` stopped before downloading, exit code 1, storage alert opened once; `cleanup` reported "TOO FULL". With the normal setting the two waiting clips downloaded and the alert closed.
+
+**Measured file sizes (replaces the estimates in SPEC 13)**
+- 720p: **5.3 MB per 30 s** on average (118 clips, 4,118 s of video). Per streamer: valkyrae 4.0, kaicenat 5.3, xqc 7.4. Smallest file 0.4 MB, largest 21.1 MB.
+- 1080p: **9.6 MB per 30 s** on average (9-clip sample, 401 s), ranging from 2.2 to 17.5.
+- SPEC guessed 10 MB (720p) and 25 MB (1080p) per 30 s clip, so real files are about half that. The reason is below.
+- At the default 5 clips a day per streamer (average clip 35 s): roughly 30 MB per streamer per day at 720p, about 1 GB per streamer per month.
+
+**What real downloads showed**
+- Twitch serves clips as **HEVC (H.265)** at 60 fps, not H.264. FFmpeg reads it fine, so rendering (M7) is unaffected, but browser playback is not guaranteed: Chrome and Edge need hardware support and Firefox often can't play it. The control panel (M5) should test playback early and may need an H.264 preview copy.
+- yt-dlp also lists `portrait-360/480/608` versions for some clips (seen on valkyrae): Twitch's own vertical cut. Only landscape versions are downloaded for now; the portrait ones are a ready-made input for the "native" layout in M7 (SPEC 10.2), though at 608 px wide they would need upscaling.
+- Some clips come in 1440p as well; the quality setting caps at 720p or 1080p as configured.
+- yt-dlp reports "This clip is no longer available" for deleted clips; those are rejected at once (`reject_reason = 'unavailable'`) without retries.
+
+**What changed**
+- `clipvault/fetch/ytdlp.py`: downloads by running `python -m yt_dlp` as a separate process (not imported), so the daily update takes effect without a restart and a hung download is killed after 5 minutes. Daily `pip install --upgrade yt-dlp`, at most one attempt per 24 h, tracked in `runs`.
+- `clipvault/library/storage.py`: SPEC 13 naming, sidecar JSON, title slugs, path-length guard, library marker file, local cache for when the library drive is away.
+- `clipvault/library/retention.py`: disk guard, retention plan and apply, detection of hand-deleted files.
+- `clipvault/process/filter.py`: overlap dedupe as a pure function.
+- `clipvault/jobs.py`: `run_fetch` (found -> fetched) and `record_failure` (retries, `dead`).
+- `clipvault/alerts.py`: alerts table helpers (one open alert per kind and message) and settings table helpers.
+- CLI: `fetch [--streamer] [--limit]`, `cleanup [--dry-run]`.
+- Migration `0003_library`: `retry_at`, `fetched_at`, `file_size`, `removed_at`, `removed_reason`, an index for retries, and a unique index for open alerts.
+
+**Decisions worth knowing**
+- **Paths in the database are relative to the library root.** The library can move to another drive or sync to another computer (M13) without touching the database.
+- **A removed file does not change the clip's state.** `removed_at` / `removed_reason` (`retention`, `missing`, `user`) record it instead, so a posted clip stays `posted` after its source is cleaned up. Every later worker step must skip clips where `removed_at` is set.
+- **Retry policy:** a failed step is retried after 1, 5 and 30 minutes and the clip is `dead` when the third retry fails (four attempts). SPEC 3 says both "retries after 1, 5 and 30 minutes" and "after 3 failures the clip is dead"; using all three delays needs four attempts, so that reading was chosen. This was scheduled for M3 but the download step needed it.
+- **Dedupe never deletes a saved clip.** If a more-viewed clip of the same moment arrives after one is already downloaded, the newcomer is rejected. Overlap is measured against the shorter clip; over 50% counts as the same moment.
+- **Retention median covers every clip ever saved for the streamer,** including ones already removed. Otherwise each run would remove the lower half of what was left and the archive would shrink to nothing over time.
+- **The file name is fixed before the download starts** (stored in `file_path` while the clip is still `found`), so a crash mid-download resumes into the same file even if the view count changed.
+- **Library away:** the root counts as present only when its `.clipvault-library` marker file exists. A root set up earlier whose marker is gone is treated as an unplugged drive: downloads go to `library-cache/` and move over later; nothing is marked missing meanwhile.
+- **Mass disappearance guard:** if 10 or more files and at least 20% of the library vanish at once, nothing is marked; an alert asks whether the folder was moved.
+- After 3 download failures in a row the run stops (so a dead connection doesn't burn every clip's retries) and one "downloader may need an update" alert opens; the next success closes it.
+
+**Verified**
+- `pytest -q`: 189 passed. `ruff check .` and `ruff format --check .`: clean.
+- Tests never start a real process or touch the real library: yt-dlp/pip calls are blocked and `~` points at a temp folder.
+- The live checks above; the database upgraded in place to migration 0003.
+
+**Open issues and things to watch**
+- **Top-N growth is real:** about 4 hours after the first run, two streamers already had a day with 6 clips instead of 5. Left as is for now; measure again after a few days of scheduled runs (M3) and add a minimum clip age if it gets out of hand.
+- Sidecar JSON files are a snapshot from download time; later view-count changes are in the database only.
+- Unfinished `.part` files from failed downloads are left in place (yt-dlp resumes them); nothing cleans up ones that are never resumed.
+- The free-space percentage is of the whole drive, not of a quota. Fine for a laptop; revisit for a shared server.
+- M5: HEVC playback in browsers (see above). M7: decide whether to use Twitch's portrait versions.
+- M13: the yt-dlp self-update uses pip, which won't exist inside a PyInstaller build; the installer will need to bundle the yt-dlp binary and use its own `-U`.
+- The user asked that the docs cover editing, subtitles and phone-optimised formatting. They do: SPEC sections 8 (transcription), 9 (headline and caption), 10 (1080x1920 rendering, layouts, safe box, text styles, export) and 11 (automatic QA), built in M6 to M8. A plain-language roadmap was added to README.md so this is visible without reading the spec.
+
+**User request (2026-11-12): moments from chat activity in LIVE streams are wanted, not optional**
+- The plan has two versions of "find moments nobody clipped": M4 reads the chat replay of a finished stream (any streamer, no extra login, results some hours later), and M14 does it while the stream is live. M14 was marked optional and limited to permissioned streamers; the user wants the live version.
+- BUILD_PLAN.md M14 is no longer marked optional and gained a box for archive-only streamers: listen to chat live, and when a spike is detected cut that stretch from the stream's in-progress recording with `yt-dlp --download-sections` a few minutes later (private archive only, hard rule 3). Create Clip From VOD stays for permissioned streamers only.
+- M14 depends on M4 (the spike detector is shared) and on M3 (the app must be running continuously while a streamer is live), so it cannot come before those.
+- To check against Twitch's docs before building (hard rule 10): which token and scope let the app read another channel's chat over EventSub (expected: the user's own Twitch login with `user:read:chat`), connection and subscription limits per account, and whether a live stream's recording can be cut while the stream is still running.
+- Streamers who disable or subscriber-lock their recordings yield no footage this way; the spike is still detected and can be logged.

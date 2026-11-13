@@ -150,11 +150,15 @@ def test_token_endpoint_outage_is_retried_then_reported() -> None:
 
 def test_requests_carry_bearer_token_and_client_id() -> None:
     client, seen, _, _ = make_client([httpx.Response(200, json=load_fixture("users.json"))])
-    users = client.get_users(logins=["alphastreamer", "betastreamer"])
-    assert [u["id"] for u in users] == ["1001", "1002"]
+    users = client.get_users(logins=["valkyrae", "xqc", "kaicenat"])
+    assert [(u["id"], u["display_name"]) for u in users] == [
+        ("79615025", "Valkyrae"),
+        ("71092938", "xQc"),
+        ("641972806", "KaiCenat"),
+    ]
     assert seen[0].headers["Authorization"] == "Bearer tok0"
     assert seen[0].headers["Client-Id"] == "cid"
-    assert seen[0].url.query == b"login=alphastreamer&login=betastreamer"
+    assert seen[0].url.query == b"login=valkyrae&login=xqc&login=kaicenat"
 
 
 def test_user_lookups_are_split_into_groups_of_100() -> None:
@@ -167,19 +171,20 @@ def test_user_lookups_are_split_into_groups_of_100() -> None:
 
 def test_get_games_maps_ids_to_names() -> None:
     client, _, _, _ = make_client([httpx.Response(200, json=load_fixture("games.json"))])
-    assert client.get_games(["33214", "33214"]) == {"33214": "Fortnite"}
+    assert client.get_games(["32982", "32982"]) == {"32982": "Grand Theft Auto V"}
 
 
 def test_clips_fixture_fields_are_passed_through() -> None:
     client, seen, _, _ = make_client([httpx.Response(200, json=load_fixture("clips.json"))])
-    clips = list(client.iter_clips("1001", START, END))
+    clips = list(client.iter_clips("79615025", START, END))
     assert [c["id"] for c in clips] == [
-        "AwkwardHelplessSalamanderSwiftRage",
-        "CleverTameHamsterKappa",
+        "TawdryMuddyDogePJSalt-KjqqboPnH55MrIKY",
+        "RoundKawaiiLyrebirdNononoCat-Y_5ujEcvPgBVzgtZ",
+        "EsteemedUglySoybeanSoonerLater-fLOgvRkrxwzg4aKt",
     ]
     params = dict(seen[0].url.params)
     assert params == {
-        "broadcaster_id": "1001",
+        "broadcaster_id": "79615025",
         "started_at": "2026-11-10T00:00:00Z",
         "ended_at": "2026-11-11T00:00:00Z",
         "first": "100",

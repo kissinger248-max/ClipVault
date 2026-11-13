@@ -53,19 +53,24 @@ def clip_ids(conn: sqlite3.Connection) -> list[str]:
 # --- pure functions ------------------------------------------------------------
 
 
-def test_parse_clip_from_fixture() -> None:
-    first, second = (parse_clip(raw) for raw in load_fixture("clips.json")["data"])
-    assert first.id == "AwkwardHelplessSalamanderSwiftRage"
-    assert first.created_at == datetime(2026, 11, 10, 22, 34, 17, tzinfo=UTC)
-    assert (first.view_count, first.duration) == (1543, 28.3)
-    assert (first.video_id, first.vod_offset, first.game_id) == ("205586603", 4801, "33214")
-    # Twitch sends empty strings and nulls when the VOD or game is unknown.
-    assert (second.video_id, second.vod_offset, second.game_id, second.title) == (
-        None,
-        None,
-        None,
-        "",
-    )
+def test_parse_clip_from_recorded_fixture() -> None:
+    first, second, _ = (parse_clip(raw) for raw in load_fixture("clips.json")["data"])
+    assert first.id == "TawdryMuddyDogePJSalt-KjqqboPnH55MrIKY"
+    assert first.url == "https://www.twitch.tv/valkyrae/clip/TawdryMuddyDogePJSalt-KjqqboPnH55MrIKY"
+    assert first.created_at == datetime(2026, 11, 7, 0, 7, 23, tzinfo=UTC)
+    assert (first.view_count, first.duration) == (2536, 55.8)
+    assert (first.video_id, first.vod_offset, first.game_id) == ("2921565789", 3085, "32982")
+    assert first.creator_name == "viewer_a"
+    # Twitch sends an empty string and null once the VOD is gone.
+    assert (second.video_id, second.vod_offset) == (None, None)
+
+
+def test_parse_clip_tolerates_missing_optional_values() -> None:
+    raw = make_clip("x", "1", "2026-11-10T23:01:02Z", 12, game_id="", video_id="", vod_offset=None)
+    raw.update(title="", creator_name="")
+    parsed = parse_clip(raw)
+    assert (parsed.video_id, parsed.vod_offset, parsed.game_id) == (None, None, None)
+    assert (parsed.title, parsed.creator_name) == ("", None)
 
 
 def test_select_top_n_per_local_day() -> None:

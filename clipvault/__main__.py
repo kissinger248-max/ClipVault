@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import argparse
-import getpass
 import logging
 import sys
 from pathlib import Path
@@ -15,11 +14,11 @@ from clipvault.logging_setup import ctx, setup_logging
 # Commands named in CLAUDE.md that arrive in later milestones.
 _PLANNED = {
     "run": "M3",
-    "fetch": "M2",
     "render": "M7",
     "publish": "M9",
 }
 STREAMERS_FILENAME = "streamers.txt"
+TOP_SHOWN = 5  # new clips listed per streamer by `discover` unless --all is given
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -36,6 +35,19 @@ def build_parser() -> argparse.ArgumentParser:
         "--since", metavar="AGE", help="look back this far instead of resuming (e.g. 12h, 7d)"
     )
 
+    discover.add_argument("--all", action="store_true", help="list every new clip, not the top 5")
+
+    fetch = sub.add_parser("fetch", help="download the clips that were found into the library")
+    fetch.add_argument("--streamer", metavar="LOGIN", help="only this streamer")
+    fetch.add_argument("--limit", metavar="N", type=int, help="download at most N clips")
+
+    cleanup = sub.add_parser(
+        "cleanup", help="tidy the library: retention, disk check, files deleted by hand"
+    )
+    cleanup.add_argument(
+        "--dry-run", action="store_true", help="show what retention would delete; delete nothing"
+    )
+
     streamers = sub.add_parser("streamers", help="manage the streamer list")
     streamers_sub = streamers.add_subparsers(dest="action", required=True)
     imp = streamers_sub.add_parser("import", help="add streamers from a text file")
@@ -47,6 +59,10 @@ def build_parser() -> argparse.ArgumentParser:
     for action, text in (("set", "store a key (asks for it, hidden)"), ("delete", "remove a key")):
         one = secrets_sub.add_parser(action, help=text)
         one.add_argument("name", choices=cfg.USER_SECRET_NAMES)
+        if action == "set":
+            one.add_argument(
+                "--window", action="store_true", help="ask in a pop-up window, not the terminal"
+            )
     secrets_sub.add_parser("list", help="show which keys are stored (never their values)")
 
     for name, milestone in _PLANNED.items():
@@ -65,6 +81,8 @@ def main(argv: list[str] | None = None) -> int:
     handlers = {
         "doctor": lambda _args: doctor.main(),
         "discover": _cmd_discover,
+        "fetch": _cmd_fetch,
+        "cleanup": _cmd_cleanup,
         "streamers": _cmd_streamers,
         "secrets": _cmd_secrets,
     }
@@ -86,6 +104,113 @@ def main(argv: list[str] | None = None) -> int:
         code = 1
     log.info("command finished: %s", args.command, extra=ctx(job=args.command, exit_code=code))
     return code
+
+
+def _say(line: str) -> None:
+    """Print a progress line straight away, even when output goes to a file or pipe."""
+    print(line, flush=True)
+
+
+def _megabytes(size: int) -> str:
+    return (
+        f"{size / 1_048_576:,.1f} MB" if size < 1_073_741_824 else f"{size / 1_073_741_824:,.2f} GB"
+    )
+
+
+# --- fetch and cleanup ---------------------------------------------------------
+
+
+def _cmd_fetch(args: argparse.Namespace) -> int:
+    from clipvault import jobs
+    from clipvault.alerts import open_alerts
+    from clipvault.fetch import ytdlp
+    from clipvault.streamers import normalize_login
+
+    config = cfg.load_config()
+    try:
+        login = normalize_login(args.streamer) if args.streamer else None
+    except ValueError as exc:
+        print(exc)
+        return 2
+    conn = db.open_db(cfg.db_path())
+    try:
+        if ytdlp.update_if_due(conn):
+            print("Checked for a newer downloader (yt-dlp).")
+        summary = jobs.run_fetch(conn, config, login=login, limit=args.limit, on_progress=_say)
+        alerts = [a["message"] for a in open_alerts(conn)]
+    finally:
+        conn.close()
+
+    saved = summary.downloaded + summary.already_there
+    print(f"\n{saved} clip(s) saved to {config.library_root} ({_megabytes(summary.bytes)}).")
+    notes = [
+        (summary.already_there, "were already on disk and only needed recording"),
+        (summary.duplicates, "skipped as repeats of another clip"),
+        (summary.unavailable, "no longer on Twitch"),
+        (summary.failed, "failed and will be retried"),
+        (summary.waiting, "waiting for their retry time"),
+        (summary.remaining, "still to download"),
+    ]
+    for count, text in notes:
+        if count:
+            print(f"  {count} {text}")
+    if summary.library_away:
+        print("The library folder is away; new clips are in a temporary folder for now.")
+    if summary.paused_for_disk:
+        print("STOPPED: the disk is too full (see the storage setting in config.yaml).")
+    if summary.stopped_on_failures:
+        print("STOPPED: several downloads failed in a row. Check your connection, then run again.")
+    for message in alerts:
+        print(f"ALERT: {message}")
+    problem = summary.failed or summary.paused_for_disk or summary.stopped_on_failures
+    return 1 if problem else 0
+
+
+def _cmd_cleanup(args: argparse.Namespace) -> int:
+    from clipvault.alerts import open_alerts
+    from clipvault.library import retention, storage
+
+    config = cfg.load_config()
+    conn = db.open_db(cfg.db_path())
+    try:
+        library = storage.open_library(conn, config)
+        if not library.available:
+            print(f"The library folder {library.root} can't be found; nothing was changed.")
+            return 1
+        moved = storage.relocate_cache(library)
+        if moved:
+            print(f"Moved {moved} file(s) from the temporary folder into the library.")
+        missing = retention.mark_missing_files(conn, library)
+        if missing:
+            print(f"{missing} clip(s) were deleted by hand; they are marked and won't come back.")
+
+        plan = retention.plan_retention(conn, config, library)
+        size = _megabytes(sum(item.size for item in plan))
+        days = config.retention.keep_days_below_median
+        if not plan:
+            print(f"Retention: nothing to remove (clips are kept at least {days} days).")
+        elif args.dry_run:
+            print(f"Retention would remove {len(plan)} clip(s), {size} (older than {days} days")
+            print("and below the streamer's median views). Nothing was deleted:")
+            for item in plan[:20]:
+                median = f"median {item.median_views:,.0f}"
+                print(f"  {item.view_count:>8,} views ({median})  {item.relpath}")
+            if len(plan) > 20:
+                print(f"  ... and {len(plan) - 20} more")
+        else:
+            removed = retention.apply_retention(conn, library, plan)
+            print(f"Retention removed {removed} clip(s), {size}.")
+
+        ok = retention.check_disk(conn, config, library)
+        free = retention.free_space_pct(library.write_base)
+        limit = config.retention.min_free_space_pct
+        state = "OK" if ok else "TOO FULL, downloads are paused"
+        print(f"Disk: {free:.0f}% free (downloads pause below {limit}%): {state}.")
+        for alert in open_alerts(conn):
+            print(f"ALERT: {alert['message']}")
+    finally:
+        conn.close()
+    return 0 if ok else 1
 
 
 def _make_console_safe() -> None:
@@ -155,10 +280,14 @@ def _cmd_discover(args: argparse.Namespace) -> int:
             f"{result.login}: {len(result.new_clips)} new clip(s) "
             f"({result.seen} seen over {result.days} day(s))"
         )
-        for clip in sorted(result.new_clips, key=lambda c: -c.view_count):
+        ranked = sorted(result.new_clips, key=lambda c: -c.view_count)
+        shown = ranked if args.all else ranked[:TOP_SHOWN]
+        for clip in shown:
             day = clip.created_at.strftime("%Y-%m-%d")
             print(f"  {clip.view_count:>8,} views  {day}  {clip.duration:>4.0f}s  {clip.title}")
             print(f"  {'':>8}        {clip.url}")
+        if len(ranked) > len(shown):
+            print(f"  ... and {len(ranked) - len(shown)} more (add --all to list every one)")
     total = sum(len(r.new_clips) for r in results)
     failed = sum(1 for r in results if r.error)
     print(f"\n{total} new clip(s) across {len(results)} streamer(s); {failed} failed.")
@@ -224,10 +353,21 @@ def _cmd_secrets(args: argparse.Namespace) -> int:
         cfg.delete_secret(args.name)
         print(f"{args.name} removed.")
         return 0
-    value = getpass.getpass(f"Paste the value for {args.name} (it stays hidden), then Enter: ")
-    value = value.strip()
+    from clipvault import secret_prompt
+
+    if args.window:
+        entered = secret_prompt.ask_in_window(args.name)
+        if entered is None:
+            print("Cancelled; nothing stored.")
+            return 1
+    else:
+        entered = secret_prompt.ask_in_terminal(args.name)
+    value = secret_prompt.clean_secret(entered)
     if not value:
-        print("Nothing entered; nothing stored.")
+        print(
+            "That doesn't look like a key (empty, or the paste didn't work); nothing stored. "
+            f"Try: python -m clipvault secrets set {args.name} --window"
+        )
         return 1
     cfg.set_secret(args.name, value)
     print(f"{args.name} stored in the OS keychain.")
