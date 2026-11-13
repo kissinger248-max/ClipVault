@@ -1,0 +1,26 @@
+{% extends "base.html" %}
+{% from "_macros.html" import clip_card %}
+{% block content %}
+<a class="status {{ status }}" href="{{ '/alerts' if status == 'red' else '#' }}">
+  <strong>{% if status == 'red' %}Needs you{% elif status == 'yellow' %}Paused{% else %}Running{% endif %}</strong>
+  <span>{% if status == 'red' %}{{ alerts|length }} problem{{ 's' if alerts|length != 1 }} to look at. Tap to see.
+  {% elif status == 'yellow' %}Nothing new is looked for or downloaded.
+  {% else %}Looks for new clips on its own{% if last_run %}; last activity {{ last_run[11:16] }} UTC{% endif %}.{% endif %}</span>
+</a>
+<section class="numbers">
+  <div><b>{{ counts.saved }}</b><span>saved today</span></div>
+  <div><b>{{ counts.waiting }}</b><span>waiting</span></div>
+  <div><b>{{ counts.library[0] }}</b><span>in library ({{ counts.library[1]|megabytes }})</span></div>
+</section>
+<form method="post" action="{{ '/resume' if paused else '/pause' }}" class="row">
+  <input type="hidden" name="csrf" value="{{ csrf }}">
+  <button class="{{ 'primary' if paused else '' }}">{{ 'Resume' if paused else 'Pause everything' }}</button>
+</form>
+<h2>Newest clips</h2>
+{% if newest %}
+<div class="grid">{% for clip in newest %}{{ clip_card(clip, csrf) }}{% endfor %}</div>
+<p><a href="/clips">All clips →</a></p>
+{% else %}
+<p class="muted">No clips saved yet. With streamers on the list, ClipVault finds and saves their best clips while it runs.</p>
+{% endif %}
+{% endblock %}

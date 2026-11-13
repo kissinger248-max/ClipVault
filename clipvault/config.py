@@ -33,6 +33,7 @@ SECRET_NAMES = (
     "twitch_app_token",
     "ntfy_topic",
     "panel_password_hash",
+    "panel_session_key",
 )
 
 _TIME_RE = re.compile(r"^([01]\d|2[0-3]):[0-5]\d$")
@@ -73,6 +74,12 @@ class NotificationsConfig:
 
 
 @dataclass(frozen=True)
+class PanelConfig:
+    host: str = "127.0.0.1"  # 0.0.0.0 or a Tailscale address makes it reachable from a phone
+    port: int = 8765
+
+
+@dataclass(frozen=True)
 class TranscriptionConfig:
     enabled: bool = True
     provider: str = "auto"  # auto | groq | local
@@ -94,6 +101,7 @@ class Config:
     look: LookConfig = field(default_factory=LookConfig)
     notifications: NotificationsConfig = field(default_factory=NotificationsConfig)
     transcription: TranscriptionConfig = field(default_factory=TranscriptionConfig)
+    panel: PanelConfig = field(default_factory=PanelConfig)
     # Keys found in the file that the app does not know (likely typos). Not an error.
     unknown_keys: tuple[str, ...] = ()
 
@@ -138,6 +146,39 @@ def load_config(path: Path | None = None) -> Config:
     return _build(raw)
 
 
+def save_settings(updates: dict[str, Any], path: Path | None = None) -> Config:
+    """Change settings in ``config.yaml`` (dotted keys) and return the new config.
+
+    The values are checked first: nothing is written when one is invalid
+    (``ConfigError``). Keys not mentioned keep their values. Note: the file is
+    rewritten, so comments in it are lost.
+    """
+    path = path or config_path()
+    raw: dict[str, Any] = {}
+    if path.exists():
+        loaded = yaml.safe_load(path.read_text(encoding="utf-8"))
+        if isinstance(loaded, dict):
+            raw = loaded
+    for key, value in updates.items():
+        node = raw
+        *parents, last = key.split(".")
+        for part in parents:
+            if not isinstance(node.get(part), dict):
+                node[part] = {}
+            node = node[part]
+        if value is None:
+            node.pop(last, None)
+        else:
+            node[last] = list(value) if isinstance(value, tuple) else value
+    config = _build(raw)
+    text = "# ClipVault settings. Also changed from the control panel's Settings screen.\n"
+    text += yaml.safe_dump(raw, sort_keys=False, allow_unicode=True)
+    temp = path.with_name(path.name + ".tmp")
+    temp.write_text(text, encoding="utf-8")
+    os.replace(temp, path)
+    return config
+
+
 def _build(raw: dict[str, Any]) -> Config:
     reader = _Reader(raw)
     cfg = Config(
@@ -173,6 +214,10 @@ def _build(raw: dict[str, Any]) -> Config:
             quiet_hours=reader.time_pair("notifications.quiet_hours", ("23:00", "08:00")),
             summary_time=reader.time_of_day("notifications.summary_time", "09:00"),
             server=reader.url("notifications.server", "https://ntfy.sh"),
+        ),
+        panel=PanelConfig(
+            host=reader.text("panel.host", "127.0.0.1"),
+            port=reader.integer("panel.port", 8765, minimum=1024, maximum=65535),
         ),
         transcription=TranscriptionConfig(
             enabled=reader.boolean("transcription.enabled", True),

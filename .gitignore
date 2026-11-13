@@ -36,3 +36,6 @@ streamers.txt
 
 # Held while `python -m clipvault run` is running
 clipvault.lock
+
+# Panel thumbnails
+/cache/

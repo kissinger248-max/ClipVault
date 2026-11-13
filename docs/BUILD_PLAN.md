@@ -78,16 +78,16 @@ Accounts and keys the user needs, by milestone:
 
 ### M5. Control panel v1 and tray icon
 
-- [ ] FastAPI app bound to 127.0.0.1:8765; password on first open; CSRF on forms
-- [ ] Phone-first layout; bottom tabs Home, Clips, Streamers, Settings (Queue arrives in M9)
-- [ ] Home: status card, today's counts, newest clips, Pause/Resume
-- [ ] Clips: grid, filters, play, star, delete, download
-- [ ] Streamers: add (search by login, avatar, live status), remove, Save switch, per-streamer settings
-- [ ] Settings: storage folder, quality, retention, schedule, notifications
-- [ ] Setup wizard steps 1–4 and 7 (SPEC §15)
-- [ ] Alerts screen with Fix links
-- [ ] Tray icon (pystray): status color, Open, Pause, Quit
-- [ ] Web-app manifest and icons so "Add to Home Screen" works
+- [x] FastAPI app bound to 127.0.0.1:8765; password on first open; CSRF on forms
+- [x] Phone-first layout; bottom tabs Home, Clips, Streamers, Settings (Queue arrives in M9)
+- [x] Home: status card, today's counts, newest clips, Pause/Resume
+- [x] Clips: grid, filters, play, star, delete, download
+- [x] Streamers: add (search by login, avatar, live status), remove, Save switch, per-streamer settings
+- [x] Settings: storage folder, quality, retention, schedule, notifications
+- [x] Setup wizard steps 1–4 and 7 (SPEC §15)
+- [x] Alerts screen with Fix links
+- [x] Tray icon (pystray): status color, Open, Pause, Quit
+- [x] Web-app manifest and icons so "Add to Home Screen" works
 
 **Done when:** on a fresh install, the user completes setup, adds 3 streamers, and browses saved clips without touching a terminal, on both laptop and phone (phone over Tailscale or the local network for now).
 
@@ -102,7 +102,7 @@ Accounts and keys the user needs, by milestone:
 - [x] Audio extraction (16 kHz mono) and Groq transcription with word timestamps (SPEC §8)
 - [x] faster-whisper fallback; switch automatically when Groq fails
 - [x] `.srt` and word-timing JSON next to each clip
-- [ ] Transcript search in the Clips screen (search itself works: `python -m clipvault search`; the screen comes with M5)
+- [x] Transcript search in the Clips screen
 - [x] Slur masking list
 
 **Done when:** 20 clips transcribed, search finds a phrase the user remembers hearing, and pulling the network cable switches to the local fallback.
@@ -118,7 +118,7 @@ Accounts and keys the user needs, by milestone:
 - [x] Posting-candidate filter and score (SPEC §7)
 - [ ] Music tagger (moved to M9: only posting needs it; until then a clip with no music score is flagged "listen first")
 - [x] CLI: `python -m clipvault render CLIP_ID [--layout ...]`
-- [ ] Optional "make vertical copy" button in Clips (with M5)
+- [x] Optional "make vertical copy" button in Clips
 
 **Done when:** 10 renders across 3 streamers pass QA; the user views them on a real phone (send via any method) and confirms text is never under TikTok or Shorts buttons; safe-zone numbers adjusted if needed and recorded.
 

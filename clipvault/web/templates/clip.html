@@ -1,0 +1,41 @@
+{% extends "base.html" %}
+{% block title %}{{ clip.title }} · ClipVault{% endblock %}
+{% block content %}
+<p><a href="/clips">← Clips</a></p>
+<video controls playsinline preload="metadata" poster="/thumb/{{ clip.id|urlpart }}" class="player">
+  <source src="/media/{{ clip.id|urlpart }}" type="video/mp4">
+</video>
+<p class="muted small">Doesn't play? Some browsers can't play Twitch's newer video format; use Download, or the vertical copy below.</p>
+<h1>{{ clip.title or 'Untitled clip' }}</h1>
+<p class="sub">{{ clip.display_name or clip.login }} · {{ (clip.created_at or '')[:16]|replace('T', ' ') }} UTC
+  {% if clip.view_count is not none %}· {{ '{:,}'.format(clip.view_count) }} view{{ 's' if clip.view_count != 1 }}{% endif %}
+  · {{ clip.duration|clock }}{% if clip.game_name %} · {{ clip.game_name }}{% endif %}
+  {% if clip.source == 'vod_spike' %}· chat moment{% endif %}
+  {% if clip.reject_reason == 'muted' %}· <b>no sound (muted by Twitch)</b>{% endif %}</p>
+<div class="actions">
+  <form method="post" action="/clips/{{ clip.id|urlpart }}/star"><input type="hidden" name="csrf" value="{{ csrf }}">
+    <button>{{ '★ Starred' if clip.starred else '☆ Star' }}</button></form>
+  <a class="button" href="/media/{{ clip.id|urlpart }}?download=1">Download</a>
+  {% if clip.url %}<a class="button" href="{{ clip.url }}" target="_blank" rel="noopener">On Twitch</a>{% endif %}
+  <form method="post" action="/clips/{{ clip.id|urlpart }}/delete" data-confirm="Delete this clip's files? It won't be downloaded again.">
+    <input type="hidden" name="csrf" value="{{ csrf }}">
+    <button class="danger" {{ 'disabled title="Starred clips are kept"' if clip.starred }}>Delete</button></form>
+</div>
+<h2>Vertical copy for phones</h2>
+{% if rendering %}<p class="busy" data-reload="5">Making it now… this page refreshes by itself.</p>
+{% else %}
+  {% if render_error %}<p class="error">{{ render_error }}</p>{% endif %}
+  {% for r in renders %}{% if r.path %}
+  <div class="vertical">
+    <video controls playsinline preload="metadata" src="/media/{{ clip.id|urlpart }}?kind=vertical"></video>
+    <p class="sub">{{ r.layout }} layout · quality check {{ 'passed' if r.qa_passed else 'flagged something' }} · <a href="/media/{{ clip.id|urlpart }}?kind=vertical&download=1">Download</a></p>
+  </div>
+  {% endif %}{% endfor %}
+  <form method="post" action="/clips/{{ clip.id|urlpart }}/vertical" class="row">
+    <input type="hidden" name="csrf" value="{{ csrf }}">
+    <select name="layout" aria-label="Layout"><option value="">Best layout</option><option value="letterbox">Letterbox</option><option value="split">Split (facecam on top)</option></select>
+    <button class="primary">{{ 'Make again' if renders else 'Make vertical copy' }}</button>
+  </form>
+{% endif %}
+{% if transcript %}<h2>What was said</h2><p class="transcript">{{ transcript }}</p>{% endif %}
+{% endblock %}

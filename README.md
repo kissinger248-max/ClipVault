@@ -13,7 +13,7 @@ YouTube Shorts. See [docs/SPEC.md](docs/SPEC.md) for what it does and
 | Save clips | Downloads them into a tidy library folder, skips repeats, cleans up old ones | Working |
 | Run by itself | Schedule, catch-up after sleep, phone notifications | Working (M3) |
 | Missed moments | Cuts moments nobody clipped, found from chat activity | Working (M4), needs the free chat tool |
-| Control panel | Browser and phone screens, tray icon | M5 |
+| Control panel | Browser and phone screens, tray icon | Working (M5) |
 | Subtitles | Transcripts with word-by-word timing, searchable | Working (M6) |
 | Phone-ready video | Vertical 9:16 versions with a headline and captions kept clear of TikTok and Shorts buttons | Working (M7), waiting for a check on a real phone |
 | Headlines and look | Hook headline writer, style editor with live preview | M8 |
@@ -155,7 +155,20 @@ Try it by hand with `python -m clipvault vods`; `run` does it every hour.
 python -m clipvault run
 ```
 
-Leave that window open. ClipVault then looks for new clips every 30 minutes
+This opens the **control panel** in your browser (http://127.0.0.1:8765). The
+first time, choose a password, then a short setup walks you through Twitch keys,
+streamers, the storage folder and your phone. After that the panel has four tabs:
+**Home** (is it running, today's numbers, newest clips, pause), **Clips** (browse,
+search what was said, play, star, download, delete, make a vertical copy),
+**Streamers** (add, remove, how many clips per day) and **Settings**. A small
+icon also appears next to the clock (green running, yellow paused, red needs you);
+right-click it to open the panel, pause, or quit.
+
+To use the panel on your phone, choose "Allow phones on my Wi-Fi" in Settings,
+restart ClipVault, and scan the code shown there. Forgot the password? Run
+`python -m clipvault panel reset-password` on the computer.
+
+Leave the window that runs ClipVault open. ClipVault then looks for new clips every 30 minutes
 (`discover_interval_min` in config.yaml), downloads them, makes transcripts,
 cleans up at 04:00 and backs up its database into the library folder
 (`.clipvault-backups`, one copy per weekday). If the laptop sleeps, it catches

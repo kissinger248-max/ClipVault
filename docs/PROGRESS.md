@@ -300,3 +300,37 @@ Built ahead of M3 to M5 at the user's request ("Phone-ready video"). Both milest
 **Open issues and things to watch**
 - The 10 VODs found are waiting in the `vods` table; they will be searched as soon as the tool is installed. VODs older than 7 days are not looked at, so after a long break some are missed.
 - Chat volume differs hugely between streamers; the emote list (`DEFAULT_EMOTES`) and the minimum score may need tuning per channel once real results are in.
+
+## 2026-11-13: M5 (control panel v1 and tray icon)
+
+**What changed**
+- `clipvault/web/server.py` + `settings_routes.py`: FastAPI app with Jinja2 pages. Home (status card green/yellow/red, today's counts, newest clips, pause/resume), Clips (grid, filters by streamer, kind, views, starred; transcript search with highlighted words; paging), clip page (play, star, download, delete, "make vertical copy" with layout choice, transcript), Streamers (add by login or link, Twitch avatar, LIVE badge, save switch, clips per day / min views / chat moments, remove), Settings (storage, schedule, Twitch keys, phone, password), Alerts (fix links, dismiss), setup wizard (mode, Twitch keys, streamers, storage with a GB/month estimate, phone with QR codes).
+- `clipvault/web/auth.py`: first password (scrypt hash in the keychain), signed 30-day HttpOnly SameSite=Strict cookie, CSRF token on every form.
+- `clipvault/tray.py` (pystray): status colour refreshed every 30 s, Open control panel, Pause/Resume, Quit.
+- `run` now starts the panel and the tray icon and opens the browser (`--no-panel`, `--no-tray`, `--no-browser`). `panel reset-password`.
+- `config.save_settings` (panel writes config.yaml after validating), `panel.host` / `panel.port` settings.
+- `retention.remove_clip_files` shared by retention and the Delete button. **Bug fixed on the way:** retention used to leave a clip's `.words.json` and its vertical renders behind; now every file the app made for the clip goes.
+- Web-app manifest and icons (SVG, 192 and 512 PNG) for "Add to Home Screen". New dependencies: `python-multipart`, `qrcode`; `pystray` in the `desktop` extra.
+
+**Decisions worth knowing**
+- **No HTMX after all:** plain HTML forms (POST, then redirect) plus a 30-line `app.js` for confirmations and auto-refresh. It works with no JavaScript and needed no extra download. CLAUDE.md lists HTMX in the stack; it can still be added later if a screen needs live updates.
+- **The first password can only be set from the computer itself** (127.0.0.1), so binding the panel to the Wi-Fi can't let someone else on the network claim it.
+- **CSRF is checked in a FastAPI dependency, not middleware.** Reading the form in middleware left the route with an empty form (a test caught settings silently not being saved).
+- **Phones:** the panel listens on 127.0.0.1 unless the user presses "Allow phones on my Wi-Fi" (sets `panel.host: 0.0.0.0`; restart needed). The QR code shows the computer's LAN address. Tailscale works the same way through its own address.
+- **Removing a streamer who has clips only switches saving off**, so their clips and history stay; a streamer with no clips is deleted.
+- **Settings are written back to config.yaml**, which drops comments in that file (said on the Settings page). The scheduler reads config at start, so schedule changes need a restart (also said on the page).
+- Thumbnails: made on first view with FFmpeg (frame at 1 s, 480 px) into `<home>/cache/thumbs/`, outside the library, never deleted; one lock per clip so a page of clips is done in parallel.
+- On Windows the panel runs on a selector event loop: the default proactor loop prints a "connection reset" traceback whenever a browser drops a connection.
+
+**Verified**
+- `pytest -q`: 303 passed. `ruff check .` and `ruff format --check .`: clean. 16 panel tests: first password only from this computer, short passwords refused, login required, forged cookie refused, wrong password, open redirect blocked, session expiry and logout-everywhere on password change, CSRF refused, wizard pages, home/clips/search/clip page/media, star blocks delete, delete removes video + sidecar + srt + words + vertical, streamer add/update/validate/remove, settings validated and saved, Twitch keys never shown back, ntfy QR, GB estimate, vertical copy runs in the background and shows its error.
+- In the browser at phone size (375 px), against a copy of the real database (test session key in environment variables, nothing written to the keychain): walked the wizard, Home showed 131 clips / 827.9 MB, Clips search for "chat" found 8 with highlights, a real HEVC clip played (1280x720), seeking works (HTTP 206), Streamers showed the three avatars, Settings rendered. Fixed from what I saw: the filter row was wider than the phone, buttons stacked without spacing, "1 views".
+- `PanelServer` starts, answers, stops in 0.2 s, and reports a busy port instead of crashing.
+
+**Not done yet (needs the user)**
+- "Done when": the user does a fresh setup, adds 3 streamers and browses clips on the laptop and the phone without a terminal. Still needs a terminal to start `run` until the installer and start-at-login (M13).
+- The tray icon was not seen on screen in this session (it runs in a detached thread; tested only that it is optional).
+
+**Open issues and things to watch**
+- HEVC playback: Chromium on this Windows laptop plays the clips; Firefox and some Android browsers may not. The clip page says so and offers Download and the vertical (H.264) copy.
+- The Look editor and Queue screens come with M8 and M9.

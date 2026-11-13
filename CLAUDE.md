@@ -83,7 +83,8 @@ assets/fonts/        # Montserrat (OFL) and any other bundled fonts
 python -m venv .venv && source .venv/bin/activate   # Windows: .venv\Scripts\activate
 pip install -e ".[dev]"
 python -m clipvault doctor        # checks ffmpeg, yt-dlp, TwitchDownloaderCLI, config, keyring
-python -m clipvault run           # starts everything (scheduler; panel from M5)
+python -m clipvault run [--no-panel] [--no-tray] [--no-browser]   # scheduler + control panel (127.0.0.1:8765) + tray icon
+python -m clipvault panel reset-password   # forget the panel password (choose a new one on next open)
 python -m clipvault pause | resume   # stop/restart scheduled work (setting in the database)
 python -m clipvault notify setup | test | status   # ntfy phone notifications
 python -m clipvault secrets set NAME [--window]   # store a key in the OS keychain; --window asks in a pop-up (also: secrets list / delete NAME)

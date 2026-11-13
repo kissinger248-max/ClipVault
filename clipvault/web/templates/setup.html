@@ -1,0 +1,70 @@
+{% extends "base.html" %}
+{% block title %}Setup · ClipVault{% endblock %}
+{% block nav %}{% endblock %}
+{% block content %}
+<p class="steps">Step {{ step }} of {{ steps }}</p>
+{% if step == 1 %}
+<section class="card narrow">
+  <h1>What should ClipVault do?</h1>
+  <form method="post" action="/setup/1">
+    <input type="hidden" name="csrf" value="{{ csrf }}">
+    <label class="choice"><input type="radio" name="mode" value="archive" checked> <span><b>Save clips to this computer</b><br>The best clips of the streamers you pick, with subtitles and phone-ready copies.</span></label>
+    <label class="choice disabled"><input type="radio" name="mode" value="archive_post" disabled> <span><b>Save and post to TikTok and YouTube</b><br>Comes in a later version, and only for streamers who gave permission.</span></label>
+    <button class="primary">Next</button>
+  </form>
+</section>
+{% elif step == 2 %}
+<section class="card narrow">
+  <h1>Connect to Twitch</h1>
+  {% if has_keys %}<p>Twitch keys are already stored. Go on, or enter new ones.</p>{% endif %}
+  <ol class="small">
+    <li>Open <a href="https://dev.twitch.tv/console/apps" target="_blank" rel="noopener">dev.twitch.tv/console/apps</a> and log in.</li>
+    <li>Register an application: any name, redirect URL <code>https://localhost:8765/auth/twitch/callback</code>, category “Application Integration”, client type “Confidential”.</li>
+    <li>Copy the Client ID, make a New Secret, and paste both here.</li>
+  </ol>
+  <form method="post" action="/settings/twitch">
+    <input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="next" value="/setup/2">
+    <label>Client ID <input name="client_id" autocomplete="off" spellcheck="false"></label>
+    <label>Client secret <input type="password" name="client_secret" autocomplete="off"></label>
+    <button>Save and check</button>
+  </form>
+  <p class="row"><a class="button" href="/setup/1">Back</a>{% if has_keys %}<a class="button primary" href="/setup/3">Next</a>{% endif %}</p>
+</section>
+{% elif step == 3 %}
+<section class="card narrow">
+  <h1>Which streamers?</h1>
+  <p>Add 2 or 3 to start; you can add more later.</p>
+  <form method="post" action="/streamers/add" class="row">
+    <input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="next" value="/setup/3">
+    <input name="login" placeholder="Twitch name or channel link" required aria-label="Twitch name">
+    <button>Add</button>
+  </form>
+  <ul class="plain">{% for s in streamers %}<li>{% if s.avatar_url %}<img src="{{ s.avatar_url }}" alt="" width="28" height="28" referrerpolicy="no-referrer">{% endif %} {{ s.display_name or s.login }}</li>{% else %}<li class="muted">None yet.</li>{% endfor %}</ul>
+  <p class="muted small">Posting stays off for every streamer until you record their permission.</p>
+  <p class="row"><a class="button" href="/setup/2">Back</a>{% if streamers %}<a class="button primary" href="/setup/4">Next</a>{% endif %}</p>
+</section>
+{% elif step == 4 %}
+<section class="card narrow">
+  <h1>Where to keep the clips?</h1>
+  <form method="post" action="/settings/storage">
+    <input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="next" value="/setup/5">
+    <label>Library folder <input name="library_root" value="{{ config.library_root }}" required></label>
+    <label>Quality <select name="quality">
+      <option value="720p" {{ 'selected' if config.quality == '720p' }}>720p (smaller files)</option>
+      <option value="1080p" {{ 'selected' if config.quality == '1080p' }}>1080p (sharper, about twice the size)</option></select></label>
+    <label>Remove below-median clips after (days) <input type="number" name="keep_days" min="1" value="{{ config.retention.keep_days_below_median }}"></label>
+    <input type="hidden" name="min_free" value="{{ config.retention.min_free_space_pct }}">
+    <p class="muted">About {{ '%.1f'|format(estimate) }} GB a month at {{ config.quality }} with these streamers. Starred clips are kept forever.</p>
+    <p class="row"><a class="button" href="/setup/3">Back</a><button class="primary">Next</button></p>
+  </form>
+</section>
+{% else %}
+<section class="card narrow">
+  <h1>Your phone</h1>
+  {% set phone_next = '/setup/5' %}
+  {% include "_phone.html" %}
+  <form method="post" action="/setup/done"><input type="hidden" name="csrf" value="{{ csrf }}">
+    <p class="row"><a class="button" href="/setup/4">Back</a><button class="primary">Finish</button></p></form>
+</section>
+{% endif %}
+{% endblock %}

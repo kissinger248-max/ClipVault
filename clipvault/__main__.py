@@ -83,7 +83,15 @@ def build_parser() -> argparse.ArgumentParser:
     vods = sub.add_parser("vods", help="search finished streams' chat for moments nobody clipped")
     vods.add_argument("--streamer", metavar="LOGIN", help="only this streamer")
     vods.add_argument("--limit", type=int, metavar="N", help="search at most N streams")
-    sub.add_parser("run", help="keep running: find, download and transcribe clips on a schedule")
+    run = sub.add_parser("run", help="keep running: schedule, control panel and tray icon")
+    run.add_argument("--no-panel", action="store_true", help="no control panel (scheduler only)")
+    run.add_argument("--no-tray", action="store_true", help="no tray icon")
+    run.add_argument("--no-browser", action="store_true", help="don't open the panel on start")
+    panel = sub.add_parser("panel", help="control-panel helpers")
+    panel_sub = panel.add_subparsers(dest="action", required=True)
+    panel_sub.add_parser(
+        "reset-password", help="forget the panel password; choose a new one on next open"
+    )
     sub.add_parser("pause", help="pause scheduled work (a running 'run' finishes its current step)")
     sub.add_parser("resume", help="resume scheduled work")
     notify = sub.add_parser("notify", help="phone notifications through the free ntfy app")
@@ -116,6 +124,7 @@ def main(argv: list[str] | None = None) -> int:
         "streamers": _cmd_streamers,
         "secrets": _cmd_secrets,
         "run": _cmd_run,
+        "panel": _cmd_panel,
         "vods": _cmd_vods,
         "pause": lambda _args: _set_paused(True),
         "resume": lambda _args: _set_paused(False),
@@ -524,7 +533,8 @@ def _cmd_vods(args: argparse.Namespace) -> int:
 
 
 def _cmd_run(args: argparse.Namespace) -> int:
-    import time
+    import threading
+    import webbrowser
 
     from clipvault import app
     from clipvault.alerts import is_paused
@@ -538,25 +548,55 @@ def _cmd_run(args: argparse.Namespace) -> int:
         conn.close()
     try:
         with app.single_instance(cfg.home_dir()):
+            panel = None if args.no_panel else app.PanelServer(config)
+            if panel is not None and not panel.start():
+                print(
+                    f"The control panel could not start on port {config.panel.port} "
+                    "(is another program using it?). Change panel.port in config.yaml."
+                )
+                return 1
             runner = app.App(config)
             runner.start()
+            quit_event = threading.Event()
+            icon = None
+            if panel is not None and not args.no_tray:
+                from clipvault import tray
+
+                icon = tray.start(panel.local_url, cfg.db_path(), quit_event.set)
             _say("ClipVault is running. Leave this window open; press Ctrl+C to stop.")
+            if panel is not None:
+                _say(f"  Control panel: {panel.local_url}")
             _say(f"  New clips are looked for every {config.discover_interval_min} minutes.")
             if paused:
-                _say("  It is PAUSED: nothing is downloaded until: python -m clipvault resume")
+                _say("  It is PAUSED: nothing is downloaded until you resume (panel or command).")
             if ntfy.get_topic() is None:
-                _say("  Phone notifications are off. Set up: python -m clipvault notify setup")
+                _say("  Phone notifications are off; set them up in the panel's Settings.")
             _say(f"  What it does is written to {cfg.logs_dir()}")
+            if panel is not None and not args.no_browser:
+                webbrowser.open(panel.local_url)
             try:
-                while True:
-                    time.sleep(1)
+                while not quit_event.wait(1):
+                    pass
             except KeyboardInterrupt:
-                _say("Stopping; finishing the step that is running (this can take a minute)...")
+                pass
+            _say("Stopping; finishing the step that is running (this can take a minute)...")
+            if icon is not None:
+                icon.stop()
             runner.stop()
+            if panel is not None:
+                panel.stop()
     except app.AlreadyRunning as exc:
         print(f"{exc}. Only one copy may run at a time.")
         return 1
     _say("Stopped.")
+    return 0
+
+
+def _cmd_panel(args: argparse.Namespace) -> int:
+    for name in ("panel_password_hash", "panel_session_key"):
+        cfg.delete_secret(name)
+    print("Panel password forgotten and every device logged out.")
+    print("Open the panel on this computer to choose a new one.")
     return 0
 
 

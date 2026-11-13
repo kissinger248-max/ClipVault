@@ -1,4 +1,4 @@
-"""Runs ClipVault unattended: the scheduler now, the web panel (M5) and tray icon later.
+"""Runs ClipVault unattended: the scheduler, the control panel and (``tray.py``) the tray icon.
 
 Timing (SPEC §4):
 
@@ -42,6 +42,58 @@ LOCK_NAME = "clipvault.lock"
 
 class AlreadyRunning(Exception):
     """Another ClipVault is already running from the same folder."""
+
+
+class PanelServer:
+    """The control panel served by uvicorn on a background thread."""
+
+    def __init__(self, config: cfg.Config, home: Path | None = None) -> None:
+        import uvicorn
+
+        from clipvault.web.server import create_app
+
+        self.config = config
+        self.server = uvicorn.Server(
+            uvicorn.Config(
+                create_app(home),
+                host=config.panel.host,
+                port=config.panel.port,
+                log_level="warning",
+                access_log=False,
+                lifespan="off",
+            )
+        )
+        self.thread = threading.Thread(target=self._serve, name="panel", daemon=True)
+
+    def _serve(self) -> None:
+        import asyncio
+
+        # Windows' default (proactor) event loop logs a traceback every time a browser
+        # drops a connection; the selector loop doesn't, and is plenty for one user.
+        factory = asyncio.SelectorEventLoop if sys.platform == "win32" else None
+        with asyncio.Runner(loop_factory=factory) as runner:
+            runner.run(self.server.serve())
+
+    @property
+    def local_url(self) -> str:
+        return f"http://127.0.0.1:{self.config.panel.port}"
+
+    def start(self, timeout: float = 10.0) -> bool:
+        """Start serving; False when the server could not start (port taken)."""
+        self.thread.start()
+        waited = 0.0
+        while not self.server.started and self.thread.is_alive() and waited < timeout:
+            threading.Event().wait(0.1)
+            waited += 0.1
+        ok = bool(self.server.started)
+        if ok:
+            log.info("control panel started", extra=ctx(job="panel", host=self.config.panel.host,
+                                                          port=self.config.panel.port))  # fmt: skip
+        return ok
+
+    def stop(self) -> None:
+        self.server.should_exit = True
+        self.thread.join(timeout=10)
 
 
 @contextmanager

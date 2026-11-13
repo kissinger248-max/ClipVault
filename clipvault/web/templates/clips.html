@@ -1,0 +1,30 @@
+{% extends "base.html" %}
+{% from "_macros.html" import clip_card %}
+{% block title %}Clips · ClipVault{% endblock %}
+{% block content %}
+<form class="filters" method="get" action="/clips">
+  <input type="search" name="q" value="{{ filters.q }}" placeholder="Search what was said…" aria-label="Search transcripts">
+  <select name="streamer" aria-label="Streamer"><option value="">All streamers</option>
+    {% for login in logins %}<option {{ 'selected' if filters.streamer == login }}>{{ login }}</option>{% endfor %}</select>
+  <select name="source" aria-label="Kind">
+    <option value="">Viewer clips and chat moments</option>
+    <option value="viewer" {{ 'selected' if filters.source == 'viewer' }}>Viewer clips</option>
+    <option value="chat" {{ 'selected' if filters.source == 'chat' }}>Chat moments</option></select>
+  <select name="sort" aria-label="Order">
+    <option value="">Newest first</option>
+    <option value="views" {{ 'selected' if filters.sort == 'views' }}>Most viewed</option>
+    <option value="oldest" {{ 'selected' if filters.sort == 'oldest' }}>Oldest first</option></select>
+  <input type="number" name="min_views" value="{{ filters.min_views }}" min="0" placeholder="Min views" aria-label="Minimum views">
+  <label class="check"><input type="checkbox" name="starred" value="1" {{ 'checked' if filters.starred }}> Starred</label>
+  <button>Show</button>
+</form>
+<p class="muted">{{ '{:,}'.format(total) }} clip{{ 's' if total != 1 }}{% if filters.q %} saying “{{ filters.q }}”{% endif %}.</p>
+<div class="grid">{% for clip in clips %}{{ clip_card(clip, csrf, snippets.get(clip.id, '')) }}{% endfor %}</div>
+{% if pages > 1 %}
+<nav class="pager">
+  {% if page_no > 1 %}<a href="/clips?{{ query }}&page={{ page_no - 1 }}">← Newer</a>{% endif %}
+  <span>Page {{ page_no }} of {{ pages }}</span>
+  {% if page_no < pages %}<a href="/clips?{{ query }}&page={{ page_no + 1 }}">Older →</a>{% endif %}
+</nav>
+{% endif %}
+{% endblock %}

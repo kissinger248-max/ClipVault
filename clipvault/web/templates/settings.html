@@ -1,0 +1,63 @@
+{% extends "base.html" %}
+{% block title %}Settings · ClipVault{% endblock %}
+{% block content %}
+<h1>Settings</h1>
+<section class="card" id="storage">
+  <h2>Storage</h2>
+  <form method="post" action="/settings/storage">
+    <input type="hidden" name="csrf" value="{{ csrf }}">
+    <label>Library folder <input name="library_root" value="{{ config.library_root }}" required></label>
+    <label>Quality <select name="quality">
+      <option value="720p" {{ 'selected' if config.quality == '720p' }}>720p (smaller files)</option>
+      <option value="1080p" {{ 'selected' if config.quality == '1080p' }}>1080p (sharper, about twice the size)</option></select></label>
+    <label>Remove below-median clips after (days) <input type="number" name="keep_days" min="1" value="{{ config.retention.keep_days_below_median }}"></label>
+    <label>Pause downloads when free space is below (%) <input type="number" name="min_free" min="0" max="90" value="{{ config.retention.min_free_space_pct }}"></label>
+    <p class="muted">About {{ '%.1f'|format(estimate) }} GB a month with the current streamers. Starred clips and anything in the Favorites folder are never removed.</p>
+    <button class="primary">Save storage</button>
+  </form>
+</section>
+<section class="card" id="schedule">
+  <h2>Schedule</h2>
+  <form method="post" action="/settings/schedule">
+    <input type="hidden" name="csrf" value="{{ csrf }}">
+    <label>Look for new clips every (minutes) <input type="number" name="interval" min="1" value="{{ config.discover_interval_min }}"></label>
+    <label>Time zone <input name="timezone" value="{{ config.timezone }}"></label>
+    <label class="check"><input type="checkbox" name="transcripts" value="1" {{ 'checked' if config.transcription.enabled }}> Make transcripts (subtitles and search)</label>
+    <label class="check"><input type="checkbox" name="battery" value="1" {{ 'checked' if config.heavy_jobs_on_battery }}> Also do heavy work on battery</label>
+    <button class="primary">Save schedule</button>
+  </form>
+</section>
+<section class="card" id="twitch">
+  <h2>Twitch keys</h2>
+  <p class="muted">Client ID: {{ 'stored' if keys.twitch_client_id else 'not set' }} · Client secret: {{ 'stored' if keys.twitch_client_secret else 'not set' }}. Kept in this computer's keychain and never shown again.</p>
+  <form method="post" action="/settings/twitch">
+    <input type="hidden" name="csrf" value="{{ csrf }}">
+    <label>Client ID <input name="client_id" autocomplete="off" spellcheck="false"></label>
+    <label>Client secret <input type="password" name="client_secret" autocomplete="off"></label>
+    <button>Save and check</button>
+  </form>
+</section>
+<section class="card" id="phone">
+  <h2>Phone</h2>
+  {% include "_phone.html" %}
+  <form method="post" action="/settings/notifications">
+    <input type="hidden" name="csrf" value="{{ csrf }}">
+    <label>Quiet from <input type="time" name="quiet_from" value="{{ config.notifications.quiet_hours[0] }}"></label>
+    <label>until <input type="time" name="quiet_to" value="{{ config.notifications.quiet_hours[1] }}"></label>
+    <label>Daily summary at <input type="time" name="summary" value="{{ config.notifications.summary_time }}"></label>
+    <button>Save times</button>
+  </form>
+</section>
+<section class="card" id="password">
+  <h2>Panel password</h2>
+  <form method="post" action="/settings/password">
+    <input type="hidden" name="csrf" value="{{ csrf }}">
+    <label>Current password <input type="password" name="current" required autocomplete="current-password"></label>
+    <label>New password <input type="password" name="new" minlength="8" required autocomplete="new-password"></label>
+    <label>New password again <input type="password" name="again" minlength="8" required autocomplete="new-password"></label>
+    <button>Change password</button>
+  </form>
+  <form method="post" action="/logout"><input type="hidden" name="csrf" value="{{ csrf }}"><button class="link">Log out</button></form>
+</section>
+<p class="muted small">ClipVault {{ version }}. Settings are saved in config.yaml in the ClipVault folder.</p>
+{% endblock %}
