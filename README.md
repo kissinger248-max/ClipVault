@@ -43,7 +43,9 @@ Twitch** (a code at twitch.tv/activate; no developer keys needed) and add stream
 starts with the computer from then on (switch that off in Settings, Schedule). Settings
 and the database live in `%LOCALAPPDATA%\ClipVault` (Windows) or
 `~/Library/Application Support/ClipVault` (Mac); clips go to `~/Twitch Archive` unless
-you choose another folder. How the installers are built: [docs/PACKAGING.md](docs/PACKAGING.md).
+you choose another folder. From version 0.3.0 it updates itself: it announces a new
+version on the Home screen and installs it at a quiet moment (switch in Settings,
+Updates). How the installers are built: [docs/PACKAGING.md](docs/PACKAGING.md).
 
 ## Run from source (about 5 minutes)
 

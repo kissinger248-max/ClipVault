@@ -595,3 +595,46 @@ Request: "make it all a package such that 1 download button installs everything 
   - the owner's placeholders on the site (`[SITE URL]`, name, emails, pricing, legal details);
   - code signing (paid);
   - the rest of M13.
+
+## 2026-11-13: Automatic updates, new icon, quiet start at login (0.3.0, 0.3.1)
+
+Request: "announce updates and auto update, i also want the app for myself with an icon".
+
+**What changed**
+- **Updates** (`clipvault/updates.py`):
+  - **Check:** the latest GitHub release, at start and every 6 hours.
+  - **Announce:** a Home card ("What's New", "Update Now"), Settings › Updates, a tray menu item and one phone notification per version.
+  - **Download:** the installer, refused unless it matches the release's SHA256SUMS.txt.
+  - **Install:** at a quiet moment (within 15 minutes of starting, or in the notification quiet hours), or at once.
+  - **Restart:** Windows runs the installer silently, and the installer starts ClipVault again (`Check: WizardSilent`). macOS swaps ClipVault.app after the app quits.
+  - **Settings:** switches for automatic installs and for the check.
+- **Start at login** runs `run --no-browser`, so there is no browser window at every login, and the entry is refreshed on each start.
+- **Icons:** the app and tray icons use the website's logo mark (`clipvault/brand.py`); the tray keeps its status dot. The Windows installer ticks the desktop shortcut by default.
+- **0.3.1 fixes**, found while stopping the owner's running copy:
+  - a timed-out yt-dlp left FFmpeg running, holding the pipes, so the 5-minute cut limit never ended. `clipvault/procs.py` now kills the whole tree;
+  - quitting waited for the whole download round. A shared "stopping" signal now ends loops between clips and starts no new steps.
+- **Website:** the FAQ explains automatic updates, Privacy lists the GitHub update check, and the download page shows 0.3.1.
+
+**Verified, and how**
+- `pytest -q`: 393 passed. `ruff` clean.
+- Releases v0.3.0 and v0.3.1 were built and smoke-tested on GitHub (Windows and Mac).
+- **Real update test** on this PC, in a throwaway home with its own keychain entries and port:
+  - 0.3.0 installed and started (20:41:34);
+  - it found 0.3.1 on GitHub, downloaded it and verified the checksum (20:43:22);
+  - it started the installer and quit within a second (20:43:31);
+  - it came back as 0.3.1 (20:44:23) and removed the downloaded installer.
+  - The test copy was then uninstalled.
+
+**The owner's own install**
+- Everything run from the Claude desktop app runs inside its Store-app container. Windows redirects that container's AppData and HKCU writes, so an install done from here is invisible outside it.
+- A first attempt installed into that container; it was removed, along with the stray data copies (one made through the Store Python, which redirects writes too).
+- Running the move through Task Scheduler was blocked as stepping outside the sandbox. Instead the owner double-clicks `packaging/build/migrate/migrate.cmd`, which:
+  - copies config.yaml, the database (checkpointed: 173 clips, 3 streamers), thumbnails and logs into `%LOCALAPPDATA%\ClipVault`;
+  - installs 0.3.1 with the desktop shortcut.
+- The keychain (Twitch keys and login, panel password) is shared, so nothing else needs moving.
+- The project folder keeps its database as a backup. Don't run the source copy at the same time as the app: both would download into the same library.
+
+**Open issues**
+- The owner's move is waiting for the double-click.
+- Versions before 0.3.0 can't update themselves; anyone on 0.2.0 installs once by hand.
+- macOS update swap is untested on a real Mac (CI can't run it).

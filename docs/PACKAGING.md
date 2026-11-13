@@ -35,6 +35,23 @@ with their licences, and refuses an FFmpeg without the `subtitles` filter.
 - **First run:** switches on "Open when I log in" (Windows: the `Run` registry key;
   Mac: a LaunchAgent) and sets the computer's time zone. Both happen once; Settings
   can change them afterwards.
+- **Start at login** registers `ClipVault.exe run --no-browser`, so it starts quietly
+  in the background; each start refreshes the entry.
+- **Updates** (`clipvault/updates.py`):
+  - **Check:** the latest GitHub release, at start and every 6 hours.
+  - **Announce:** a Home card, Settings › Updates, a tray menu item and one phone
+    notification per version.
+  - **Download:** the installer, refused unless it matches the release's `SHA256SUMS.txt`.
+  - **Install:** Windows runs the installer with `/VERYSILENT`, and the installer starts
+    ClipVault again. macOS swaps `ClipVault.app` after the app quits, then reopens it.
+  - **When:** at a quiet moment (within 15 minutes of starting, or in the notification
+    quiet hours), or at once with Update Now. Settings can turn off automatic installing
+    or the check itself.
+  - **Testing:** `CLIPVAULT_UPDATE_FEED` points the check at another address, and
+    `CLIPVAULT_NO_UPDATES` turns it off for test copies.
+- **Quitting** sets a shared "stopping" signal: download, subtitle and phone-version
+  rounds stop after the current clip. A timed-out tool is killed with everything it
+  started (`clipvault/procs.py`).
 - **Twitch:** "Sign in with Twitch" uses the built-in public app ID in
   `clipvault/data/twitch_public_client_id.txt`. A user's own developer keys, if
   stored, still win. See `clipvault/twitch/__init__.py`.
@@ -63,9 +80,11 @@ and reads it back with OpenCV, and runs the bundled yt-dlp. Test copies set
 
 Then it makes the installer:
 
-- **Windows:** Inno Setup 6, `packaging/windows/ClipVault.iss`. It installs per user (no
-  administrator prompt) and starts ClipVault at the end. Uninstalling keeps clips and
-  settings.
+- **Windows:** Inno Setup 6, `packaging/windows/ClipVault.iss`:
+  - installs per user, with no administrator prompt;
+  - adds Start menu and desktop shortcuts (the desktop one can be unticked);
+  - starts ClipVault at the end, including after a silent update;
+  - uninstalling keeps clips and settings.
 - **Mac:** a `.dmg` with ClipVault.app and an Applications shortcut. The app is
   ad-hoc signed, not notarised, so the first open needs Privacy & Security, Open Anyway.
 
@@ -115,8 +134,6 @@ To put it on Vercel:
 
 ## Not done yet (M13)
 
-- **Update check:** the app doesn't yet tell you a new version exists. Installing a
-  newer release over the old one keeps everything.
 - **Code signing:** a Windows certificate and an Apple Developer account cost money, so
   they were not set up.
 - **Docker image, Tailscale and Syncthing instructions:** not done.
