@@ -29,7 +29,7 @@ from pathlib import Path
 from typing import Any
 
 from clipvault import config as cfg
-from clipvault import runs
+from clipvault import procs, runs
 from clipvault.logging_setup import ctx
 from clipvault.timeutil import parse_rfc3339, to_rfc3339, utc_now
 
@@ -45,8 +45,11 @@ log = logging.getLogger(__name__)
 
 
 def _run(*args: Any, **kwargs: Any) -> Any:
-    """The one place this module starts a process (tests replace it)."""
-    return subprocess.run(*args, **kwargs)
+    """The one place this module starts a process (tests replace it).
+
+    A timeout ends the whole tree the tool started (``procs.run``).
+    """
+    return procs.run(*args, **kwargs)
 
 
 class DownloadError(Exception):

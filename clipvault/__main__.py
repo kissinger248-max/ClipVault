@@ -618,6 +618,7 @@ def _cmd_run(args: argparse.Namespace) -> int:
                     icon.stop()  # ends run_on_main_thread on macOS
 
             lifecycle.mark_started()
+            lifecycle.stopping.clear()
             lifecycle.on_quit(stop_everything)  # an update or the tray can end the app
             _say("ClipVault is running. Leave this window open; press Ctrl+C to stop.")
             if panel is not None:

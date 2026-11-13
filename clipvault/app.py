@@ -241,6 +241,9 @@ class App:
             self._live_thread.start()
 
     def stop(self) -> None:
+        from clipvault import lifecycle
+
+        lifecycle.stopping.set()  # running loops stop after the clip they are on
         if self._live_thread is not None:
             self._live_stop.set()
             self._live_thread.join(timeout=15)

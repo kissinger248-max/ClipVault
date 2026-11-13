@@ -13,6 +13,8 @@ from datetime import datetime
 from clipvault.timeutil import utc_now
 
 started_at: datetime = utc_now()
+# Set when the app begins to quit: long loops stop between clips instead of finishing.
+stopping = threading.Event()
 _quit: Callable[[], None] | None = None
 _lock = threading.Lock()
 

@@ -15,7 +15,7 @@ from datetime import datetime, timedelta
 from pathlib import Path
 from zoneinfo import ZoneInfo
 
-from clipvault import db
+from clipvault import db, lifecycle
 from clipvault.alerts import get_setting, raise_alert, resolve_alerts, set_setting
 from clipvault.config import Config
 from clipvault.fetch import ytdlp
@@ -207,6 +207,8 @@ def run_fetch(
     run_streak = 0
     done = 0
     for index, clip in enumerate(todo, start=1):
+        if lifecycle.stopping.is_set():
+            break  # quitting: the rest waits for the next run
         if not retention.check_disk(conn, config, library):
             summary.paused_for_disk = True
             break
@@ -386,6 +388,8 @@ def run_transcribe(
     run_streak = 0
     done = 0
     for index, clip in enumerate(todo, start=1):
+        if lifecycle.stopping.is_set():
+            break  # quitting: the rest waits for the next run
         done = index
         log_ctx = ctx(clip=clip["id"], streamer=clip["login"], job="transcribe")
         video = storage.resolve(library, clip["file_path"])
@@ -653,6 +657,8 @@ def run_render(
     todo = clips_to_render(conn, config)
     picked = todo[:limit] if limit else todo
     for clip_id in picked:
+        if lifecycle.stopping.is_set():
+            break  # quitting: the rest waits for the next run
         try:
             render(conn, config, clip_id)
             summary.rendered += 1

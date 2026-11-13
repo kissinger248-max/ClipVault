@@ -150,3 +150,14 @@ def client(home: Path, library: Path):
 
     db.open_db(home / "clipvault.db").close()
     return TestClient(create_app(home), follow_redirects=False)
+
+
+@pytest.fixture(autouse=True)
+def app_not_stopping():
+    """The "app is quitting" signal is process-wide; every test starts without it."""
+    from clipvault import lifecycle
+
+    lifecycle.stopping.clear()
+    yield
+    lifecycle.stopping.clear()
+    lifecycle.on_quit(None)

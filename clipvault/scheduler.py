@@ -85,6 +85,10 @@ def run_step(
     now: datetime | None = None,
 ) -> str | None:
     """Run one step with its bookkeeping; returns its note, or None if skipped or failed."""
+    from clipvault import lifecycle
+
+    if lifecycle.stopping.is_set():
+        return None  # the app is quitting: start nothing new
     info = STEPS[name]
     job = step_job(name)
     conn = db.open_db(db_path or cfg.db_path())

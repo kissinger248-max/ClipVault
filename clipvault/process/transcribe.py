@@ -24,6 +24,7 @@ from typing import Any, Protocol
 import httpx
 
 from clipvault import config as cfg
+from clipvault import procs
 from clipvault.logging_setup import ctx
 
 GROQ_URL = "https://api.groq.com/openai/v1/audio/transcriptions"
@@ -91,8 +92,11 @@ class Transcriber(Protocol):
 
 
 def _run(*args: Any, **kwargs: Any) -> Any:
-    """The one place this module starts a process (tests replace it)."""
-    return subprocess.run(*args, **kwargs)
+    """The one place this module starts a process (tests replace it).
+
+    A timeout ends the whole tree the tool started (``procs.run``).
+    """
+    return procs.run(*args, **kwargs)
 
 
 def extract_audio(video: Path, dest: Path) -> Path:

@@ -10,6 +10,7 @@ from fractions import Fraction
 from pathlib import Path
 from typing import Any
 
+from clipvault import procs
 from clipvault.render.template import Look
 
 TIMEOUT_S = 900
@@ -20,8 +21,11 @@ class RenderError(Exception):
 
 
 def _run(*args: Any, **kwargs: Any) -> Any:
-    """The one place this module starts a process (tests replace it)."""
-    return subprocess.run(*args, **kwargs)
+    """The one place this module starts a process (tests replace it).
+
+    A timeout ends the whole tree the tool started (``procs.run``).
+    """
+    return procs.run(*args, **kwargs)
 
 
 def _ffmpeg(arguments: list[str], cwd: Path | None = None, what: str = "FFmpeg") -> str:
