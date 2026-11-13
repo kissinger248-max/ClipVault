@@ -5,6 +5,8 @@
   static builds (ffmpeg.martin-riedl.de). Both include libass, which the captions
   need; this script checks for the ``subtitles`` filter and stops if it is missing.
 - TwitchDownloaderCLI (MIT, github.com/lay295/TwitchDownloader), for chat replays.
+- yt-dlp's official standalone program (Unlicense, github.com/yt-dlp/yt-dlp). The
+  installed app copies it to its data folder and keeps it current with ``yt-dlp -U``.
 
 Each tool's licence is copied next to it; the installer ships them.
 Set GITHUB_TOKEN to avoid GitHub's limit on anonymous API calls (CI does).
@@ -117,17 +119,33 @@ def twitch_downloader(http: httpx.Client, out: Path, plat: str) -> None:
                 (out / f"TwitchDownloader-{filename}").write_bytes(archive.read(member))
 
 
+def ytdlp_standalone(http: httpx.Client, out: Path, plat: str) -> None:
+    base = "https://github.com/yt-dlp/yt-dlp/releases/latest/download"
+    source = "yt-dlp.exe" if plat == "windows" else "yt-dlp_macos"
+    target = out / ("yt-dlp.exe" if plat == "windows" else "yt-dlp")
+    target.write_bytes(_download(http, f"{base}/{source}"))
+    _make_runnable(target)
+    (out / "YT-DLP-LICENSE.txt").write_text(
+        "yt-dlp is released into the public domain (The Unlicense).\n"
+        "https://github.com/yt-dlp/yt-dlp/blob/master/LICENSE\n",
+        encoding="utf-8",
+    )
+
+
 def check(out: Path, plat: str) -> None:
     """Stop the build if FFmpeg can't burn in captions or a tool is missing."""
     exe = ".exe" if plat == "windows" else ""
-    for tool in (f"ffmpeg{exe}", f"ffprobe{exe}", f"TwitchDownloaderCLI{exe}"):
+    for tool in (f"ffmpeg{exe}", f"ffprobe{exe}", f"TwitchDownloaderCLI{exe}", f"yt-dlp{exe}"):
         if not (out / tool).exists():
             raise SystemExit(f"{tool} is missing from {out}")
     filters = subprocess.run([str(out / f"ffmpeg{exe}"), "-hide_banner", "-filters"],
                              capture_output=True, text=True, check=True).stdout  # fmt: skip
     if not re.search(r"\ssubtitles\s", filters):
         raise SystemExit("This FFmpeg build has no 'subtitles' filter (libass); captions need it.")
-    print(f"  tools ready in {out}: FFmpeg with captions support, ffprobe, TwitchDownloaderCLI")
+    version = subprocess.run([str(out / f"yt-dlp{exe}"), "--version"], capture_output=True,
+                             text=True, check=True, timeout=120).stdout.strip()  # fmt: skip
+    print(f"  yt-dlp {version}")
+    print(f"  tools ready in {out}: FFmpeg with captions, ffprobe, TwitchDownloaderCLI, yt-dlp")
 
 
 def main() -> int:
@@ -141,6 +159,8 @@ def main() -> int:
         (ffmpeg_windows if plat == "windows" else ffmpeg_macos)(http, out)
         print("TwitchDownloaderCLI:")
         twitch_downloader(http, out, plat)
+        print("yt-dlp:")
+        ytdlp_standalone(http, out, plat)
     check(out, plat)
     return 0
 

@@ -34,6 +34,21 @@ def _tools() -> str:
     return f"FFmpeg ({found['ffmpeg']}) with captions, ffprobe, TwitchDownloaderCLI"
 
 
+def _downloader() -> str:
+    """yt-dlp runs: the bundled standalone program, or the module from source."""
+    from clipvault.fetch import ytdlp
+
+    if cfg.is_packaged():
+        command = [str(cfg.resource_dir() / "tools" / ytdlp.standalone_name())]
+    else:
+        command = [sys.executable, "-m", "yt_dlp"]
+    result = subprocess.run([*command, "--version"], capture_output=True, text=True, timeout=120)
+    if result.returncode != 0:
+        raise RuntimeError(f"yt-dlp does not run: {(result.stderr or result.stdout)[-300:]}")
+    where = "standalone" if cfg.is_packaged() else "module"
+    return f"yt-dlp {result.stdout.strip()} ({where})"
+
+
 def _libraries() -> str:
     names = [
         "cv2",
@@ -169,6 +184,7 @@ def _twitch_app() -> str:
 
 CHECKS: list[Check] = [
     ("Tools", _tools),
+    ("Downloader", _downloader),
     ("Libraries", _libraries),
     ("Speech model files", _whisper_assets),
     ("Face model", _face_model),

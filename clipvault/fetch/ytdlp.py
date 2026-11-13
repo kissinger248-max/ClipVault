@@ -1,9 +1,14 @@
 """Clip downloads with yt-dlp, for the private archive only (hard rule 3).
 
-yt-dlp runs as a separate process (``python -m yt_dlp``) rather than being
-imported. That way the daily update takes effect without restarting ClipVault,
-a hung download can be killed on a timeout, and a crash in yt-dlp can't take
-the app down.
+yt-dlp runs as a separate process rather than being imported. That way the daily
+update takes effect without restarting ClipVault, a hung download can be killed on
+a timeout, and a crash in yt-dlp can't take the app down.
+
+From source it runs as ``python -m yt_dlp`` and updates with pip. The installed app
+has no pip, so it uses yt-dlp's official standalone program instead: a copy ships in
+its ``tools/`` folder, is copied to ``<home>/bin`` on first use (the app folder may
+not be writable, and changing a signed Mac app would break it), and updates itself
+there with ``yt-dlp -U``.
 
 Checked against yt-dlp 2026.10.26 on a real clip: Twitch clips come as plain mp4
 in 360/480/720/1080(/1440)p, plus ``portrait-*`` vertical versions for streamers
@@ -13,7 +18,9 @@ who use Dual Format.
 from __future__ import annotations
 
 import logging
+import shutil
 import sqlite3
+import stat
 import subprocess
 import sys
 from collections.abc import Callable
@@ -21,6 +28,7 @@ from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Any
 
+from clipvault import config as cfg
 from clipvault import runs
 from clipvault.logging_setup import ctx
 from clipvault.timeutil import parse_rfc3339, to_rfc3339, utc_now
@@ -49,9 +57,40 @@ class DownloadError(Exception):
         self.permanent = permanent
 
 
+def standalone_name() -> str:
+    return "yt-dlp.exe" if sys.platform == "win32" else "yt-dlp"
+
+
+def standalone_path() -> Path:
+    """Where the installed app keeps its own updatable copy of yt-dlp."""
+    return cfg.home_dir() / "bin" / standalone_name()
+
+
+def ensure_standalone() -> Path:
+    """The installed app's yt-dlp, copied from the bundled tools on first use."""
+    target = standalone_path()
+    if not target.exists():
+        bundled = cfg.resource_dir() / "tools" / standalone_name()
+        if not bundled.exists():
+            raise DownloadError(f"yt-dlp is missing from the app ({bundled})")
+        target.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copy2(bundled, target)
+        target.chmod(target.stat().st_mode | stat.S_IXUSR | stat.S_IXGRP | stat.S_IXOTH)
+    return target
+
+
 def ytdlp_command() -> list[str]:
-    """Command prefix that runs yt-dlp from the app's own Python environment."""
+    """Command prefix that runs yt-dlp (standalone in the installed app, else the module)."""
+    if cfg.is_packaged():
+        return [str(ensure_standalone())]
     return [sys.executable, "-m", "yt_dlp"]
+
+
+def update_command() -> list[str]:
+    """How yt-dlp is brought up to date: its own updater, or pip from source."""
+    if cfg.is_packaged():
+        return [*ytdlp_command(), "-U"]
+    return [sys.executable, "-m", "pip", "install", "--upgrade", "--quiet", "yt-dlp"]
 
 
 def format_selector(quality: str) -> str:
@@ -224,7 +263,7 @@ def _error_line(stderr: str | None) -> str:
 def update_if_due(
     conn: sqlite3.Connection, *, now: datetime | None = None, runner: Runner | None = None
 ) -> bool:
-    """Update yt-dlp with pip if the last attempt was over a day ago; True if it ran.
+    """Update yt-dlp if the last attempt was over a day ago; True if it ran.
 
     Twitch changes break old yt-dlp versions regularly, so staying current is
     what keeps downloads working (SPEC §6). A failed update is logged and tried
@@ -235,11 +274,12 @@ def update_if_due(
     if last and now - parse_rfc3339(last) < UPDATE_EVERY:
         return False
     runs.mark_started(conn, UPDATE_JOB)
-    command = [sys.executable, "-m", "pip", "install", "--upgrade", "--quiet", "yt-dlp"]
     try:
+        command = update_command()
         result = (runner or _run)(command, capture_output=True, text=True, timeout=UPDATE_TIMEOUT_S)
-        error = "" if result.returncode == 0 else (result.stderr or "pip failed").strip()[-500:]
-    except (subprocess.TimeoutExpired, OSError) as exc:
+        failed = result.stderr or result.stdout or "update failed"
+        error = "" if result.returncode == 0 else failed.strip()[-500:]
+    except (subprocess.TimeoutExpired, OSError, DownloadError) as exc:
         error = str(exc)
     if error:
         log.warning("yt-dlp update failed: %s", error, extra=ctx(job=UPDATE_JOB))

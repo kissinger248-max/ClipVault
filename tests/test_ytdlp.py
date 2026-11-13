@@ -103,3 +103,44 @@ def test_failed_update_is_recorded_and_not_retried_until_tomorrow(conn: sqlite3.
     assert update_if_due(conn, now=NOW + timedelta(hours=1), runner=runner) is False
     runner.raises = subprocess.TimeoutExpired("pip", 300)
     assert update_if_due(conn, now=NOW + timedelta(days=2), runner=runner) is True
+
+
+@pytest.fixture
+def installed_app(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> Path:
+    """Pretend to be the installed app, with a standalone yt-dlp in its tools folder."""
+    import sys
+
+    bundle = tmp_path / "bundle"
+    (bundle / "tools").mkdir(parents=True)
+    (bundle / "tools" / ytdlp.standalone_name()).write_bytes(b"yt-dlp program")
+    monkeypatch.setattr(sys, "frozen", True, raising=False)
+    monkeypatch.setattr(sys, "_MEIPASS", str(bundle), raising=False)
+    return bundle
+
+
+def test_the_installed_app_runs_its_own_copy_of_standalone_yt_dlp(
+    installed_app: Path, home: Path
+) -> None:
+    command = ytdlp.ytdlp_command()
+    copy = home / "bin" / ytdlp.standalone_name()
+    assert command == [str(copy)] and copy.read_bytes() == b"yt-dlp program"
+    copy.write_bytes(b"updated by yt-dlp -U")
+    ytdlp.ytdlp_command()
+    assert copy.read_bytes() == b"updated by yt-dlp -U"  # an update is never overwritten
+
+
+def test_the_installed_app_updates_yt_dlp_with_its_own_updater(
+    installed_app: Path, home: Path, conn: sqlite3.Connection
+) -> None:
+    runner = Runner()
+    assert update_if_due(conn, now=NOW, runner=runner) is True
+    assert runner.commands[0] == [str(home / "bin" / ytdlp.standalone_name()), "-U"]
+    assert runs.get_run(conn, ytdlp.UPDATE_JOB)["last_error"] is None
+
+
+def test_a_missing_bundled_yt_dlp_is_reported_not_crashed(
+    installed_app: Path, conn: sqlite3.Connection
+) -> None:
+    (installed_app / "tools" / ytdlp.standalone_name()).unlink()
+    assert update_if_due(conn, now=NOW, runner=Runner()) is True
+    assert "missing" in runs.get_run(conn, ytdlp.UPDATE_JOB)["last_error"]

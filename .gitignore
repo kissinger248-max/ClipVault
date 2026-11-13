@@ -15,9 +15,9 @@ dist/
 config.yaml
 
 # Runtime data
-logs/
-library/
-library-cache/
+/logs/
+/library/
+/library-cache/
 /qa/
 bin/
 *.db
