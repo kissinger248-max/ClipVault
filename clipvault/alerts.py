@@ -62,3 +62,17 @@ def set_setting(conn: sqlite3.Connection, key: str, value: str) -> None:
         "ON CONFLICT(key) DO UPDATE SET value = excluded.value",
         (key, value),
     )
+
+
+def resolve_alert(conn: sqlite3.Connection, kind: str, message: str) -> int:
+    """Close one specific open alert (same kind and message); return how many were closed."""
+    cursor = conn.execute(
+        "UPDATE alerts SET resolved_at = ? WHERE kind = ? AND message = ? AND resolved_at IS NULL",
+        (to_rfc3339(utc_now()), kind, message),
+    )
+    return cursor.rowcount
+
+
+def is_paused(conn: sqlite3.Connection) -> bool:
+    """True when the user paused the app (scheduled work then waits)."""
+    return get_setting(conn, "paused", "0") == "1"

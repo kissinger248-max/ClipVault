@@ -33,3 +33,6 @@ Thumbs.db
 
 # The user's own streamer list
 streamers.txt
+
+# Held while `python -m clipvault run` is running
+clipvault.lock

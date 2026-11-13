@@ -50,3 +50,20 @@ def mark_error(conn: sqlite3.Connection, job: str, error: str) -> None:
         "ON CONFLICT(job) DO UPDATE SET last_error = excluded.last_error",
         (job, error[:2000]),
     )
+
+
+def record_step_failure(conn: sqlite3.Connection, job: str, error: str) -> int:
+    """Record a failed run of a scheduled step; return how many failed in a row."""
+    conn.execute(
+        "INSERT INTO runs (job, last_error, fail_streak) VALUES (?, ?, 1) "
+        "ON CONFLICT(job) DO UPDATE SET last_error = excluded.last_error, "
+        "fail_streak = runs.fail_streak + 1",
+        (job, error[:2000]),
+    )
+    return conn.execute("SELECT fail_streak FROM runs WHERE job = ?", (job,)).fetchone()[0]
+
+
+def record_step_success(conn: sqlite3.Connection, job: str) -> None:
+    """Record a successful run of a scheduled step and reset its failure streak."""
+    mark_success(conn, job)
+    conn.execute("UPDATE runs SET fail_streak = 0 WHERE job = ?", (job,))

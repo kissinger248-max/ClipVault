@@ -68,6 +68,8 @@ class LookConfig:
 @dataclass(frozen=True)
 class NotificationsConfig:
     quiet_hours: tuple[str, str] = ("23:00", "08:00")
+    summary_time: str = "09:00"
+    server: str = "https://ntfy.sh"
 
 
 @dataclass(frozen=True)
@@ -169,6 +171,8 @@ def _build(raw: dict[str, Any]) -> Config:
         ),
         notifications=NotificationsConfig(
             quiet_hours=reader.time_pair("notifications.quiet_hours", ("23:00", "08:00")),
+            summary_time=reader.time_of_day("notifications.summary_time", "09:00"),
+            server=reader.url("notifications.server", "https://ntfy.sh"),
         ),
         transcription=TranscriptionConfig(
             enabled=reader.boolean("transcription.enabled", True),
@@ -273,6 +277,26 @@ class _Reader:
                 f"got {value!r} (times need quotes in YAML)"
             )
         return (value[0], value[1])
+
+    def time_of_day(self, key: str, default: str) -> str:
+        value = self._get(key)
+        if value is None:
+            return default
+        if not isinstance(value, str) or not _TIME_RE.match(value):
+            raise ConfigError(
+                f"'{key}' must be a quoted 24-hour time like \"09:00\", got {value!r}"
+            )
+        return value
+
+    def url(self, key: str, default: str) -> str:
+        value = self._get(key)
+        if value is None:
+            return default
+        if not isinstance(value, str) or not value.startswith(("https://", "http://")):
+            raise ConfigError(
+                f"'{key}' must be a web address starting with https://, got {value!r}"
+            )
+        return value.rstrip("/")
 
     def color(self, key: str, default: str) -> str:
         value = self._get(key)

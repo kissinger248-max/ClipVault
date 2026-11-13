@@ -56,12 +56,12 @@ Accounts and keys the user needs, by milestone:
 
 ### M3. Scheduler, catch-up and phone notifications
 
-- [ ] In-process scheduler with the jobs in SPEC §4 that exist so far (discover, worker, cleanup, summary)
-- [ ] Cursors in `runs`; on start and on wake, catch up from `last_success`
-- [ ] Laptop power awareness: heavy steps only on AC power (configurable)
-- [ ] ntfy client; daily summary; "broken" alert after 3 failures of the same step
-- [ ] Retry policy (1, 5, 30 min) and `dead` state (SPEC §3)
-- [ ] CLI: `python -m clipvault run`
+- [x] In-process scheduler with the jobs in SPEC §4 that exist so far (discover, worker, cleanup, summary)
+- [x] Cursors in `runs`; on start and on wake, catch up from `last_success`
+- [x] Laptop power awareness: heavy steps only on AC power (configurable)
+- [x] ntfy client; daily summary; "broken" alert after 3 failures of the same step
+- [x] Retry policy (1, 5, 30 min) and `dead` state (SPEC §3)
+- [x] CLI: `python -m clipvault run`
 
 **Done when:** with the app running, a laptop asleep for several hours catches up within one cycle of waking; the phone receives a test summary and a test failure alert.
 

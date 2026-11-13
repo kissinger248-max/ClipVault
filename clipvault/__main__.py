@@ -13,7 +13,6 @@ from clipvault.logging_setup import ctx, setup_logging
 
 # Commands named in CLAUDE.md that arrive in later milestones.
 _PLANNED = {
-    "run": "M3",
     "publish": "M9",
 }
 STREAMERS_FILENAME = "streamers.txt"
@@ -81,6 +80,15 @@ def build_parser() -> argparse.ArgumentParser:
             )
     secrets_sub.add_parser("list", help="show which keys are stored (never their values)")
 
+    sub.add_parser("run", help="keep running: find, download and transcribe clips on a schedule")
+    sub.add_parser("pause", help="pause scheduled work (a running 'run' finishes its current step)")
+    sub.add_parser("resume", help="resume scheduled work")
+    notify = sub.add_parser("notify", help="phone notifications through the free ntfy app")
+    notify_sub = notify.add_subparsers(dest="action", required=True)
+    notify_sub.add_parser("setup", help="make a private topic; shows how to subscribe on a phone")
+    notify_sub.add_parser("test", help="send a test summary and a test alert to the phone now")
+    notify_sub.add_parser("status", help="show what is waiting to be sent")
+
     for name, milestone in _PLANNED.items():
         planned = sub.add_parser(name, help=f"(not built yet, arrives in {milestone})")
         planned.add_argument("args", nargs=argparse.REMAINDER, help=argparse.SUPPRESS)
@@ -104,6 +112,10 @@ def main(argv: list[str] | None = None) -> int:
         "search": _cmd_search,
         "streamers": _cmd_streamers,
         "secrets": _cmd_secrets,
+        "run": _cmd_run,
+        "pause": lambda _args: _set_paused(True),
+        "resume": lambda _args: _set_paused(False),
+        "notify": _cmd_notify,
     }
     try:
         if args.command in handlers:
@@ -456,6 +468,114 @@ def _cmd_streamers(args: argparse.Namespace) -> int:
     )
     if result.added:
         print("Added: " + ", ".join(result.added))
+    return 0
+
+
+# --- running unattended ------------------------------------------------------
+
+
+def _cmd_run(args: argparse.Namespace) -> int:
+    import time
+
+    from clipvault import app
+    from clipvault.alerts import is_paused
+    from clipvault.notify import ntfy
+
+    config = cfg.load_config()
+    conn = db.open_db(cfg.db_path())  # also brings the database up to date before jobs start
+    try:
+        paused = is_paused(conn)
+    finally:
+        conn.close()
+    try:
+        with app.single_instance(cfg.home_dir()):
+            runner = app.App(config)
+            runner.start()
+            _say("ClipVault is running. Leave this window open; press Ctrl+C to stop.")
+            _say(f"  New clips are looked for every {config.discover_interval_min} minutes.")
+            if paused:
+                _say("  It is PAUSED: nothing is downloaded until: python -m clipvault resume")
+            if ntfy.get_topic() is None:
+                _say("  Phone notifications are off. Set up: python -m clipvault notify setup")
+            _say(f"  What it does is written to {cfg.logs_dir()}")
+            try:
+                while True:
+                    time.sleep(1)
+            except KeyboardInterrupt:
+                _say("Stopping; finishing the step that is running (this can take a minute)...")
+            runner.stop()
+    except app.AlreadyRunning as exc:
+        print(f"{exc}. Only one copy may run at a time.")
+        return 1
+    _say("Stopped.")
+    return 0
+
+
+def _set_paused(paused: bool) -> int:
+    from clipvault.alerts import set_setting
+
+    conn = db.open_db(cfg.db_path())
+    try:
+        set_setting(conn, "paused", "1" if paused else "0")
+    finally:
+        conn.close()
+    print("Paused: scheduled work waits until you resume." if paused else "Resumed.")
+    return 0
+
+
+def _cmd_notify(args: argparse.Namespace) -> int:
+    from clipvault import scheduler
+    from clipvault.notify import ntfy
+    from clipvault.timeutil import utc_now
+
+    config = cfg.load_config()
+    if args.action == "setup":
+        topic = ntfy.ensure_topic()
+        url = ntfy.subscribe_url(config, topic)
+        print("Phone notifications use the free ntfy app.")
+        print("  1. Install 'ntfy' from the App Store or Google Play.")
+        print("  2. In the app tap +, and subscribe to this topic name:")
+        print(f"       {topic}")
+        print(f"     (or open {url} on the phone)")
+        print("  3. Then run: python -m clipvault notify test")
+        print("Keep the topic name private: anyone who knows it can read the notifications.")
+        return 0
+    conn = db.open_db(cfg.db_path())
+    try:
+        if args.action == "status":
+            if ntfy.get_topic() is None:
+                print("Notifications are not set up. Run: python -m clipvault notify setup")
+                return 0
+            for status, count in conn.execute(
+                "SELECT status, count(*) FROM notifications GROUP BY status ORDER BY status"
+            ):
+                print(f"{status:<8} {count}")
+            last = conn.execute(
+                "SELECT last_error FROM notifications WHERE last_error IS NOT NULL "
+                "ORDER BY id DESC LIMIT 1"
+            ).fetchone()
+            if last:
+                print(f"Last problem: {last[0]}")
+            return 0
+        if ntfy.get_topic() is None:
+            print("Notifications are not set up yet. Run first: python -m clipvault notify setup")
+            return 1
+        now = utc_now()
+        summary = "This is what the daily summary looks like:\n" + scheduler.summary_text(conn, now)
+        alert = "This is what a problem alert looks like. Nothing is wrong."
+        # Test messages ignore quiet hours, so they go out straight away.
+        ntfy.queue(conn, config, "test", "ClipVault test summary", summary, priority=2,
+                   tags=("clipboard",), now=now)  # fmt: skip
+        ntfy.queue(conn, config, "test", "ClipVault test alert", alert, priority=4,
+                   tags=("warning",), now=now)  # fmt: skip
+        result = ntfy.flush(conn, config, now=now)
+    finally:
+        conn.close()
+    if result.failed:
+        print("Could not send; check the internet connection.")
+        print("Details: python -m clipvault notify status")
+        return 1
+    print(f"Sent {result.sent} test notification(s); they should reach the phone within a minute.")
     return 0
 
 

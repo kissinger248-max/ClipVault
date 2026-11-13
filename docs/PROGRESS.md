@@ -235,3 +235,36 @@ Built ahead of M3 to M5 at the user's request ("Phone-ready video"). Both milest
 - In the split layout the facecam crop for xqc includes part of a chat overlay under the camera; the crop could be tighter. valkyrae's stored cam rectangle has never been confirmed by a clip check.
 - Vertical copies are big (about 36 MB each). Retention (M2) only counts source clips; renders need to be covered once rendering runs on a schedule (M9 at the latest).
 - The 3 rejected clips are duplicates from M2's overlap check, as expected.
+
+## 2026-11-13: M3 (scheduler, catch-up and phone notifications)
+
+**What changed**
+- `clipvault/scheduler.py`: the scheduled steps (discover, worker = download then transcribe, cleanup, summary, notify) and `run_step`, which gives each step its own database connection, honours the pause switch, keeps a `step:<name>` row in `runs`, and raises one "broken" alert after 3 failures in a row (cleared by the next success).
+- `clipvault/app.py`: APScheduler with discover every `discover_interval_min` (and right at start), worker every 2 min, notify every minute, and a 1-minute heartbeat that runs the daily steps when due (cleanup 04:00, summary at `notifications.summary_time`) and notices sleep. Lock file so only one copy runs.
+- `clipvault/notify/ntfy.py`: outbox table, quiet hours, JSON publishing, alerts turned into notifications once each.
+- `clipvault/power.py` (psutil, new dependency): transcription waits for mains power unless `heavy_jobs_on_battery: true`.
+- Migration `0005_scheduler`: `runs.fail_streak`, `alerts.notified_at`, `notifications` outbox.
+- CLI: `run`, `pause`, `resume`, `notify setup|test|status`. Config: `notifications.summary_time`, `notifications.server`.
+- The faster-whisper model is now loaded once per process instead of once per round.
+
+**Decisions worth knowing**
+- **Catch-up needs no replay logic.** Discovery already works from per-streamer cursors, the worker takes whatever is waiting, and a daily step is due whenever its last success is older than its latest scheduled time. So "on start" and "on wake" are the same as any other round. Sleep is detected from a heartbeat gap over 3 minutes and triggers discover and worker at once; APScheduler's `coalesce` turns missed interval runs into one.
+- **A failed daily step is retried every 30 minutes**, not on every heartbeat.
+- **Notifications go through an outbox** (`notifications` table), sent by the notify step. Offline or rate-limited sends stay queued (and are not counted as "broken"); messages older than 48 hours are dropped. Quiet hours delay everything except `storage` (disk full) and `test`; `approve` (M9) will also skip them. ntfy docs checked (2026-11-13): JSON publishing to the server root avoids header-encoding trouble with emoji; ntfy.sh allows about 250 messages a day per visitor, so ClipVault sends one summary a day plus alerts, and never one message per clip.
+- **Topic name** is `clipvault-` plus 32 random characters, kept in the keychain (`ntfy_topic`). Nothing is queued until `notify setup` has made one, so the outbox never fills up unseen.
+- **Database backup** in the daily cleanup: SQLite's backup API into `<library>/.clipvault-backups/clipvault-<weekday>.db`. Seven files overwritten in turn, so nothing ever has to be deleted (hard rule 8), and the copy sits on the library drive. Skipped while the library drive is away.
+- **Idle rounds are logged at debug level** only; otherwise the minute-by-minute steps would write about 2,000 lines a day.
+- **Pause** is the `paused` setting in the database, so the panel (M5) and the tray icon can share it. Paused stops discover, worker and cleanup; the summary and notifications still go out.
+
+**Verified**
+- `pytest -q`: 266 passed. `ruff check .` and `ruff format --check .`: clean. Tests cover quiet hours, the outbox (sent, kept on failure, dropped when old, no network: `httpx.MockTransport`), alerts sent once, the broken alert after 3 failures and its clearing, pause, daily due times across midnight and sleep, heartbeat wake detection, battery skipping transcription, backup rotation, the summary text, the lock, and the real APScheduler starting discovery straight away.
+- Live, 3 minutes of `App` against the real database: discovery found 12 new clips for the 3 streamers, the worker saved 11 (1 was a repeat of an existing moment) and transcribed 10, cleanup ran and wrote `clipvault-fri.db` to the library folder, the summary was skipped because notifications are not set up yet.
+
+**Not done yet (needs the user)**
+- "Done when" part 1: leave `python -m clipvault run` going, let the laptop sleep for a few hours, and see it catch up after waking. The logic is covered by tests; the real sleep test needs the user's laptop.
+- "Done when" part 2: install ntfy on the phone, run `notify setup` and `notify test`. No message has been sent to ntfy.sh yet.
+
+**Open issues and things to watch**
+- `run` has to stay open in a terminal window until the tray icon (M5) and start-at-login (M13) exist.
+- When the computer is shut down mid-transcription, Ctrl+C waits for the current batch (up to 5 clips, about a minute and a half).
+- Windows can put the laptop to sleep while ClipVault is working; nothing keeps it awake. That is by design (it catches up), but long transcription backlogs only move while the laptop is awake and plugged in.

@@ -16,6 +16,7 @@ import json
 import logging
 import re
 import subprocess
+import threading
 from dataclasses import asdict, dataclass
 from pathlib import Path
 from typing import Any, Protocol
@@ -208,6 +209,21 @@ def _error(response: httpx.Response) -> str:
         return ""
 
 
+_models: dict[tuple[str, str], Any] = {}
+_models_lock = threading.Lock()
+
+
+def _whisper_model(size: str, compute_type: str) -> Any:
+    """Load a faster-whisper model once per process, not on every scheduled round."""
+    with _models_lock:
+        key = (size, compute_type)
+        if key not in _models:
+            from faster_whisper import WhisperModel
+
+            _models[key] = WhisperModel(size, device="cpu", compute_type=compute_type)
+        return _models[key]
+
+
 class LocalTranscriber:
     """faster-whisper on this computer's CPU. The model (about 500 MB) downloads on first use."""
 
@@ -221,11 +237,7 @@ class LocalTranscriber:
     def transcribe(self, audio: Path, language: str | None = None) -> Transcript:
         try:
             if self._model is None:
-                from faster_whisper import WhisperModel
-
-                self._model = WhisperModel(
-                    self._model_size, device="cpu", compute_type=self._compute_type
-                )
+                self._model = _whisper_model(self._model_size, self._compute_type)
             segments, info = self._model.transcribe(
                 load_samples(audio),
                 language=language,

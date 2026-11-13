@@ -58,6 +58,8 @@ clipvault/
   notify/            # ntfy.py
   web/               # routes/, templates/, static/
   jobs.py            # job definitions and state transitions
+  scheduler.py       # scheduled steps (discover, worker, cleanup, summary, notify) + bookkeeping
+  power.py           # on battery? heavy steps wait for mains power
   alerts.py          # alerts table + settings table helpers
   runs.py            # job cursors and last-run bookkeeping (runs table)
   secret_prompt.py   # asking for a key (hidden terminal prompt or pop-up window)
@@ -81,7 +83,9 @@ assets/fonts/        # Montserrat (OFL) and any other bundled fonts
 python -m venv .venv && source .venv/bin/activate   # Windows: .venv\Scripts\activate
 pip install -e ".[dev]"
 python -m clipvault doctor        # checks ffmpeg, yt-dlp, TwitchDownloaderCLI, config, keyring
-python -m clipvault run           # starts everything
+python -m clipvault run           # starts everything (scheduler; panel from M5)
+python -m clipvault pause | resume   # stop/restart scheduled work (setting in the database)
+python -m clipvault notify setup | test | status   # ntfy phone notifications
 python -m clipvault secrets set NAME [--window]   # store a key in the OS keychain; --window asks in a pop-up (also: secrets list / delete NAME)
 python -m clipvault streamers import [FILE]   # add streamers from streamers.txt (also: streamers list)
 python -m clipvault discover [--streamer LOGIN] [--since 7d] [--all]   # find new clips

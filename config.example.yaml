@@ -23,7 +23,9 @@ look:
   accent: "#FFD400"
   headline_style: box     # box | outline
 notifications:
-  quiet_hours: ["23:00", "08:00"]
+  quiet_hours: ["23:00", "08:00"]    # phone notifications wait until the end of these
+  summary_time: "09:00"              # daily summary
+  server: https://ntfy.sh            # or your own ntfy server
 transcription:
   enabled: true            # make transcripts (subtitles, search) for saved clips
   provider: auto           # auto | groq | local. auto = Groq if a key is stored, else this computer

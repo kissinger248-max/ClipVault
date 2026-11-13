@@ -11,11 +11,11 @@ YouTube Shorts. See [docs/SPEC.md](docs/SPEC.md) for what it does and
 | --- | --- | --- |
 | Find clips | Finds each streamer's most-viewed clips every day | Working |
 | Save clips | Downloads them into a tidy library folder, skips repeats, cleans up old ones | Working |
-| Run by itself | Schedule, catch-up after sleep, phone notifications | Next (M3) |
+| Run by itself | Schedule, catch-up after sleep, phone notifications | Working (M3) |
 | Missed moments | Cuts moments nobody clipped, found from chat activity | M4 |
 | Control panel | Browser and phone screens, tray icon | M5 |
-| Subtitles | Transcripts with word-by-word timing, searchable | M6 |
-| Phone-ready video | Vertical 9:16 versions with a headline and captions kept clear of TikTok and Shorts buttons | M7 |
+| Subtitles | Transcripts with word-by-word timing, searchable | Working (M6) |
+| Phone-ready video | Vertical 9:16 versions with a headline and captions kept clear of TikTok and Shorts buttons | Working (M7), waiting for a check on a real phone |
 | Headlines and look | Hook headline writer, style editor with live preview | M8 |
 | Posting | TikTok and YouTube Shorts, only for streamers who gave permission | M9 onward |
 
@@ -131,10 +131,42 @@ median. Starred clips and anything in `Favorites/` are never removed. It also
 notices files you deleted by hand (they are not downloaded again) and reports
 free disk space.
 
+## Leaving it running
+
+```
+python -m clipvault run
+```
+
+Leave that window open. ClipVault then looks for new clips every 30 minutes
+(`discover_interval_min` in config.yaml), downloads them, makes transcripts,
+cleans up at 04:00 and backs up its database into the library folder
+(`.clipvault-backups`, one copy per weekday). If the laptop sleeps, it catches
+up when it wakes. On battery it still downloads but waits with transcription
+until the charger is in (`heavy_jobs_on_battery: true` changes that). Press
+Ctrl+C to stop; only one copy can run at a time.
+
+`python -m clipvault pause` and `python -m clipvault resume` stop and restart
+the scheduled work without closing the window.
+
+### Phone notifications (free)
+
+1. Run `python -m clipvault notify setup`. It makes a private topic name.
+2. Install the free **ntfy** app on the phone, tap +, and enter that topic name.
+3. Run `python -m clipvault notify test`: a test summary and a test alert arrive.
+
+You then get one summary a day (09:00, `notifications.summary_time`) and an
+alert when something needs you: a step that failed 3 times in a row, a full
+disk, downloads that stopped working. Between 23:00 and 08:00 (`quiet_hours`)
+messages wait until morning, except a disk-full warning. Keep the topic name
+private: anyone who knows it can read the notifications.
+
 ## Commands
 
 ```
 python -m clipvault doctor                         # check the installation
+python -m clipvault run                            # keep running on a schedule (Ctrl+C stops)
+python -m clipvault pause / resume                 # stop or restart scheduled work
+python -m clipvault notify setup | test | status   # phone notifications
 python -m clipvault secrets set NAME [--window]    # store a key (also: secrets list, secrets delete NAME)
 python -m clipvault streamers import [FILE]        # add streamers from a text file
 python -m clipvault streamers list                 # show the streamer list
@@ -149,7 +181,7 @@ pytest -q                                          # run the tests
 ruff check . && ruff format --check .
 ```
 
-`run` and `publish` arrive in later milestones. `render` without a clip id picks the
+`publish` arrives in a later milestone. `render` without a clip id picks the
 best-scoring clips (views per hour, amount of speech, not a repeat of a past post),
 taking turns between streamers. Each render saves a preview picture with the TikTok
 and Shorts buttons drawn in, under `qa/` in the ClipVault folder.
