@@ -424,3 +424,15 @@ User request: "i should be seeing edited clips in mobile format not the raw down
 **Open issues**
 - Without an AI key the headlines are made from Twitch titles, and some are weak ("big", "smoke"). An AI key (`python -m clipvault secrets set llm_api_key --window`) would make them proper hooks.
 - About 125 clips were waiting to be edited at the time of the change; at 3 per 2-minute round that is roughly an hour and a half on mains power.
+
+## 2026-11-13: credit line off by default; Twitch's vertical versions as an option
+
+**What changed**
+- The "@login on Twitch" line under the headline is off by default (`look.show_credit`, checkbox in the Look editor with live preview). Existing phone versions were re-made without it.
+- Twitch's own vertical version of a clip is now usable: per-streamer **Phone layout** setting on the Streamers screen (Automatic, Whole picture, Facecam on top, Twitch's own vertical version) and the same choice on a clip's "Make it again". When that layout is wanted, the renderer downloads Twitch's version on the spot (stored as `<clip>_portrait.mp4`, recorded in `portrait_path`; an empty value means Twitch has none). `download_portrait` was built in M7 but never called until now.
+- **Automatic no longer prefers it.** SPEC 10.2 put the native layout first. Checked on one recent clip per streamer (all three streamers have vertical versions for every clip checked, 12 of 12): xqc's is his own Dual Format design (camera on top, game below) with his live captions burned in, so the headline covered his face and the captions doubled; valkyrae's was two stacked game crops, dark at the start (failed the black-frame check); kaicenat's was a centre crop with blurred bars, fine. Automatic now picks facecam-on-top, then whole picture; Twitch's version only by choice. This departs from SPEC 10.2 on purpose.
+- `docs/HOW_IT_WORKS.md`: a plain-language description of every feature and how the parts interact, linked from the README.
+
+**Verified**
+- `pytest -q`: 342 passed; ruff clean. New tests: credit off unless switched on; layout choice saved per streamer (invalid values ignored); automatic choice ignores the vertical version.
+- Live: choosing Twitch's version on a Kai Cenat clip with nothing downloaded fetched it and rendered with it. The three test renders and their downloads were removed afterwards, so nothing is left that the user didn't choose.

@@ -67,15 +67,18 @@ def choose_layout(
     face_in_cam: bool,
     look: Look,
 ) -> str:
-    """Pick the layout: an explicit choice wins, then native, split, letterbox."""
+    """Pick the layout: an explicit choice wins, then split, then letterbox.
+
+    Twitch's own vertical version ("native") is used only when chosen: on real
+    clips (2026-11-13) it was often worse, e.g. a streamer-designed layout with the
+    face right where the headline goes, or their own burned-in captions doubling ours.
+    """
     if override in LAYOUTS:
         if override == SPLIT and cam is None:
             return LETTERBOX
         if override == NATIVE and not has_portrait:
             return LETTERBOX
         return override
-    if has_portrait:
-        return NATIVE
     if cam is not None and cam.w >= look.split.min_cam_width and face_in_cam:
         return SPLIT
     return LETTERBOX

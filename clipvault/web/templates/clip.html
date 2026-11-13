@@ -42,7 +42,7 @@
     {% if render_error %}<p class="error">{{ render_error }}</p>{% endif %}
     <form method="post" action="/clips/{{ clip.id|urlpart }}/vertical" class="row">
       <input type="hidden" name="csrf" value="{{ csrf }}">
-      <select name="layout" aria-label="Layout"><option value="">Best layout</option><option value="letterbox">Whole picture</option><option value="split">Facecam on top</option></select>
+      <select name="layout" aria-label="Layout"><option value="">Best layout</option><option value="letterbox">Whole picture</option><option value="split">Facecam on top</option><option value="native">Twitch's own vertical version</option></select>
       <button>{{ 'Make it again' if clip.render_id else 'Make phone version now' }}</button>
     </form>
   {% endif %}

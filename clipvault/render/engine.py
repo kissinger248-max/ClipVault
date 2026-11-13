@@ -130,11 +130,13 @@ def render_clip(
     if video is None:
         raise RenderError("the clip's video file is not in the library")
 
+    wanted = layout or streamer["layout_override"]
     portrait = storage.resolve(library, clip["portrait_path"])
+    if wanted == layouts.NATIVE and portrait is None and clip["portrait_path"] != "":
+        portrait = _fetch_portrait(conn, library, clip)
     info = ffmpeg.probe(video)
     cam, face = None, None
     face_ok = False
-    wanted = layout or streamer["layout_override"]
     if portrait is None and wanted in (None, layouts.SPLIT):
         cam = ensure_cam(conn, library, streamer)
         if cam is not None:
@@ -251,6 +253,24 @@ def render_clip(
     return RenderResult(render_id, clip_id, chosen, relpath, dest, headline, report, seconds)
 
 
+def _fetch_portrait(
+    conn: sqlite3.Connection, library: storage.Library, clip: sqlite3.Row
+) -> Path | None:
+    """Download Twitch's vertical version of a clip now; None when it has none."""
+    from clipvault.fetch import ytdlp
+
+    relpath = clip["file_path"].rsplit(".", 1)[0] + "_portrait.mp4"
+    try:
+        path = ytdlp.download_portrait(clip["url"], library.write_base / relpath)
+    except ytdlp.DownloadError as exc:
+        log.warning("Twitch's vertical version not available: %s", exc,
+                    extra=ctx(clip=clip["id"], job="render"))  # fmt: skip
+        return None
+    conn.execute("UPDATE clips SET portrait_path = ? WHERE id = ?",
+                 (relpath if path else "", clip["id"]))  # fmt: skip
+    return path
+
+
 def preview_clip(conn: sqlite3.Connection, layout: str) -> sqlite3.Row | None:
     """A recent saved clip that suits ``layout`` (for the Look editor), or None."""
     query = (
@@ -269,7 +289,7 @@ def preview_clip(conn: sqlite3.Connection, layout: str) -> sqlite3.Row | None:
             + order
         )
     elif layout == layouts.NATIVE:
-        query += " AND c.portrait_path IS NOT NULL"
+        query += " AND c.portrait_path IS NOT NULL AND c.portrait_path != ''"
     return conn.execute(f"{query} ORDER BY {order} LIMIT 1").fetchone()
 
 

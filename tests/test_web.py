@@ -380,3 +380,18 @@ def test_twitch_login_from_the_panel_shows_the_code(client, monkeypatch) -> None
     assert "Logged in to Twitch as <b>viewer</b>" in client.get("/settings").text
     client.post("/settings/twitch-logout", data={"csrf": csrf(client)})
     assert user_auth.stored() is None
+
+
+def test_phone_layout_can_be_chosen_per_streamer(client, home) -> None:
+    login(client)
+    conn = db.open_db(home / "clipvault.db")
+    streamer_id = add_streamer(conn, "alpha")
+    token = csrf(client)
+    form = {"csrf": token, "save": "1", "top_n": "5", "vod_moments": "3", "min_views": ""}
+    client.post(f"/streamers/{streamer_id}/update", data={**form, "layout": "native"})
+    assert conn.execute("SELECT layout_override FROM streamers").fetchone()[0] == "native"
+    client.post(f"/streamers/{streamer_id}/update", data={**form, "layout": ""})
+    assert conn.execute("SELECT layout_override FROM streamers").fetchone()[0] is None
+    client.post(f"/streamers/{streamer_id}/update", data={**form, "layout": "nonsense"})
+    assert conn.execute("SELECT layout_override FROM streamers").fetchone()[0] is None
+    conn.close()

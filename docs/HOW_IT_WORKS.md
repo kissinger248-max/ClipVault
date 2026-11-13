@@ -49,6 +49,7 @@ If a step fails (for example, the internet drops during a download), ClipVault t
 - **Best clips per day:** how many of each day's most-viewed clips to keep (default 5).
 - **Or every clip with at least N views:** an alternative to "best per day".
 - **Chat moments per stream:** how many "moments nobody clipped" to keep from each finished stream (default 3; 0 turns it off).
+- **Phone layout:** Automatic, Whole picture, Facecam on top, or Twitch's own vertical version (section 9).
 
 **How it connects:** every finder only looks at streamers with saving switched on. ClipVault also looks each streamer up on Twitch once a week to get their name and picture, and it follows them if they change their Twitch name.
 
@@ -158,11 +159,13 @@ Removing a streamer who has saved clips only switches saving off, so their clips
 
 **When:** automatically for every new clip once its subtitles are done, newest clips first, 3 per round every 2 minutes, while plugged in. About 15 to 35 seconds each. You can also re-make one by hand on its clip page.
 
-**Layouts** (picked automatically, best first):
+**Layouts:**
 
-1. **Twitch's own vertical version**, for streamers who use Twitch's "Dual Format". *Not active yet: the part that downloads these versions is built but not switched on, so this layout is currently never used.*
-2. **Facecam on top:** the game in the top half and the streamer's camera, enlarged, underneath. Used only when ClipVault has found the streamer's camera and checked that their face is in it in this clip. The camera's position is found once per streamer and re-checked when it stops matching.
-3. **Whole picture (letterbox):** the full stream picture across the middle, with space above and below for the text. Used when the other two don't fit.
+- **Facecam on top:** the game in the top half and the streamer's camera, enlarged, underneath. Used automatically when ClipVault has found the streamer's camera and checked that their face is in it in this clip. The camera's position is found once per streamer and re-checked when it stops matching.
+- **Whole picture (letterbox):** the full stream picture across the middle, with space above and below for the text. Used automatically when facecam-on-top doesn't fit.
+- **Twitch's own vertical version:** Twitch offers a vertical version of every clip (for some streamers a design of their own, for others a crop of the middle of the picture). Used only when you choose it, because on real clips it was often worse: one streamer's design puts their face exactly where the headline goes and burns in their own captions, which then double up with ClipVault's. It is downloaded only when this layout is chosen.
+
+**Choosing a layout:** "Automatic" (the default) picks facecam-on-top or whole picture as above. On the Streamers screen you can set a fixed **Phone layout** per streamer; on a clip's page, under "More", you can make that one clip again in another layout.
 
 **What goes on the video:**
 
@@ -359,7 +362,6 @@ Everything important can be done from the control panel. For completeness, these
 
 ## 20. Not built, or waiting for you
 
-- **Twitch's own vertical version (Dual Format)** is not downloaded yet, so that layout is never used (section 9).
 - **AI headlines** need an AI key (section 10).
 - **Posting** to TikTok and YouTube, campaigns, view statistics and weekly compilations: not built, by your choice.
 - **Installer, start at login, server version:** not built yet; ClipVault is started with `run` from a terminal.

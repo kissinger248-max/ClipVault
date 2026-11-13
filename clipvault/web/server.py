@@ -405,6 +405,7 @@ def create_app(home: Path | None = None) -> FastAPI:
         top_n: str = Form("5"),
         min_views: str = Form(""),
         vod_moments: str = Form("3"),
+        layout: str = Form(""),
     ):
         try:
             values = (
@@ -412,14 +413,15 @@ def create_app(home: Path | None = None) -> FastAPI:
                 _int_in(top_n, 1, 100, "Clips per day"),
                 _int_in(min_views, 0, None, "Minimum views") if min_views.strip() else None,
                 _int_in(vod_moments, 0, 50, "Chat moments per stream"),
+                layout if layout in ("letterbox", "split", "native") else None,
                 streamer_id,
             )
         except ValueError as exc:
             return back("/streamers", str(exc))
         with _db(conn) as c:
             c.execute(
-                "UPDATE streamers SET save_enabled = ?, top_n = ?, min_views = ?, vod_moments = ? "
-                "WHERE id = ?",
+                "UPDATE streamers SET save_enabled = ?, top_n = ?, min_views = ?, vod_moments = ?, "
+                "layout_override = ? WHERE id = ?",
                 values,
             )
         return back("/streamers", "Saved.")

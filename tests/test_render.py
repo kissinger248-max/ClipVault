@@ -228,7 +228,8 @@ def test_layout_choice_follows_the_spec_order() -> None:
         base = {"override": None, "has_portrait": False, "cam": None, "face_in_cam": False}
         return layouts.choose_layout(look=LOOK, **{**base, **kw})
 
-    assert choose(has_portrait=True, cam=cam, face_in_cam=True) == "native"
+    assert choose(has_portrait=True, cam=cam, face_in_cam=True) == "split"  # native only by choice
+    assert choose(has_portrait=True) == "letterbox"
     assert choose(cam=cam, face_in_cam=True) == "split"
     assert choose(cam=cam, face_in_cam=False) == "letterbox"  # face not in the cam this clip
     assert choose(cam=tiny, face_in_cam=True) == "letterbox"  # under 320 px: too blurry
