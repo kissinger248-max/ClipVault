@@ -1,0 +1,30 @@
+{
+  "task": "transcribe",
+  "language": "English",
+  "duration": 4.2,
+  "text": " No way, that was insane! Clip it.",
+  "words": [
+    {"word": "No", "start": 0.32, "end": 0.5},
+    {"word": "way,", "start": 0.5, "end": 0.84},
+    {"word": "that", "start": 0.9, "end": 1.06},
+    {"word": "was", "start": 1.06, "end": 1.2},
+    {"word": "insane!", "start": 1.2, "end": 1.9},
+    {"word": "Clip", "start": 3.1, "end": 3.4},
+    {"word": "it.", "start": 3.4, "end": 3.62}
+  ],
+  "segments": [
+    {
+      "id": 0,
+      "seek": 0,
+      "start": 0.32,
+      "end": 3.62,
+      "text": " No way, that was insane! Clip it.",
+      "tokens": [50364, 883, 636],
+      "temperature": 0,
+      "avg_logprob": -0.21,
+      "compression_ratio": 0.9,
+      "no_speech_prob": 0.01
+    }
+  ],
+  "x_groq": {"id": "req_fixture"}
+}

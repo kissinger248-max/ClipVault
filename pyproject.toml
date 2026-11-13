@@ -24,7 +24,7 @@ dependencies = [
 [project.optional-dependencies]
 dev = ["pytest>=8", "ruff>=0.6"]
 # Heavier extras, installed when their milestone arrives.
-render = ["opencv-python-headless>=4.9", "numpy"]
+render = ["opencv-python-headless>=4.9", "numpy", "pillow>=10.1"]
 transcribe = ["faster-whisper>=1.0"]
 desktop = ["pystray>=0.19", "pillow"]
 
@@ -36,6 +36,7 @@ include = ["clipvault*"]
 
 [tool.setuptools.package-data]
 "clipvault.migrations" = ["*.sql"]
+"clipvault.data" = ["*.txt", "*.yaml", "*.onnx"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

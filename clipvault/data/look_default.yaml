@@ -1,0 +1,85 @@
+# The default look of vertical videos (SPEC section 10). All positions are pixels
+# on the 1080x1920 frame. Font sizes are the real size of the letters in pixels
+# (like CSS), not ASS point sizes. Copy this file to looks/<name>.yaml next to
+# config.yaml and set look.template to <name> to make your own.
+
+frame: {width: 1080, height: 1920}
+
+# Burned-in text must stay inside this box (hard rule 5). QA enforces it.
+safe_box: {x0: 150, y0: 270, x1: 930, y1: 1340}
+
+# Phone app buttons drawn over the QA preview picture (not burned into the video).
+ui_overlays:
+  tiktok: {bottom: 480, right: 150}
+  shorts: {bottom: 672, right: 150}
+
+accent: "#FFD400"
+
+headline:
+  font: Montserrat-Black
+  size: 88
+  min_size: 64
+  max_width: 780          # widest the box may be, padding included
+  max_lines: 2
+  line_spacing: 1.16
+  top: 270
+  padding_x: 28
+  padding_y: 16
+  radius: 24
+  text_color: "#000000"
+  box_color: "#FFFFFF"
+  outline: 6              # used by the "outline" headline style only
+  uppercase: false
+
+credit:
+  font: Montserrat-SemiBold
+  size: 36
+  color: "#FFFFFF"
+  opacity: 0.8
+  gap: 14                 # space between the headline box and the credit line
+  text: "@{login} on Twitch"
+
+disclosure:
+  font: Montserrat-SemiBold
+  size: 32
+  color: "#FFFFFF"
+  gap: 8
+  seconds: 3
+
+caption:
+  font: Montserrat-ExtraBold
+  size: 72
+  color: "#FFFFFF"
+  outline: 7
+  shadow: 4
+  active_scale: 1.10
+  max_width: 780
+  max_words: 5
+  min_words: 2
+  max_lines: 2
+  line_spacing: 1.2
+  pause_split: 0.3        # seconds of silence that start a new block
+  min_seconds: 0.4        # every block stays on screen at least this long
+  hold: 0.25              # how long a block may linger after its last word
+  word_gap: 8             # extra pixels between words, so the enlarged word has room
+  uppercase: true
+  y_center: {letterbox: 1260, split: 1080, native: 1240}
+
+letterbox:
+  video_top: 600
+  background: black       # black | blur
+
+split:
+  seam_y: 1080            # gameplay above, facecam below
+  face_y: 1250            # where the face centre should land
+  min_cam_width: 320      # narrower facecams are upscaled too much: use letterbox
+
+export:
+  video_bitrate: 10M
+  max_bitrate: 15M
+  audio_bitrate: 192k
+  loudness: -14           # LUFS integrated
+  true_peak: -1           # dBTP
+  cover_second: 1.0
+  min_seconds: 15         # Shorts must be 15-59 s (hard rule 4)
+  max_seconds: 59

@@ -14,7 +14,6 @@ from clipvault.logging_setup import ctx, setup_logging
 # Commands named in CLAUDE.md that arrive in later milestones.
 _PLANNED = {
     "run": "M3",
-    "render": "M7",
     "publish": "M9",
 }
 STREAMERS_FILENAME = "streamers.txt"
@@ -47,6 +46,23 @@ def build_parser() -> argparse.ArgumentParser:
     cleanup.add_argument(
         "--dry-run", action="store_true", help="show what retention would delete; delete nothing"
     )
+
+    transcribe = sub.add_parser(
+        "transcribe", help="make subtitles and searchable transcripts for saved clips"
+    )
+    transcribe.add_argument("--streamer", metavar="LOGIN", help="only this streamer")
+    transcribe.add_argument("--limit", metavar="N", type=int, help="at most N clips")
+
+    search = sub.add_parser("search", help="find clips by what was said in them")
+    search.add_argument("words", nargs="+", help="the words or phrase to look for")
+    search.add_argument("--limit", metavar="N", type=int, default=10, help="results to show")
+
+    render = sub.add_parser("render", help="make phone-ready vertical videos with captions")
+    render.add_argument("clip_id", nargs="?", help="one clip; leave out to render the top clips")
+    render.add_argument("--layout", choices=("letterbox", "split", "native"))
+    render.add_argument("--headline", help="headline text (default: taken from the clip title)")
+    render.add_argument("--streamer", metavar="LOGIN", help="only this streamer")
+    render.add_argument("--limit", metavar="N", type=int, default=5, help="clips to render (5)")
 
     streamers = sub.add_parser("streamers", help="manage the streamer list")
     streamers_sub = streamers.add_subparsers(dest="action", required=True)
@@ -83,6 +99,9 @@ def main(argv: list[str] | None = None) -> int:
         "discover": _cmd_discover,
         "fetch": _cmd_fetch,
         "cleanup": _cmd_cleanup,
+        "transcribe": _cmd_transcribe,
+        "render": _cmd_render,
+        "search": _cmd_search,
         "streamers": _cmd_streamers,
         "secrets": _cmd_secrets,
     }
@@ -211,6 +230,115 @@ def _cmd_cleanup(args: argparse.Namespace) -> int:
     finally:
         conn.close()
     return 0 if ok else 1
+
+
+def _cmd_transcribe(args: argparse.Namespace) -> int:
+    from clipvault import jobs
+    from clipvault.streamers import normalize_login
+
+    config = cfg.load_config()
+    if not config.transcription.enabled:
+        print("Transcripts are switched off (transcription.enabled in config.yaml).")
+        return 0
+    try:
+        login = normalize_login(args.streamer) if args.streamer else None
+    except ValueError as exc:
+        print(exc)
+        return 2
+    conn = db.open_db(cfg.db_path())
+    try:
+        summary = jobs.run_transcribe(conn, config, login=login, limit=args.limit, on_progress=_say)
+    finally:
+        conn.close()
+    used = ", ".join(f"{count} by {name}" for name, count in summary.providers_used.items())
+    total = summary.done + summary.already_there
+    print(f"\n{total} clip(s) transcribed ({summary.words:,} words{'; ' + used if used else ''}).")
+    notes = [
+        (summary.no_speech, "had no speech in them"),
+        (summary.failed, "failed and will be retried"),
+        (summary.waiting, "waiting for their retry time"),
+        (summary.remaining, "still to do"),
+    ]
+    for count, text in notes:
+        if count:
+            print(f"  {count} {text}")
+    if summary.stopped_on_failures:
+        print("STOPPED: several clips failed in a row; the last error was:")
+        print(f"  {summary.errors[-1]}")
+    return 1 if summary.failed else 0
+
+
+def _cmd_render(args: argparse.Namespace) -> int:
+    from clipvault.render import engine
+    from clipvault.render.ffmpeg import RenderError
+    from clipvault.streamers import normalize_login
+
+    config = cfg.load_config()
+    conn = db.open_db(cfg.db_path())
+    try:
+        if args.clip_id:
+            clip_ids = [args.clip_id]
+        else:
+            # Most-viewed clips that fit a Short and have no vertical version yet,
+            # spread across streamers.
+            query = (
+                "SELECT c.id, s.login, row_number() OVER (PARTITION BY c.streamer_id "
+                "ORDER BY c.view_count DESC) AS place FROM clips c "
+                "JOIN streamers s ON s.id = c.streamer_id "
+                "WHERE c.state NOT IN ('found', 'rejected', 'dead') AND c.removed_at IS NULL "
+                "AND c.file_path IS NOT NULL AND c.duration >= 15 "
+                "AND NOT EXISTS (SELECT 1 FROM renders r WHERE r.clip_id = c.id)"
+            )
+            params: list[str] = []
+            if args.streamer:
+                query += " AND s.login = ?"
+                params.append(normalize_login(args.streamer))
+            rows = conn.execute(query + " ORDER BY place, c.view_count DESC", params).fetchall()
+            clip_ids = [row["id"] for row in rows[: args.limit]]
+        if not clip_ids:
+            print("Nothing to render: no saved clip of 15 s or more is waiting.")
+            return 0
+        failed = 0
+        for index, clip_id in enumerate(clip_ids, start=1):
+            try:
+                result = engine.render_clip(
+                    conn, config, clip_id, layout=args.layout, headline=args.headline
+                )
+            except RenderError as exc:
+                failed += 1
+                _say(f"[{index}/{len(clip_ids)}] {clip_id}: FAILED - {exc}")
+                continue
+            verdict = "QA passed" if result.report.passed else "QA FAILED"
+            _say(
+                f"[{index}/{len(clip_ids)}] {result.layout:<9} {verdict}  "
+                f"{result.seconds:4.0f} s  {result.path}"
+            )
+            for check in result.report.failures():
+                _say(f"      {check.name}: {check.detail}")
+    finally:
+        conn.close()
+    print(f"\nPreview pictures with the phone buttons drawn in: {cfg.home_dir() / 'qa'}")
+    return 1 if failed else 0
+
+
+def _cmd_search(args: argparse.Namespace) -> int:
+    from clipvault.library.search import search_transcripts
+
+    config = cfg.load_config()
+    conn = db.open_db(cfg.db_path())
+    try:
+        rows = search_transcripts(conn, " ".join(args.words), args.limit)
+    finally:
+        conn.close()
+    if not rows:
+        print("No clip says that. (Only transcribed clips can be searched.)")
+        return 1
+    for row in rows:
+        day = (row["created_at"] or "")[:10]
+        print(f"{row['login']}  {day}  {row['view_count'] or 0:,} views  {row['title']}")
+        print(f'    "{row["snippet"]}"')
+        print(f"    {config.library_root / row['file_path']}")
+    return 0
 
 
 def _make_console_safe() -> None:

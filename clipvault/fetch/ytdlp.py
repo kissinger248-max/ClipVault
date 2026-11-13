@@ -124,6 +124,42 @@ def download_clip(
     return dest
 
 
+def download_portrait(
+    url: str, dest: Path, *, runner: Runner | None = None, timeout: float = DOWNLOAD_TIMEOUT_S
+) -> Path | None:
+    """Download Twitch's own vertical version of a clip; None when the clip has none.
+
+    Only streamers using Twitch's Dual Format have one. It is the input for the
+    "native" layout (SPEC 10.2).
+    """
+    dest.parent.mkdir(parents=True, exist_ok=True)
+    template = str(dest.with_suffix("")).replace("%", "%%") + ".%(ext)s"
+    command = [
+        *ytdlp_command(),
+        "--format", "best[format_id^=portrait]",
+        "--remux-video", "mp4", "--output", template,
+        "--no-playlist", "--no-progress", "--no-warnings", "--no-mtime", "--no-overwrites",
+        "--retries", "3", "--socket-timeout", "20", url,
+    ]  # fmt: skip
+    try:
+        result = (runner or _run)(
+            command,
+            capture_output=True,
+            text=True,
+            timeout=timeout,
+            encoding="utf-8",
+            errors="replace",
+        )
+    except (subprocess.TimeoutExpired, OSError) as exc:
+        raise DownloadError(f"portrait download failed: {exc}") from exc
+    if result.returncode != 0:
+        message = _error_line(result.stderr)
+        if "requested format is not available" in message.lower():
+            return None
+        raise DownloadError(message or "portrait download failed")
+    return dest if dest.is_file() and dest.stat().st_size > 0 else None
+
+
 def _error_line(stderr: str | None) -> str:
     """Pick the line that says what went wrong out of yt-dlp's error output."""
     lines = [line.strip() for line in (stderr or "").splitlines() if line.strip()]

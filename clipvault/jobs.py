@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import logging
 import sqlite3
+import tempfile
 from collections.abc import Callable
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta
@@ -21,6 +22,7 @@ from clipvault.fetch import ytdlp
 from clipvault.fetch.ytdlp import DownloadError
 from clipvault.library import retention, storage
 from clipvault.logging_setup import ctx
+from clipvault.process import transcribe
 from clipvault.process.filter import Span, find_duplicates
 from clipvault.timeutil import parse_rfc3339, to_rfc3339, utc_now
 
@@ -291,3 +293,150 @@ def _sidecar(clip: sqlite3.Row, relpath: str, sidecar_rel: str, size: int, fetch
     )
     data.pop("login", None)
     return data
+
+
+# --- transcribe: fetched -> transcribed ------------------------------------------
+
+
+@dataclass
+class TranscribeSummary:
+    """What one transcription run did."""
+
+    done: int = 0
+    already_there: int = 0
+    no_speech: int = 0
+    failed: int = 0
+    words: int = 0
+    waiting: int = 0
+    remaining: int = 0
+    stopped_on_failures: bool = False
+    providers_used: dict[str, int] = field(default_factory=dict)
+    errors: list[str] = field(default_factory=list)
+
+
+def run_transcribe(
+    conn: sqlite3.Connection,
+    config: Config,
+    *,
+    login: str | None = None,
+    limit: int | None = None,
+    now: datetime | None = None,
+    providers: list[transcribe.Transcriber] | None = None,
+    on_progress: Callable[[str], None] | None = None,
+) -> TranscribeSummary:
+    """Make a transcript for every saved clip that has none yet (most-viewed first).
+
+    Writes ``<clip>.srt`` (subtitles, with masked words) and ``<clip>.words.json``
+    (word timings, as spoken) next to the video and indexes the text for search.
+    Safe to run again: a clip whose word file already exists is only recorded.
+    """
+    now = now or utc_now()
+    say = on_progress or (lambda _line: None)
+    summary = TranscribeSummary()
+    library = storage.open_library(conn, config)
+    if providers is None:
+        providers = transcribe.build_providers(config)
+    mask = transcribe.mask_pattern(transcribe.load_mask_words())
+
+    query = (
+        "SELECT c.*, s.login FROM clips c JOIN streamers s ON s.id = c.streamer_id "
+        "WHERE c.state IN ('fetched', 'filtered') AND c.removed_at IS NULL "
+        "AND c.file_path IS NOT NULL"
+    )
+    params: list[str] = []
+    if login:
+        query += " AND s.login = ?"
+        params.append(login)
+    pending = conn.execute(query + " ORDER BY c.view_count DESC, c.id", params).fetchall()
+    due = [c for c in pending if not c["retry_at"] or parse_rfc3339(c["retry_at"]) <= now]
+    summary.waiting = len(pending) - len(due)
+    todo = due[:limit] if limit else due
+
+    run_streak = 0
+    done = 0
+    for index, clip in enumerate(todo, start=1):
+        done = index
+        log_ctx = ctx(clip=clip["id"], streamer=clip["login"], job="transcribe")
+        video = storage.resolve(library, clip["file_path"])
+        if video is None:
+            continue  # the file is away or was deleted; cleanup deals with that
+        words_file = video.with_suffix(".words.json")
+        try:
+            result = _load_transcript(words_file)
+            if result is not None:
+                summary.already_there += 1
+            else:
+                result = _transcribe_video(video, providers, config.transcription.language)
+                storage.write_text_atomic(words_file, result.to_json())
+                summary.done += 1
+        except transcribe.TranscribeError as exc:
+            state = record_failure(conn, clip["id"], str(exc), now)
+            summary.failed += 1
+            summary.errors.append(f"{clip['id']}: {exc}")
+            log.error("transcription failed (%s): %s", state, exc, extra=log_ctx)
+            say(f"[{index}/{len(todo)}] {clip['login']}: FAILED - {exc}")
+            run_streak += 1
+            if run_streak >= DOWNLOADER_ALERT_AFTER:
+                summary.stopped_on_failures = True
+                break
+            continue
+
+        run_streak = 0
+        srt = transcribe.to_srt(transcribe.cues_from_words(result.words), mask)
+        storage.write_text_atomic(video.with_suffix(".srt"), srt)
+        seconds = clip["duration"] or (result.words[-1].end if result.words else 0.0)
+        wps = round(len(result.words) / seconds, 3) if seconds else 0.0
+        with db.transaction(conn):
+            conn.execute(
+                "UPDATE clips SET state = 'transcribed', transcript_path = ?, speech_wps = ?, "
+                "language = ?, transcript_provider = ?, fail_count = 0, last_error = NULL, "
+                "retry_at = NULL WHERE id = ?",
+                (
+                    clip["file_path"].rsplit(".", 1)[0] + ".srt",
+                    wps,
+                    result.language,
+                    result.provider,
+                    clip["id"],
+                ),
+            )
+            conn.execute("DELETE FROM transcripts WHERE clip_id = ?", (clip["id"],))
+            conn.execute(
+                "INSERT INTO transcripts (clip_id, text) VALUES (?, ?)", (clip["id"], result.text)
+            )
+        summary.words += len(result.words)
+        summary.no_speech += not result.words
+        used = summary.providers_used
+        used[result.provider] = used.get(result.provider, 0) + 1
+        log.info(
+            "clip transcribed",
+            extra={**log_ctx, "words": len(result.words), "provider": result.provider},
+        )
+        say(
+            f"[{index}/{len(todo)}] {clip['login']}: {len(result.words):3} words "
+            f"({result.provider})  {result.text[:70]}"
+        )
+
+    summary.remaining = len(due) - done
+    return summary
+
+
+def _load_transcript(words_file: Path) -> transcribe.Transcript | None:
+    """Read a transcript written by an earlier run; None if absent or unreadable."""
+    if not words_file.is_file():
+        return None
+    try:
+        return transcribe.Transcript.from_json(words_file.read_text(encoding="utf-8"))
+    except (ValueError, KeyError, TypeError):
+        return None
+
+
+def _transcribe_video(
+    video: Path, providers: list[transcribe.Transcriber], language: str | None
+) -> transcribe.Transcript:
+    with tempfile.TemporaryDirectory(prefix="clipvault-audio-") as folder:
+        audio = Path(folder) / "audio.flac"
+        try:
+            transcribe.extract_audio(video, audio)
+        except transcribe.NoAudio:
+            return transcribe.Transcript("", (), None, "none")
+        return transcribe.transcribe_audio(audio, providers, language)

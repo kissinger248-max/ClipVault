@@ -24,3 +24,7 @@ look:
   headline_style: box     # box | outline
 notifications:
   quiet_hours: ["23:00", "08:00"]
+transcription:
+  enabled: true            # make transcripts (subtitles, search) for saved clips
+  provider: auto           # auto | groq | local. auto = Groq if a key is stored, else this computer
+  # language: en           # leave out to detect the language per clip

@@ -71,6 +71,13 @@ class NotificationsConfig:
 
 
 @dataclass(frozen=True)
+class TranscriptionConfig:
+    enabled: bool = True
+    provider: str = "auto"  # auto | groq | local
+    language: str | None = None  # ISO-639-1 code such as "en"; None = detect
+
+
+@dataclass(frozen=True)
 class Config:
     """All non-secret settings. Defaults match SPEC §17."""
 
@@ -84,6 +91,7 @@ class Config:
     posting: PostingConfig = field(default_factory=PostingConfig)
     look: LookConfig = field(default_factory=LookConfig)
     notifications: NotificationsConfig = field(default_factory=NotificationsConfig)
+    transcription: TranscriptionConfig = field(default_factory=TranscriptionConfig)
     # Keys found in the file that the app does not know (likely typos). Not an error.
     unknown_keys: tuple[str, ...] = ()
 
@@ -162,6 +170,11 @@ def _build(raw: dict[str, Any]) -> Config:
         notifications=NotificationsConfig(
             quiet_hours=reader.time_pair("notifications.quiet_hours", ("23:00", "08:00")),
         ),
+        transcription=TranscriptionConfig(
+            enabled=reader.boolean("transcription.enabled", True),
+            provider=reader.choice("transcription.provider", ("auto", "groq", "local"), "auto"),
+            language=reader.optional_text("transcription.language"),
+        ),
     )
     return Config(**{**cfg.__dict__, "unknown_keys": reader.unknown_keys()})
 
@@ -190,6 +203,14 @@ class _Reader:
         value = self._get(key)
         if value is None:
             return default
+        if not isinstance(value, str) or not value.strip():
+            raise ConfigError(f"'{key}' must be text, got {value!r}")
+        return value.strip()
+
+    def optional_text(self, key: str) -> str | None:
+        value = self._get(key)
+        if value is None:
+            return None
         if not isinstance(value, str) or not value.strip():
             raise ConfigError(f"'{key}' must be text, got {value!r}")
         return value.strip()

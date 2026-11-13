@@ -1,0 +1,15 @@
+# Words hidden as **** in captions (SPEC section 8). Transcripts and search keep
+# what was actually said. One entry per line; a trailing * also matches longer
+# forms (fag* matches the longer variants). Plural -s/-es is matched automatically.
+# Add your own in a file named mask_words.txt next to config.yaml.
+nigger
+nigga
+faggot
+fag
+retard*
+tranny
+kike
+spic
+chink
+coon
+dyke

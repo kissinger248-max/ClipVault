@@ -63,13 +63,22 @@ def no_network(monkeypatch: pytest.MonkeyPatch) -> None:
 
 @pytest.fixture(autouse=True)
 def no_real_downloads(monkeypatch: pytest.MonkeyPatch) -> None:
-    """yt-dlp and pip run as separate processes, which the socket guard can't see."""
+    """yt-dlp, pip and FFmpeg run as separate processes, which the socket guard can't see.
+
+    Every module that starts a process does it through its own ``_run``; tests
+    that need one replace it with a stand-in.
+    """
     from clipvault.fetch import ytdlp
+    from clipvault.process import transcribe
 
     def refuse(command, *args, **kwargs):
         raise AssertionError(f"unit test tried to start a real process: {command[:4]}")
 
     monkeypatch.setattr(ytdlp, "_run", refuse)
+    monkeypatch.setattr(transcribe, "_run", refuse)
+    from clipvault.render import ffmpeg
+
+    monkeypatch.setattr(ffmpeg, "_run", refuse)
 
 
 @pytest.fixture(autouse=True)
