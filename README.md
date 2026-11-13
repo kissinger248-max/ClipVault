@@ -33,7 +33,7 @@ Download the installer from the
 
 - **Windows 10/11:** `ClipVault-Setup-Windows.exe`. If Windows says "Windows protected your
   PC", choose **More info**, then **Run anyway** (the app isn't code-signed).
-- **Mac with Apple silicon:** `ClipVault-macOS.dmg`; drag ClipVault to Applications. The
+- **Mac with Apple silicon, macOS 14 or later:** `ClipVault-macOS.dmg`; drag ClipVault to Applications. The
   first time, macOS asks you to confirm in **System Settings › Privacy & Security › Open
   Anyway** (the app isn't notarised).
 

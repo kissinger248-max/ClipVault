@@ -200,7 +200,7 @@ Requested by the user on 2026-11-13. The design is in `docs/design/` (read `DESI
 
 ### M13. Installers, server and sync
 
-- [ ] PyInstaller builds for Windows and macOS with bundled tools; start at login
+- [x] PyInstaller builds for Windows and macOS with bundled tools; start at login (2026-11-13; plus Sign in with Twitch and the download site, see PROGRESS)
 - [ ] Docker image and `docker-compose.yml` for the server
 - [ ] Tailscale-bound control panel option; instructions for phone access
 - [ ] Syncthing instructions for server → laptop library sync

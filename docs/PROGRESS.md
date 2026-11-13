@@ -519,3 +519,65 @@ The user approved bundling Inter, so text widths now match the mockups exactly.
 
 **Open issues**
 - None.
+
+## 2026-11-13: One-download installers, Sign in with Twitch, download website (M13, part)
+
+Request: "make it all a package such that 1 download button installs everything needed and gets it running. my friend will use it for their own clips with their own twitch account. i can host a download page on vercel." The user chose Windows (tested here) plus Mac (built and tested on GitHub), Sign in with Twitch, and GitHub Releases for the files; later "update what you feel needs updating for a clean and easy to use website with good animations".
+
+**What changed**
+- **Installers:**
+  - PyInstaller app for Windows and macOS (`packaging/`).
+  - It bundles Python, every library, FFmpeg/ffprobe with libass, TwitchDownloaderCLI, standalone yt-dlp, the fonts and a `LICENSES` folder.
+  - Windows: an Inno Setup installer, installed per user (no admin prompt), with a Start menu entry. It starts ClipVault at the end, and uninstall removes the start-at-login entry.
+  - Mac: a `.dmg`, menu-bar app (no Dock icon).
+  - Details in `docs/PACKAGING.md`.
+- **Installed-app behaviour** (`clipvault/desktop.py`):
+  - double-click runs `run`, and opening it again shows the panel;
+  - no console window, and tools started on Windows get no window either;
+  - data in `%LOCALAPPDATA%\ClipVault` or `~/Library/Application Support/ClipVault`;
+  - first run switches on start at login (switch in Settings, Schedule) and sets the computer's time zone (tzlocal);
+  - tray icon on the main thread on macOS.
+- **yt-dlp in the installed app:** downloads used `python -m yt_dlp` and pip updates, which can't work without Python. The app now copies the bundled standalone yt-dlp to `<data>/bin` and updates it daily with `yt-dlp -U`. Found by reading the code before release, then confirmed with a real download from the packaged app.
+- **Sign in with Twitch:**
+  - Without the user's own developer keys, ClipVault uses a built-in *public* Twitch app ID (`clipvault/data/twitch_public_client_id.txt`) and the user's device-code sign-in for everything.
+  - Docs checked 2026-11-13: public clients need no secret, and Get Users/Clips/Videos/Streams accept a user token for any broadcaster.
+  - Setup step 2 and Settings show "Sign in with Twitch"; own keys stay possible and still win.
+  - Clip finding and live chat share renewals, so a single-use refresh token is never spent twice.
+- **`clipvault selftest`:** an offline check that a build has every tool, model, font and panel file. It burns a caption into a test video and reads it back.
+- **GitHub workflow** (`.github/workflows/release.yml`): unit tests, build, selftest and smoke test on Windows and Mac. A `vX.Y.Z` tag publishes a release with both installers and `SHA256SUMS.txt`.
+- **Website** (`site/`, from `docs/website-design/` and its handoff):
+  - static pages: home/download, FAQ, About, Privacy, Terms, Licences and 404;
+  - Vercel-ready, with the facts the handoff asked for;
+  - `packaging/update_site.py` fills release details.
+  - Added beyond the mockups: a "what's next" panel after a download starts, a "For this computer" badge, scroll-in animations (off under Reduce Motion), and checksum copy buttons.
+- **Fixed along the way:**
+  - **The repo was missing `clipvault/library/`.** `.gitignore` ignored every folder named `library`, so the public repo lacked storage, retention and search. Found by the first GitHub build; only the top-level library folder is ignored now.
+  - **Panel messages never showed** after redirects to a `#section`: `back()` put `?msg=` after the `#`.
+  - **The doctor test assumed a Windows file name;** the Mac build caught it.
+  - **A test copy could register itself to start at login** on the build machine. That entry was removed, and test copies now set `CLIPVAULT_NO_AUTOSTART`.
+
+**Verified, and how**
+- `pytest -q`: 377 passed. `ruff` clean.
+- **Packaged Windows app, here:**
+  - selftest: everything OK;
+  - smoke test: a fresh copy asks for a password, setup pages render, fonts load, no crashes in the log.
+- **End to end with the packaged app,** in a throwaway folder with its own keychain entries:
+  - discovered 15 Kai Cenat clips and downloaded 5 through the standalone yt-dlp;
+  - transcribed them with the bundled speech engine (310 words; two clips were music);
+  - rendered 5 phone versions, all passing QA.
+- **The Windows installer from GitHub's build,** installed silently here:
+  - 252 MB download, 686 MB installed, no admin prompt;
+  - the installed `ClipVault.exe` passed the smoke test and registered start at login correctly;
+  - uninstall removed the program, the shortcut and the start-at-login entry.
+  - Your running ClipVault and its keychain entries were untouched throughout.
+- **Website:**
+  - every page measured against its mockup in the browser: the same positions and sizes, except where the text differs on purpose;
+  - no sideways scrolling at 360 px;
+  - the download panel, badge and scroll animations work, with no console errors.
+- **Mac:** built, selftested and smoke-tested on GitHub's Apple-silicon Mac. Every selftest check passed, including caption drawing with the bundled FFmpeg and the standalone yt-dlp, and so did every smoke-test step. It is arm64 and needs macOS 14 or later (from the binaries' build info); the .dmg is 289 MB. Not tested on a physical Mac or through Gatekeeper's first-open prompt.
+
+**Open issues**
+- The built-in public Twitch app ID is still empty: the user needs to register a Public app on dev.twitch.tv and send its Client ID. Until then installs ask for developer keys. Then tag the release.
+- Not code-signed (Windows certificate and Apple notarisation cost money); the site and FAQ explain the one-time warnings.
+- The site keeps the owner's placeholders: name, emails, pricing, Terms licence choice, jurisdiction, hosting and log retention, plus `[SITE URL]`.
+- Still open in M13: update check, Docker image, Tailscale and Syncthing instructions.
