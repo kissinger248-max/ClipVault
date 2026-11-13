@@ -581,3 +581,17 @@ Request: "make it all a package such that 1 download button installs everything 
 - Not code-signed (Windows certificate and Apple notarisation cost money); the site and FAQ explain the one-time warnings.
 - The site keeps the owner's placeholders: name, emails, pricing, Terms licence choice, jurisdiction, hosting and log retention, plus `[SITE URL]`.
 - Still open in M13: update check, Docker image, Tailscale and Syncthing instructions.
+
+## 2026-11-13: Release v0.2.0 published
+
+- **Twitch app.** The owner registered the public Twitch app and gave its Client ID. Checked live: Twitch issues a device code for it, and token polling without a secret answers `authorization_pending`, so the app is a Public client. Added to `clipvault/data/twitch_public_client_id.txt`.
+- **Release.** Tag `v0.2.0` built and tested both installers on GitHub and published the release: <https://github.com/kissinger248-max/ClipVault/releases/tag/v0.2.0>.
+  - Files: `ClipVault-Setup-Windows.exe` (252 MB), `ClipVault-macOS.dmg` (294 MB) and `SHA256SUMS.txt`.
+  - On both systems the smoke test got a real Twitch sign-in code for the built-in app.
+  - Both `releases/latest/download/...` links answer 200.
+  - The downloaded Windows installer's SHA-256 matches the listed checksum.
+- **Website.** `site/index.html` was filled with `packaging/update_site.py --macos-min 14`: version, date, sizes and checksums.
+- **Still open:**
+  - the owner's placeholders on the site (`[SITE URL]`, name, emails, pricing, legal details);
+  - code signing (paid);
+  - the rest of M13.
