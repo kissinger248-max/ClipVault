@@ -102,6 +102,9 @@ python -m clipvault search WORDS... [--limit N]   # find clips by what was said
 python -m clipvault headlines [--streamer LOGIN] [--limit 20]   # AI hook headlines for the best clips (needs llm_api_key)
 python -m clipvault render [CLIP_ID] [--layout letterbox|split|native] [--headline TEXT] [--streamer LOGIN] [--limit N]   # vertical 9:16 copy + QA
 python scripts/twitch_live_check.py LOGIN...  # manual live check of the Twitch API (needs real keys)
+python -m clipvault selftest       # offline check that a build has every tool, model, font and file
+python packaging/build.py [--smoke] # installed app + installer for this OS (needs .[build]); see docs/PACKAGING.md
+python packaging/update_site.py [--macos-min V] [--site-url URL]   # fill the download page from the latest release
 pytest -q
 ruff check . && ruff format --check .
 ```

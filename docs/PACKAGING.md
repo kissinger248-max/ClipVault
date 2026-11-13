@@ -6,11 +6,13 @@ How ClipVault becomes one download that installs everything and starts it.
 
 | Part | Where it comes from |
 | --- | --- |
-| Python and every library (FastAPI, OpenCV, faster-whisper, yt-dlp, ...) | PyInstaller, `packaging/clipvault.spec` |
+| Python and every library (FastAPI, OpenCV, faster-whisper, ...) | PyInstaller, `packaging/clipvault.spec` |
+| yt-dlp, as its official standalone program (Unlicense) | [yt-dlp/yt-dlp](https://github.com/yt-dlp/yt-dlp) releases |
 | FFmpeg and ffprobe, with libass for captions (GPL) | Windows: [BtbN's builds](https://github.com/BtbN/FFmpeg-Builds) (shared GPL, newest release branch). Mac: [Martin Riedl's builds](https://ffmpeg.martin-riedl.de) (Apple silicon) |
 | TwitchDownloaderCLI, for chat replays (MIT) | [lay295/TwitchDownloader](https://github.com/lay295/TwitchDownloader) releases |
 | Caption fonts (OFL) and panel fonts (Inter, OFL) | `assets/fonts`, `clipvault/web/static/fonts` |
 | The speech model | Not bundled: faster-whisper downloads it on the first transcription |
+| `LICENSES/` | Every shipped package's licence files, Python's, the fonts' and the tools' (`packaging/collect_licenses.py`) |
 
 `packaging/fetch_tools.py` downloads the tools into `packaging/tools/<platform>/`
 with their licences, and refuses an FFmpeg without the `subtitles` filter.
@@ -24,6 +26,9 @@ with their licences, and refuses an FFmpeg without the `subtitles` filter.
   get no window either. `ClipVault-console.exe` (Windows) runs the other commands,
   for example `ClipVault-console doctor`.
 - **Bundled tools** come first on PATH, so the same code finds them.
+- **yt-dlp:** there is no Python or pip to run `python -m yt_dlp`, so the app copies the
+  bundled standalone yt-dlp to `<data folder>/bin` on first use and keeps it current
+  with `yt-dlp -U` once a day (`clipvault/fetch/ytdlp.py`).
 - **Data:** `%LOCALAPPDATA%\ClipVault` (Windows) or
   `~/Library/Application Support/ClipVault` (Mac) instead of the current folder.
   `CLIPVAULT_HOME` still wins.
@@ -49,8 +54,12 @@ with `--smoke` runs `packaging/smoke_test.py`. The smoke test:
   (`CLIPVAULT_KEYRING_SERVICE`);
 - chooses the first password;
 - opens the setup pages;
-- has the bundled FFmpeg draw a caption preview;
-- asks Twitch for a sign-in code.
+- checks the look preview and the panel fonts;
+- asks Twitch for a sign-in code (when the build has the built-in app ID).
+
+`selftest` itself burns a caption into a test video with the bundled FFmpeg and fonts
+and reads it back with OpenCV, and runs the bundled yt-dlp. Test copies set
+`CLIPVAULT_NO_AUTOSTART=1` so they never register to start at login.
 
 Then it makes the installer:
 
@@ -78,11 +87,31 @@ editing for a new version.
 
 ## The download page
 
-`site/index.html` is one static file. It detects Windows or Mac and links to the
-latest release.
+`site/` is the website from `docs/website-design/`: static HTML, CSS and a little
+JavaScript, with no build step. It has the home/download page, FAQ, About, Privacy,
+Terms, Licences and a 404 page, plus sitemap and robots.
 
-On Vercel: **Add New → Project**, import the GitHub repository, set **Root
-Directory** to `site`, Framework Preset **Other**, no build command, then Deploy.
+- **Behaviour:** `assets/site.js` detects the visitor's system and points the main
+  button at that installer. After a download starts it shows what to do next, and
+  sections rise in as you scroll (off under Reduce Motion).
+- **Release details:** after each release, run
+  `python packaging/update_site.py --macos-min <version>`. It fills the version, date,
+  sizes and SHA-256 checksums from the GitHub release. Take the macOS version from the
+  build's `macos-build-facts` artifact.
+- **Site address:** pages use `[SITE URL]` for links shared on social media. Once the
+  site has its address, run `python packaging/update_site.py --site-url https://…`.
+- **Pictures:** `packaging/site_images.py` redraws the placeholder pictures, icons and
+  share image.
+- **Owner placeholders:** text in square brackets is left for the owner to fill in:
+  name, emails, pricing, the Terms licence choice, jurisdiction and hosting details.
+
+To put it on Vercel:
+
+1. **Add New → Project**, and import the GitHub repository.
+2. Set **Root Directory** to `site` and Framework Preset to **Other**, with no build command.
+3. **Deploy**.
+
+`site/vercel.json` gives clean addresses (`/faq`).
 
 ## Not done yet (M13)
 
