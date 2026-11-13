@@ -1,39 +1,66 @@
 {% extends "base.html" %}
 {% block title %}Streamers · ClipVault{% endblock %}
+{% block contentclass %}streamers-page{% endblock %}
 {% block content %}
-<h1>Streamers</h1>
-<form method="post" action="/streamers/add" class="row">
-  <input type="hidden" name="csrf" value="{{ csrf }}">
-  <input name="login" placeholder="Twitch name or channel link" required aria-label="Twitch name">
-  <button class="primary">Add</button>
-</form>
-{% for s in streamers %}
-<section class="card streamer">
-  <div class="who">
-    {% if s.avatar_url %}<img src="{{ s.avatar_url }}" alt="" width="48" height="48" referrerpolicy="no-referrer">{% else %}<span class="avatar"></span>{% endif %}
-    <div><b>{{ s.display_name or s.login }}</b>{% if s.twitch_user_id in live %} <span class="live">LIVE</span>{% endif %}
-      <div class="sub">{{ s.saved }} clip{{ 's' if s.saved != 1 }} saved · <a href="/clips?streamer={{ s.login|urlpart }}">see clips</a>{% if not s.twitch_user_id %} · not found on Twitch yet{% endif %}</div>
-      <div class="sub">Posting: <span class="badge">{{ 'permission recorded' if s.permission_type != 'none' else 'off (no permission recorded)' }}</span></div>
-    </div>
+<header class="page-head">
+  <div>
+    <h1 class="page-title">Streamers</h1>
+    <div class="subhead">{{ streamers|length }} streamer{{ 's' if streamers|length != 1 }} · about {{ '%.0f'|format(estimate) }} GB of new clips a month</div>
   </div>
-  <form method="post" action="/streamers/{{ s.id }}/update" class="settings">
+  <form method="post" action="/streamers/add" class="add-form">
     <input type="hidden" name="csrf" value="{{ csrf }}">
-    <label class="check"><input type="checkbox" name="save" value="1" {{ 'checked' if s.save_enabled }}> Save their clips</label>
-    <label>Best clips per day <input type="number" name="top_n" value="{{ s.top_n }}" min="1" max="100"></label>
-    <label>…or every clip with at least <input type="number" name="min_views" value="{{ s.min_views if s.min_views is not none else '' }}" min="0" placeholder="views"></label>
-    <label>Chat moments per stream <input type="number" name="vod_moments" value="{{ s.vod_moments }}" min="0" max="50"></label>
-    <label>Phone layout <select name="layout">
-      <option value="" {{ 'selected' if not s.layout_override }}>Automatic</option>
-      <option value="letterbox" {{ 'selected' if s.layout_override == 'letterbox' }}>Whole picture</option>
-      <option value="split" {{ 'selected' if s.layout_override == 'split' }}>Facecam on top</option>
-      <option value="native" {{ 'selected' if s.layout_override == 'native' }}>Twitch's own vertical version</option></select></label>
-    <button>Save</button>
+    <label for="add" class="sr-only">Twitch name or channel link</label>
+    <input id="add" type="text" name="login" placeholder="Twitch name or channel link" required>
+    <button class="btn primary">Add</button>
   </form>
-  <form method="post" action="/streamers/{{ s.id }}/remove" data-confirm="Remove {{ s.login }}? Saved clips stay in the library.">
-    <input type="hidden" name="csrf" value="{{ csrf }}"><button class="link danger">Remove</button>
-  </form>
-</section>
-{% else %}
-<p class="muted">No streamers yet. Add one above with their Twitch name.</p>
-{% endfor %}
+</header>
+
+<div class="streamer-list">
+  {% for s in streamers %}
+  {% set name = s.display_name or s.login %}
+  <section class="card streamer" aria-label="{{ name }}">
+    <form method="post" action="/streamers/{{ s.id }}/update" class="settings" data-autosubmit>
+      <input type="hidden" name="csrf" value="{{ csrf }}">
+      <input type="hidden" name="top_n" value="{{ s.top_n }}">
+      <div class="who">
+        <div class="avatar c{{ loop.index0 % 3 }}" aria-hidden="true">{{ name[:1]|upper }}</div>
+        <div>
+          <div class="name-line"><span class="name">{{ name }}</span>{% if s.twitch_user_id in live %}<span class="live cv-live">LIVE</span>{% endif %}</div>
+          <div class="muted small-line">{{ s.saved }} clip{{ 's' if s.saved != 1 }} saved · {{ s.bytes|gigabytes }}{% if not s.twitch_user_id %} · not found on Twitch yet{% endif %}</div>
+        </div>
+      </div>
+      {% set views = [500, 1000, 5000, 10000] %}
+      <label class="mini-field">Keep
+        <select name="min_views">
+          <option value="" {{ 'selected' if s.min_views is none }}>Best {{ s.top_n }} clips each day</option>
+          {% for n in views %}<option value="{{ n }}" {{ 'selected' if s.min_views == n }}>Every clip with {{ '{:,}'.format(n) }}+ views</option>{% endfor %}
+          {% if s.min_views is not none and s.min_views not in views %}<option value="{{ s.min_views }}" selected>Every clip with {{ '{:,}'.format(s.min_views) }}+ views</option>{% endif %}
+        </select></label>
+      {% set moments = [0, 1, 2, 3, 5, 10] %}
+      <label class="mini-field">Chat moments per stream
+        <select name="vod_moments">
+          {% for n in moments %}<option value="{{ n }}" {{ 'selected' if s.vod_moments == n }}>{{ n }}</option>{% endfor %}
+          {% if s.vod_moments not in moments %}<option value="{{ s.vod_moments }}" selected>{{ s.vod_moments }}</option>{% endif %}
+        </select></label>
+      <label class="switch-label"><span>Save clips</span>
+        <input type="checkbox" class="switch" role="switch" name="save" value="1" {{ 'checked' if s.save_enabled }} aria-label="Save clips for {{ name }}"></label>
+      <label class="mini-field">Phone layout
+        <select name="layout">
+          <option value="" {{ 'selected' if not s.layout_override }}>Automatic</option>
+          <option value="split" {{ 'selected' if s.layout_override == 'split' }}>Facecam on top</option>
+          <option value="letterbox" {{ 'selected' if s.layout_override == 'letterbox' }}>Whole picture</option>
+          <option value="native" {{ 'selected' if s.layout_override == 'native' }}>Twitch’s own vertical</option>
+        </select></label>
+      <noscript><button class="btn small">Save</button></noscript>
+    </form>
+    <form method="post" action="/streamers/{{ s.id }}/remove" class="inline" data-confirm="Remove {{ name }}? Clips already saved stay in the library.">
+      <input type="hidden" name="csrf" value="{{ csrf }}"><button class="btn medium danger">Remove</button>
+    </form>
+  </section>
+  {% else %}
+  <p class="empty">No streamers yet. Add one above with their Twitch name or channel link.</p>
+  {% endfor %}
+</div>
+
+<p class="muted small" style="margin: 0; max-width: 720px">Removing a streamer stops new clips and keeps the ones already saved. Turning off Save clips does the same, and you can turn it back on later.</p>
 {% endblock %}

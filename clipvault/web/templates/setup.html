@@ -1,77 +1,142 @@
-{% extends "base.html" %}
+{% extends "bare.html" %}
 {% block title %}Setup · ClipVault{% endblock %}
-{% block nav %}{% endblock %}
 {% block content %}
-<p class="steps">Step {{ step }} of {{ steps }}</p>
+{% set names = ['Welcome', 'Twitch', 'Streamers', 'Storage', 'Look', 'Phone'] %}
+<ol class="steps" aria-label="Setup steps">
+  {% for name in names %}
+  <li class="{{ 'done' if loop.index < step }}" {{ 'aria-current=step' if loop.index == step }}><div></div><span>{{ name }}</span></li>
+  {% endfor %}
+</ol>
+
 {% if step == 1 %}
-<section class="card narrow">
-  <h1>What should ClipVault do?</h1>
-  <form method="post" action="/setup/1">
-    <input type="hidden" name="csrf" value="{{ csrf }}">
-    <label class="choice"><input type="radio" name="mode" value="archive" checked> <span><b>Save clips to this computer</b><br>The best clips of the streamers you pick, with subtitles and phone-ready copies.</span></label>
-    <label class="choice disabled"><input type="radio" name="mode" value="archive_post" disabled> <span><b>Save and post to TikTok and YouTube</b><br>Comes in a later version, and only for streamers who gave permission.</span></label>
-    <button class="primary">Next</button>
-  </form>
-</section>
+<div class="intro">
+  <div class="step-label">Step 1 of {{ steps }}</div>
+  <h1>Welcome to ClipVault</h1>
+  <p class="lead">It saves the best moments from the Twitch streamers you choose, and makes a phone version of each one. Choose what it should do.</p>
+</div>
+<div class="boxed">
+  <div class="feature"><svg class="tickbox" width="16" height="16" viewBox="0 0 16 16" aria-hidden="true"><rect x="0.5" y="0.5" width="15" height="15" rx="3.5" fill="var(--accent)" stroke="var(--accent)"/><path d="m4 8.2 2.6 2.6L12 5.4" fill="none" stroke="#FFFFFF" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg><span><span class="strong">Save the clips viewers make</span><br><span class="muted small">The most-viewed clips from each day.</span></span></div>
+  <div class="feature"><svg class="tickbox" width="16" height="16" viewBox="0 0 16 16" aria-hidden="true"><rect x="0.5" y="0.5" width="15" height="15" rx="3.5" fill="var(--accent)" stroke="var(--accent)"/><path d="m4 8.2 2.6 2.6L12 5.4" fill="none" stroke="#FFFFFF" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg><span><span class="strong">Find moments nobody clipped</span><br><span class="muted small">After a stream ends, ClipVault reads its chat and saves the spots where chat went wild.</span></span></div>
+  <div class="feature"><svg class="tickbox" width="16" height="16" viewBox="0 0 16 16" aria-hidden="true"><rect x="0.5" y="0.5" width="15" height="15" rx="3.5" fill="var(--accent)" stroke="var(--accent)"/><path d="m4 8.2 2.6 2.6L12 5.4" fill="none" stroke="#FFFFFF" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg><span><span class="strong">Catch moments while a stream is live</span><br><span class="muted small">Needs your Twitch login. You can add it later in Settings.</span></span></div>
+</div>
+<div class="note"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="5" y="11" width="14" height="9.5" rx="2"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/></svg>Everything stays on this computer. ClipVault never posts anything.</div>
+<div class="nav-row">
+  <form method="post" action="/setup/done" class="inline"><input type="hidden" name="csrf" value="{{ csrf }}"><button class="btn plain">Skip Setup</button></form>
+  <form method="post" action="/setup/1" class="inline"><input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="mode" value="archive"><button class="btn large primary">Get Started</button></form>
+</div>
+
 {% elif step == 2 %}
-<section class="card narrow">
+<div class="intro">
+  <div class="step-label">Step 2 of {{ steps }}</div>
   <h1>Connect to Twitch</h1>
-  {% if has_keys %}<p>Twitch keys are already stored. Go on, or enter new ones.</p>{% endif %}
-  <ol class="small">
-    <li>Open <a href="https://dev.twitch.tv/console/apps" target="_blank" rel="noopener">dev.twitch.tv/console/apps</a> and log in.</li>
-    <li>Register an application: any name, redirect URL <code>https://localhost:8765/auth/twitch/callback</code>, category “Application Integration”, client type “Confidential”.</li>
-    <li>Copy the Client ID, make a New Secret, and paste both here.</li>
+  <p class="lead">ClipVault needs free app keys from Twitch to find clips. This takes about two minutes, once.</p>
+</div>
+<form method="post" action="/settings/twitch">
+  <input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="next" value="/setup/3">
+  <ol class="numbered">
+    <li><span class="n">1</span><div class="body"><span>Open the Twitch developer console and register an application.</span><a href="https://dev.twitch.tv/console" target="_blank" rel="noopener" style="align-self: flex-start; font-weight: 600">Open Twitch Developer Console ↗</a></div></li>
+    <li><span class="n">2</span><div class="body"><span>Use this as the redirect URL:</span>
+      <div class="copy-row"><input type="text" readonly value="https://localhost:8765/auth/twitch/callback" aria-label="Redirect URL" id="redirect-url"><button type="button" class="btn medium" data-copy="#redirect-url">Copy</button></div></div></li>
+    <li><span class="n">3</span><div class="body" style="gap: 10px"><span>Paste the client ID and a new client secret.</span>
+      <label class="field compact"><span>Client ID</span><input type="text" name="client_id" autocomplete="off" spellcheck="false"></label>
+      <label class="field compact"><span>Client secret</span><input type="password" name="client_secret" autocomplete="off"></label></div></li>
   </ol>
-  <form method="post" action="/settings/twitch">
-    <input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="next" value="/setup/2">
-    <label>Client ID <input name="client_id" autocomplete="off" spellcheck="false"></label>
-    <label>Client secret <input type="password" name="client_secret" autocomplete="off"></label>
-    <button>Save and check</button>
-  </form>
-  <p class="row"><a class="button" href="/setup/1">Back</a>{% if has_keys %}<a class="button primary" href="/setup/3">Next</a>{% endif %}</p>
-</section>
+  <div class="muted small">The keys are saved in your computer’s secure keychain and never shown again.</div>
+  <div class="nav-row"><a class="btn large back-btn" href="/setup/1">Back</a><button class="btn large primary">Check and Continue</button></div>
+</form>
+
 {% elif step == 3 %}
-<section class="card narrow">
-  <h1>Which streamers?</h1>
-  <p>Add 2 or 3 to start; you can add more later.</p>
-  <form method="post" action="/streamers/add" class="row">
-    <input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="next" value="/setup/3">
-    <input name="login" placeholder="Twitch name or channel link" required aria-label="Twitch name">
-    <button>Add</button>
-  </form>
-  <ul class="plain">{% for s in streamers %}<li>{% if s.avatar_url %}<img src="{{ s.avatar_url }}" alt="" width="28" height="28" referrerpolicy="no-referrer">{% endif %} {{ s.display_name or s.login }}</li>{% else %}<li class="muted">None yet.</li>{% endfor %}</ul>
-  <p class="muted small">Posting stays off for every streamer until you record their permission.</p>
-  <p class="row"><a class="button" href="/setup/2">Back</a>{% if streamers %}<a class="button primary" href="/setup/4">Next</a>{% endif %}</p>
-</section>
+<div class="intro">
+  <div class="step-label">Step 3 of {{ steps }}</div>
+  <h1>Which streamers should ClipVault watch?</h1>
+  <p class="lead">Start with two or three. You can add more any time.</p>
+</div>
+<form method="post" action="/streamers/add" class="add-form" style="flex-direction: row; gap: 8px">
+  <input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="next" value="/setup/3">
+  <label for="sn" class="sr-only">Twitch name or channel link</label>
+  <input id="sn" type="text" name="login" placeholder="Twitch name or channel link" required style="flex: 1; height: 40px; width: auto; background: var(--bg)">
+  <button class="btn large primary">Add</button>
+</form>
+{% if streamers %}
+<div class="boxed">
+  {% for s in streamers %}
+  <div class="feature" style="align-items: center; padding: 10px 14px">
+    <span class="avatar small" aria-hidden="true">{{ (s.display_name or s.login)[:1]|upper }}</span>
+    <span style="flex: 1; font-weight: 600">{{ s.display_name or s.login }}</span>
+    <form method="post" action="/streamers/{{ s.id }}/remove" class="inline" data-confirm="Remove {{ s.display_name or s.login }}?"><input type="hidden" name="csrf" value="{{ csrf }}"><button class="btn danger small-remove">Remove</button></form>
+  </div>
+  {% endfor %}
+</div>
+{% endif %}
+<div class="muted small">ClipVault keeps each streamer’s 5 most-viewed clips per day and looks back 7 days the first time. Change this per streamer later.</div>
+<div class="nav-row"><a class="btn large back-btn" href="/setup/2">Back</a>{% if streamers %}<a class="btn large primary" href="/setup/4">Continue</a>{% endif %}</div>
+
 {% elif step == 4 %}
-<section class="card narrow">
-  <h1>Where to keep the clips?</h1>
-  <form method="post" action="/settings/storage">
-    <input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="next" value="/setup/5">
-    <label>Library folder <input name="library_root" value="{{ config.library_root }}" required></label>
-    <label>Quality <select name="quality">
-      <option value="720p" {{ 'selected' if config.quality == '720p' }}>720p (smaller files)</option>
-      <option value="1080p" {{ 'selected' if config.quality == '1080p' }}>1080p (sharper, about twice the size)</option></select></label>
-    <label>Remove below-median clips after (days) <input type="number" name="keep_days" min="1" value="{{ config.retention.keep_days_below_median }}"></label>
-    <input type="hidden" name="min_free" value="{{ config.retention.min_free_space_pct }}">
-    <p class="muted">About {{ '%.1f'|format(estimate) }} GB a month at {{ config.quality }} with these streamers. Starred clips are kept forever.</p>
-    <p class="row"><a class="button" href="/setup/3">Back</a><button class="primary">Next</button></p>
-  </form>
-</section>
+<div class="intro">
+  <div class="step-label">Step 4 of {{ steps }}</div>
+  <h1>Where should clips be kept?</h1>
+  <p class="lead">The suggested folder works for most people.</p>
+</div>
+<form method="post" action="/settings/storage">
+  <input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="next" value="/setup/5">
+  <input type="hidden" name="keep_days" value="{{ config.retention.keep_days_below_median }}">
+  <input type="hidden" name="min_free" value="{{ config.retention.min_free_space_pct }}">
+  <details class="boxed disclose">
+    <summary class="folder">
+      <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="var(--link)" stroke-width="1.7" stroke-linejoin="round" aria-hidden="true"><path d="M3 6.5A1.5 1.5 0 0 1 4.5 5H9l2 2.5h8.5A1.5 1.5 0 0 1 21 9v9.5a1.5 1.5 0 0 1-1.5 1.5h-15A1.5 1.5 0 0 1 3 18.5z"/></svg>
+      <div style="flex: 1 1 220px"><div style="font-weight: 600">{{ config.library_root.name }}</div><div class="muted small">{% if folder_home %}In your user folder{% else %}{{ config.library_root.parent }}{% endif %}{% if folder_free is not none %} · {{ folder_free|gigabytes }} free{% endif %}</div></div>
+      <span class="btn medium">Choose Another Folder…</span>
+    </summary>
+    <div class="reveal" style="padding: 0 16px 14px"><label class="field"><span>Folder</span><input type="text" name="library_root" value="{{ config.library_root }}" required></label></div>
+  </details>
+  <fieldset style="margin: 0; padding: 0; border: 0; display: flex; flex-direction: column; gap: 8px">
+    <legend style="padding: 0 0 8px; font-weight: 600">Video quality</legend>
+    <label class="choice"><input type="radio" name="quality" value="720p" {{ 'checked' if config.quality == '720p' }}><span><b>720p (recommended)</b><br><span class="muted small">Looks sharp on phones and uses less space.</span></span></label>
+    <label class="choice"><input type="radio" name="quality" value="1080p" {{ 'checked' if config.quality == '1080p' }}><span><b>1080p</b><br><span class="muted small">Sharper on big screens, larger files.</span></span></label>
+  </fieldset>
+  <div class="note"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 11v5.5M12 7.8v.2"/></svg><div><b style="color: var(--label)">About {{ '%.0f'|format(estimate) }} GB a month</b> for {{ streamers|length }} streamer{{ 's' if streamers|length != 1 }}. Less popular clips are removed after {{ config.retention.keep_days_below_median }} days; starred clips are kept.</div></div>
+  <div class="nav-row"><a class="btn large back-btn" href="/setup/3">Back</a><button class="btn large primary">Continue</button></div>
+</form>
+
 {% elif step == 5 %}
-<section class="card narrow">
-  <h1>How should the phone videos look?</h1>
-  <p>The headline, the highlight colour of the spoken word and the caption size. You can change this any time in Settings.</p>
-  {% set look_next = '/setup/6' %}{% set look_wizard = true %}
-  {% include "_look.html" %}
-</section>
+<div class="intro">
+  <div class="step-label">Step 5 of {{ steps }}</div>
+  <h1>How should phone videos look?</h1>
+  <p class="lead">ClipVault picks the best layout for each clip. These choices set the text style.</p>
+</div>
+{% set look_next = '/setup/6' %}{% set look_wizard = true %}
+{% include "_look.html" %}
+
 {% else %}
-<section class="card narrow">
-  <h1>Your phone</h1>
-  {% set phone_next = '/setup/6' %}
-  {% include "_phone.html" %}
-  <form method="post" action="/setup/done"><input type="hidden" name="csrf" value="{{ csrf }}">
-    <p class="row"><a class="button" href="/setup/5">Back</a><button class="primary">Finish</button></p></form>
-</section>
+<div class="intro">
+  <div class="step-label">Step 6 of {{ steps }} · optional</div>
+  <h1>Get updates on your phone</h1>
+  <p class="lead">A summary each morning, and a message when something needs you. Uses the free ntfy app.</p>
+</div>
+{% if topic %}
+<div class="boxed folder" style="gap: 20px">
+  <div class="qr" role="img" aria-label="QR code for your private notification topic">{{ ntfy_qr|safe }}</div>
+  <ol style="flex: 1 1 240px; margin: 0; padding-left: 18px; display: flex; flex-direction: column; gap: 6px"><li>Install ntfy on your phone.</li><li>Tap + and scan this code.</li><li>Send a test to check it works.</li></ol>
+</div>
+<div class="actions">
+  <form method="post" action="/settings/ntfy-test" class="inline"><input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="next" value="/setup/6"><button class="btn">Send Test</button></form>
+  <span class="muted small">Keep this code private: anyone with it can read the messages.</span>
+</div>
+{% else %}
+<form method="post" action="/settings/ntfy" class="inline"><input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="next" value="/setup/6"><button class="btn primary">Set Up Notifications</button></form>
+{% endif %}
+<form method="post" action="/settings/phone-access" data-autosubmit>
+  <input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="next" value="/setup/6">
+  <label class="boxed row" style="cursor: pointer">
+    <span class="grow"><span class="strong">Also open the control panel on my phone</span><br><span class="muted small">Works on the same Wi-Fi. Needs a restart of ClipVault.{% if reachable and panel_url %} Then open {{ panel_url }}.{% endif %}</span></span>
+    <input type="checkbox" name="allow" value="1" {{ 'checked' if reachable }} style="width: 18px; height: 18px; flex: none">
+  </label>
+</form>
+<div class="nav-row">
+  <a class="btn large back-btn" href="/setup/5">Back</a>
+  <form method="post" action="/setup/done" class="actions"><input type="hidden" name="csrf" value="{{ csrf }}">
+    <button class="btn large plain skip">Skip for Now</button>
+    <button class="btn large primary">Finish</button></form>
+</div>
 {% endif %}
 {% endblock %}

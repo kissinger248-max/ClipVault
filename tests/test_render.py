@@ -405,6 +405,18 @@ def test_render_writes_the_vertical_file_and_records_a_passing_report(
     )
 
 
+def test_making_it_again_in_another_layout_keeps_one_record(
+    conn: sqlite3.Connection, home: Path, fake_ffmpeg
+) -> None:
+    config, _video = render_ready(conn, home)
+    first = engine.render_clip(conn, config, "c1", layout="letterbox")
+    conn.execute("UPDATE renders SET layout = 'split' WHERE id = ?", (first.render_id,))
+    second = engine.render_clip(conn, config, "c1", layout="letterbox")
+    rows = conn.execute("SELECT id, layout, path FROM renders").fetchall()
+    # Same file whatever the layout: the older record is gone, not left pointing at it.
+    assert [tuple(r)[:2] for r in rows] == [(second.render_id, "letterbox")]
+
+
 def test_long_clips_keep_their_last_59_seconds(
     conn: sqlite3.Connection, home: Path, fake_ffmpeg
 ) -> None:

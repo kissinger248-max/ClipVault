@@ -79,6 +79,11 @@ def create_app(home: Path | None = None) -> FastAPI:
     templates.env.filters["megabytes"] = lambda size: f"{(size or 0) / 1_048_576:,.1f} MB"
     templates.env.filters["clock"] = _clock
     templates.env.filters["highlight"] = _highlight
+    templates.env.filters["ago"] = _ago
+    templates.env.filters["when"] = lambda stamp: _when(stamp, config().timezone)
+    templates.env.filters["compact"] = _compact
+    templates.env.filters["fromjson"] = _fromjson
+    templates.env.filters["gigabytes"] = lambda size: f"{(size or 0) / 1e9:,.0f} GB"
     app.mount("/static", StaticFiles(directory=str(HERE / "static")), name="static")
 
     def conn() -> sqlite3.Connection:
@@ -93,6 +98,9 @@ def create_app(home: Path | None = None) -> FastAPI:
         values["csrf"] = auth.csrf_token(session)
         values["flash"] = request.query_params.get("msg", "")
         values["version"] = __version__
+        if "problems" not in values:
+            with _db(conn) as c:
+                values["problems"] = len(alerts.open_alerts(c))
         return templates.TemplateResponse(request, name, values)
 
     def back(url: str, message: str = "") -> RedirectResponse:
@@ -189,6 +197,11 @@ def create_app(home: Path | None = None) -> FastAPI:
                     "AND state NOT IN ('found', 'dead')"
                 ).fetchone(),
             }
+            counts["live"] = c.execute(
+                "SELECT count(*) FROM clips WHERE source = 'live_spike' AND created_at >= ?",
+                (today,),
+            ).fetchone()[0]
+            counts["free"] = _free_bytes(storage.open_library(c, config()))
             newest = _clip_rows(c, f"{EDITED} AND c.removed_at IS NULL", [], "c.created_at DESC", 8)
             editing = _editing_count(c, config())
             last = c.execute(
@@ -196,6 +209,7 @@ def create_app(home: Path | None = None) -> FastAPI:
             ).fetchone()[0]
         status = "red" if open_alerts else ("yellow" if paused else "green")
         return page(request, "home.html", tab="home", status=status, alerts=open_alerts,
+                    problems=len(open_alerts),
                     paused=paused, counts=counts, newest=newest, last_run=last,
                     editing=editing)  # fmt: skip
 
@@ -279,9 +293,18 @@ def create_app(home: Path | None = None) -> FastAPI:
             text = c.execute(
                 "SELECT text FROM transcripts WHERE clip_id = ?", (clip_id,)
             ).fetchone()
+            library = storage.open_library(c, config())
+        original = view == "original" or not rows[0]["render_id"]
+        lines = _transcript_lines(library, rows[0], phone=not original)
+        current = next((r for r in renders if r["id"] == rows[0]["render_id"]), None)
+        checks = _fromjson(current["qa_report_json"]).get("checks", []) if current else []
+        folder = " › ".join(
+            [config().library_root.name, *rows[0]["file_path"].split("/")[:-1]]
+        ) if rows[0]["file_path"] else ""  # fmt: skip
         return page(request, "clip.html", tab="clips", clip=rows[0], renders=renders,
+                    current=current, checks=checks, folder=folder,
                     transcript=text[0] if text else "", rendering=clip_id in state.rendering,
-                    original=view == "original" or not rows[0]["render_id"],
+                    original=original, lines=lines,
                     render_error=state.render_errors.get(clip_id, ""))  # fmt: skip
 
     @app.get("/media/{clip_id}")
@@ -304,10 +327,12 @@ def create_app(home: Path | None = None) -> FastAPI:
         return FileResponse(path, media_type="video/mp4")
 
     @app.get("/thumb/{clip_id}")
-    def thumbnail(clip_id: str, kind: str = "video", render: int = 0):
+    def thumbnail(clip_id: str, kind: str = "video", render: int = 0, at: str = ""):
         state: PanelState = app.state.panel
         vertical = kind == "vertical"
-        name = storage.safe_id(clip_id) + (f"_v{render}" if vertical else "")
+        # Keyed by when the phone version was made: a re-made version gets a new picture.
+        made = "".join(ch for ch in at if ch.isdigit())[:14]
+        name = storage.safe_id(clip_id) + (f"_v{render}_{made}" if vertical else "")
         target = state.home / "cache" / "thumbs" / f"{name}.jpg"
         if not target.is_file():
             with _db(conn) as c:
@@ -372,13 +397,19 @@ def create_app(home: Path | None = None) -> FastAPI:
             rows = c.execute(
                 "SELECT s.*, (SELECT count(*) FROM clips c WHERE c.streamer_id = s.id "
                 "AND c.file_path IS NOT NULL AND c.removed_at IS NULL "
-                "AND c.state NOT IN ('found', 'dead')) AS saved "
+                "AND c.state NOT IN ('found', 'dead')) AS saved, "
+                "(SELECT coalesce(sum(c.file_size), 0) FROM clips c WHERE c.streamer_id = s.id "
+                "AND c.removed_at IS NULL) AS bytes "
                 "FROM streamers s ORDER BY s.login"
             ).fetchall()
         live = _live_now(
             app.state.panel, [r["twitch_user_id"] for r in rows if r["twitch_user_id"]]
         )
-        return page(request, "streamers.html", tab="streamers", streamers=rows, live=live)
+        from clipvault.web.settings_routes import estimate_gb_per_month
+
+        estimate = estimate_gb_per_month([dict(r) for r in rows], config().quality)
+        return page(request, "streamers.html", tab="streamers", streamers=rows, live=live,
+                    estimate=estimate)  # fmt: skip
 
     @app.post("/streamers/add")
     def add_streamer(login: str = Form(...), next: str = Form("/streamers")):
@@ -556,6 +587,100 @@ def _highlight(snippet: str) -> Markup:
     return Markup(escaped.replace("[", "<mark>").replace("]", "</mark>"))
 
 
+def _transcript_lines(library: storage.Library, clip: sqlite3.Row, phone: bool) -> list[dict]:
+    """The clip's subtitle lines with their start times, for the clip page.
+
+    For the phone version the times count from where it starts (clips over 59 s
+    keep their last 59 s), so picking a line can move the video there.
+    """
+    from clipvault.process.transcribe import Transcript, cues_from_words
+
+    video = storage.resolve(library, clip["file_path"])
+    words_file = video.with_suffix(".words.json") if video else None
+    if words_file is None or not words_file.is_file():
+        return []
+    try:
+        words = Transcript.from_json(words_file.read_text(encoding="utf-8")).words
+    except (OSError, ValueError, KeyError, TypeError):
+        return []
+    offset = max((clip["duration"] or 0) - 59, 0) if phone else 0
+    lines = []
+    for cue in cues_from_words(words):
+        if cue.end <= offset:
+            continue
+        start = max(cue.start - offset, 0)
+        lines.append({"start": round(start, 2), "end": round(cue.end - offset, 2),
+                      "label": _clock(start), "text": cue.text})  # fmt: skip
+    return lines
+
+
+def _when(stamp: str | None, tz_name: str) -> str:
+    """ "Nov 13, 05:41" in the user's time zone."""
+    from zoneinfo import ZoneInfo
+
+    from clipvault.timeutil import parse_rfc3339
+
+    if not stamp:
+        return ""
+    try:
+        local = parse_rfc3339(stamp).astimezone(ZoneInfo(tz_name))
+    except ValueError:
+        return ""
+    return f"{local:%b} {local.day}, {local:%H:%M}"
+
+
+def _ago(stamp: str | None) -> str:
+    """ "25 min ago", "2 h ago", "yesterday", "3 days ago" or a date."""
+    from clipvault.timeutil import parse_rfc3339, utc_now
+
+    if not stamp:
+        return ""
+    try:
+        seconds = (utc_now() - parse_rfc3339(stamp)).total_seconds()
+    except ValueError:
+        return ""
+    if seconds < 90:
+        return "just now"
+    if seconds < 3600:
+        return f"{int(seconds // 60)} min ago"
+    if seconds < 86400:
+        return f"{int(seconds // 3600)} h ago"
+    if seconds < 2 * 86400:
+        return "yesterday"
+    if seconds < 7 * 86400:
+        return f"{int(seconds // 86400)} days ago"
+    return stamp[:10]
+
+
+def _compact(number: Any) -> str:
+    """1234 -> "1.2K", 48100 -> "48.1K"."""
+    value = int(number or 0)
+    if value < 1000:
+        return str(value)
+    if value < 1_000_000:
+        return f"{value / 1000:.1f}K".replace(".0K", "K")
+    return f"{value / 1_000_000:.1f}M".replace(".0M", "M")
+
+
+def _fromjson(text: str | None) -> dict:
+    import json
+
+    try:
+        data = json.loads(text or "{}")
+    except ValueError:
+        return {}
+    return data if isinstance(data, dict) else {}
+
+
+def _free_bytes(library: storage.Library) -> int | None:
+    import shutil
+
+    try:
+        return shutil.disk_usage(library.write_base if library.available else library.cache).free
+    except OSError:
+        return None
+
+
 def _clock(seconds: Any) -> str:
     if seconds is None:
         return ""
@@ -582,7 +707,9 @@ def _clip_rows(
         "(SELECT count(*) FROM renders r WHERE r.clip_id = c.id AND r.path IS NOT NULL) "
         "AS renders, "
         "(SELECT r.id FROM renders r WHERE r.clip_id = c.id AND r.path IS NOT NULL "
-        "ORDER BY r.created_at DESC, r.id DESC LIMIT 1) AS render_id "
+        "ORDER BY r.created_at DESC, r.id DESC LIMIT 1) AS render_id, "
+        "(SELECT r.created_at FROM renders r WHERE r.clip_id = c.id AND r.path IS NOT NULL "
+        "ORDER BY r.created_at DESC, r.id DESC LIMIT 1) AS render_at "
         f"FROM clips c JOIN streamers s ON s.id = c.streamer_id WHERE {where} "
         f"ORDER BY {order} LIMIT ? OFFSET ?",
         [*params, limit, offset],

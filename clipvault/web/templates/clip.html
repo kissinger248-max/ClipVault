@@ -1,56 +1,102 @@
 {% extends "base.html" %}
 {% block title %}{{ clip.headline or clip.title }} · ClipVault{% endblock %}
+{% block contentclass %}tight clip-page{% endblock %}
+{% set layout_names = {'letterbox': 'whole picture', 'split': 'facecam on top', 'native': "Twitch's own vertical version"} %}
 {% block content %}
-<p><a href="/clips">← Clips</a></p>
-{% if not original %}
-<div class="viewer">
-  <video controls playsinline preload="metadata" class="phone-player"
-    poster="/thumb/{{ clip.id|urlpart }}?kind=vertical&render={{ clip.render_id }}"
-    src="/media/{{ clip.id|urlpart }}?kind=vertical&r={{ clip.render_id }}"></video>
-</div>
-<div class="actions center">
-  <a class="button primary" href="/media/{{ clip.id|urlpart }}?kind=vertical&download=1">Save video</a>
-  <a class="button" href="/clips/{{ clip.id|urlpart }}?view=original">See original</a>
-  <form method="post" action="/clips/{{ clip.id|urlpart }}/star"><input type="hidden" name="csrf" value="{{ csrf }}">
-    <button>{{ '★ Starred' if clip.starred else '☆ Star' }}</button></form>
-</div>
-{% else %}
-<video controls playsinline preload="metadata" poster="/thumb/{{ clip.id|urlpart }}" class="player">
-  <source src="/media/{{ clip.id|urlpart }}" type="video/mp4">
-</video>
-<p class="muted small">This is the original from Twitch. Some browsers can't play Twitch's newer video format; Download still works.</p>
-<div class="actions">
-  {% if clip.render_id %}<a class="button primary" href="/clips/{{ clip.id|urlpart }}">See phone version</a>{% endif %}
-  <a class="button" href="/media/{{ clip.id|urlpart }}?download=1">Download original</a>
-  <form method="post" action="/clips/{{ clip.id|urlpart }}/star"><input type="hidden" name="csrf" value="{{ csrf }}">
-    <button>{{ '★ Starred' if clip.starred else '☆ Star' }}</button></form>
-</div>
-{% if not clip.render_id %}<p class="muted">The phone version of this clip is still being made.</p>{% endif %}
-{% endif %}
-<h1>{{ clip.headline or clip.title or 'Untitled clip' }}</h1>
-<p class="sub">{{ clip.display_name or clip.login }} · {{ (clip.created_at or '')[:16]|replace('T', ' ') }} UTC
-  {% if clip.view_count is not none %}· {{ '{:,}'.format(clip.view_count) }} view{{ 's' if clip.view_count != 1 }}{% endif %}
-  · {{ clip.duration|clock }}{% if clip.game_name %} · {{ clip.game_name }}{% endif %}
-  {% if clip.source == 'vod_spike' %}· chat moment{% elif clip.source == 'live_spike' %}· live moment{% endif %}
-  {% if clip.reject_reason == 'muted' %}· <b>no sound (muted by Twitch)</b>{% endif %}
-  {% if clip.headline and clip.title and clip.headline != clip.title %}<br>Twitch title: {{ clip.title }}{% endif %}</p>
-{% if transcript %}<details><summary>What was said</summary><p class="transcript">{{ transcript }}</p></details>{% endif %}
-<details class="more">
-  <summary>More</summary>
-  {% if rendering %}<p class="busy" data-reload="5">Making a new phone version… this page refreshes by itself.</p>
-  {% else %}
+<a class="back" href="/clips">‹ Clips</a>
+
+<div class="clip-layout">
+  <section class="player-col" aria-label="{{ 'Original' if original else 'Phone version' }}">
+    {% if not original %}
+    <div class="phone-frame">
+      <video controls playsinline preload="metadata" class="phone-player" data-transcript-video
+        poster="/thumb/{{ clip.id|urlpart }}?kind=vertical&render={{ clip.render_id }}&at={{ clip.render_at|urlpart }}"
+        src="/media/{{ clip.id|urlpart }}?kind=vertical&r={{ clip.render_id }}&at={{ clip.render_at|urlpart }}"></video>
+    </div>
+    {% if current %}<div class="player-note">Layout: {{ layout_names.get(current.layout, current.layout) }}</div>{% endif %}
+    {% else %}
+    <div class="wide-frame">
+      <video controls playsinline preload="metadata" poster="/thumb/{{ clip.id|urlpart }}" class="player" data-transcript-video>
+        <source src="/media/{{ clip.id|urlpart }}" type="video/mp4">
+      </video>
+    </div>
+    <div class="player-note">The original from Twitch</div>
+    {% endif %}
+  </section>
+
+  <section class="about" aria-label="About this clip">
+    <div>
+      <h1>{{ clip.headline or clip.title or 'Untitled clip' }}</h1>
+      <div class="muted">{{ clip.display_name or clip.login }} · {{ clip.created_at|when }}{% if clip.view_count is not none %} · {{ clip.view_count|compact }} view{{ 's' if clip.view_count != 1 }}{% endif %} · {% if clip.source == 'live_spike' %}live moment{% elif clip.source == 'vod_spike' %}chat moment{% else %}viewer clip{% endif %}</div>
+    </div>
+    {% if clip.reject_reason == 'muted' %}<div class="small bad">No sound: Twitch muted this part of the recording.</div>{% endif %}
+    {% if rendering %}<div class="editing" data-reload="5"><span class="spinner cv-spin" aria-hidden="true"></span>Making a new phone version… this page refreshes by itself.</div>{% endif %}
     {% if render_error %}<p class="error">{{ render_error }}</p>{% endif %}
-    <form method="post" action="/clips/{{ clip.id|urlpart }}/vertical" class="row">
-      <input type="hidden" name="csrf" value="{{ csrf }}">
-      <select name="layout" aria-label="Layout"><option value="">Best layout</option><option value="letterbox">Whole picture</option><option value="split">Facecam on top</option><option value="native">Twitch's own vertical version</option></select>
-      <button>{{ 'Make it again' if clip.render_id else 'Make phone version now' }}</button>
-    </form>
-  {% endif %}
-  <div class="actions">
-    {% if clip.url %}<a class="button" href="{{ clip.url }}" target="_blank" rel="noopener">On Twitch</a>{% endif %}
-    <form method="post" action="/clips/{{ clip.id|urlpart }}/delete" data-confirm="Delete this clip and its phone version? It won't be downloaded again.">
-      <input type="hidden" name="csrf" value="{{ csrf }}">
-      <button class="danger" {{ 'disabled title="Starred clips are kept"' if clip.starred }}>Delete</button></form>
-  </div>
-</details>
+    {% if original and not clip.render_id and not rendering %}<div class="editing"><span class="spinner cv-spin" aria-hidden="true"></span>The phone version of this clip is still being made.</div>{% endif %}
+
+    <div class="actions clip-actions">
+      {% if not original %}
+      <a class="btn primary" href="/media/{{ clip.id|urlpart }}?kind=vertical&download=1"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 4v11M7 10.5l5 5 5-5M5 20h14"/></svg>Save Video</a>
+      <a class="btn" href="/clips/{{ clip.id|urlpart }}?view=original">See Original</a>
+      {% else %}
+      {% if clip.render_id %}<a class="btn primary" href="/clips/{{ clip.id|urlpart }}">See Phone Version</a>{% endif %}
+      <a class="btn" href="/media/{{ clip.id|urlpart }}?download=1"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 4v11M7 10.5l5 5 5-5M5 20h14"/></svg>Download Original</a>
+      {% endif %}
+      <form method="post" action="/clips/{{ clip.id|urlpart }}/star" class="inline">
+        <input type="hidden" name="csrf" value="{{ csrf }}">
+        <button class="btn star-btn" aria-pressed="{{ 'true' if clip.starred else 'false' }}">
+          {% if clip.starred %}<svg width="16" height="16" viewBox="0 0 24 24" fill="#FFD60A" stroke="#7A5A00" stroke-width="1.2" stroke-linejoin="round" aria-hidden="true"><path d="m12 3 2.8 5.7 6.2.9-4.5 4.4 1 6.2L12 17.3 6.5 20.2l1-6.2L3 9.6l6.2-.9z"/></svg>Starred
+          {% else %}<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round" aria-hidden="true"><path d="m12 3 2.8 5.7 6.2.9-4.5 4.4 1 6.2L12 17.3 6.5 20.2l1-6.2L3 9.6l6.2-.9z"/></svg>Star{% endif %}
+        </button>
+      </form>
+      <details class="menu-wrap">
+        <summary class="btn" aria-haspopup="menu">More ▾</summary>
+        <div class="menu" role="menu">
+          {% if not rendering %}
+          <details class="submenu">
+            <summary class="item" role="menuitem">{{ 'Make Again in Another Layout…' if clip.render_id else 'Make Phone Version Now…' }}</summary>
+            <form method="post" action="/clips/{{ clip.id|urlpart }}/vertical" class="remake">
+              <input type="hidden" name="csrf" value="{{ csrf }}">
+              <select name="layout" aria-label="Layout" class="small"><option value="">Best layout</option><option value="split">Facecam on top</option><option value="letterbox">Whole picture</option><option value="native">Twitch’s own vertical version</option></select>
+              <button class="btn small primary">Make</button>
+            </form>
+          </details>
+          {% endif %}
+          {% if clip.url %}<a class="item" role="menuitem" href="{{ clip.url }}" target="_blank" rel="noopener">Open on Twitch</a>{% endif %}
+          <div class="divider"></div>
+          <form method="post" action="/clips/{{ clip.id|urlpart }}/delete" data-confirm="Delete this clip and its phone version? It won't be downloaded again.">
+            <input type="hidden" name="csrf" value="{{ csrf }}">
+            <button class="item danger" role="menuitem" {{ 'disabled title="Starred clips are kept"' if clip.starred }}>Delete Clip…</button>
+          </form>
+        </div>
+      </details>
+    </div>
+
+    {% if lines or transcript %}
+    <details class="card" open>
+      <summary>What was said</summary>
+      <div class="inside lines">
+        {% for line in lines %}
+        <button type="button" class="line" data-start="{{ line.start }}" data-end="{{ line.end }}"><span class="time">{{ line.label }}</span><span class="said">{{ line.text }}</span></button>
+        {% else %}<p class="transcript">{{ transcript }}</p>{% endfor %}
+      </div>
+    </details>
+    {% endif %}
+
+    {% if checks %}
+    {% set failed = checks|rejectattr('passed')|list %}
+    <details class="card">
+      <summary>Quality checks <span class="{{ 'good' if not failed else 'bad' }}" style="font-weight: 400">· {% if failed %}{{ failed|length }} of {{ checks|length }} flagged{% else %}all {{ checks|length }} passed{% endif %}</span></summary>
+      <ul class="checks">
+        {% for check in checks %}<li><span class="{{ 'good' if check.passed else 'bad' }}">{{ '✓' if check.passed else '✕' }}</span> {{ check.name|replace('_', ' ') }}{% if check.detail %} <span class="muted small">· {{ check.detail }}</span>{% endif %}</li>{% endfor %}
+      </ul>
+    </details>
+    {% endif %}
+
+    <dl class="facts">
+      <div><dt>Kept</dt><dd>{% if clip.starred %}Forever, because it’s starred{% else %}Unless it’s less popular than usual and older than the keep time{% endif %}</dd></div>
+      {% if folder %}<div><dt>Saved in</dt><dd>{{ folder }}</dd></div>{% endif %}
+    </dl>
+  </section>
+</div>
 {% endblock %}

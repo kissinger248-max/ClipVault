@@ -1,0 +1,69 @@
+/* ClipVault colour tokens (docs/design/DESIGN_HANDOFF.md).
+   Follows the system appearance; there is no in-app theme setting. */
+:root {
+  color-scheme: light dark;
+  --bg: #F5F5F7;
+  --side: #ECECF0;
+  --card: #FFFFFF;
+  --menu: #FFFFFF;
+  --label: #1D1D1F;
+  --label2: #6E6E73;
+  --sep: #D9D9DE;
+  --fill: #E6E6EB;
+  --switch-off: #D1D1D6;
+  --switch-on: #00782C;
+  --accent: #1E6EF4;
+  --link: #1E6EF4;
+  --selected: #DCE8FD;
+  --green: #00782C;
+  --green-bg: #E3F4E8;
+  --red: #C50F25;
+  --red-bg: #FDE7EA;
+  --orange: #B04A00;
+  --yellow-bg: #FFF4D6;
+  --badge: #C50F25;
+  --shadow: 0 1px 2px rgba(0, 0, 0, 0.05), 0 2px 8px rgba(0, 0, 0, 0.04);
+  --glass: rgba(255, 255, 255, 0.75);
+  --glass-edge: rgba(255, 255, 255, 0.9);
+  --video: #0E0E10;
+  --font: -apple-system, BlinkMacSystemFont, "SF Pro Text", Inter, "Segoe UI", sans-serif;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #1C1C1E;
+    --side: #252527;
+    --card: #2C2C2E;
+    --menu: #3A3A3C;
+    --label: #F5F5F7;
+    --label2: #A1A1A6;
+    --sep: #3A3A3C;
+    --fill: #3A3A3C;
+    --switch-off: #48484A;
+    --switch-on: #30A14E;
+    --accent: #1E6EF4;
+    --link: #5CB8FF;
+    --selected: #1D3557;
+    --green: #4AD968;
+    --green-bg: #173B22;
+    --red: #FF6165;
+    --red-bg: #45191D;
+    --orange: #FFA056;
+    --yellow-bg: #3D3112;
+    --badge: #E5323F;
+    --shadow: inset 0 1px 0 rgba(255, 255, 255, 0.05);
+    --glass: rgba(44, 44, 46, 0.75);
+    --glass-edge: rgba(255, 255, 255, 0.12);
+  }
+}
+
+/* Phone layout uses the slightly different page and card colours. */
+@media (max-width: 599px) {
+  :root { --bg: #F2F2F7; --card: #FFFFFF; --fill: #E3E3E8; }
+  /* PhoneHome.dc.html uses the desktop fill for its buttons and selected tab */
+  body:has(.content.home-page) { --fill: #E6E6EB; }
+}
+@media (max-width: 599px) and (prefers-color-scheme: dark) {
+  :root { --bg: #000000; --card: #1C1C1E; --fill: #2C2C2E; --red-bg: #3A1517; }
+  body:has(.content.home-page) { --fill: #3A3A3C; }
+}

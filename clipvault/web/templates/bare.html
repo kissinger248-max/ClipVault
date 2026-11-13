@@ -1,0 +1,15 @@
+<!doctype html>
+<html lang="en">
+<head>
+{% include "_head.html" %}
+<title>{% block title %}ClipVault{% endblock %}</title>
+</head>
+<body>
+<div class="setup-page">
+  <main class="setup-card">
+    {% if flash %}<div class="flash" role="status">{{ flash }}</div>{% endif %}
+    {% block content %}{% endblock %}
+  </main>
+</div>
+</body>
+</html>

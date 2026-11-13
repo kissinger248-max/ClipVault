@@ -185,6 +185,19 @@ Accounts and keys the user needs, by milestone:
 
 ## Part 4: Packaging and extras
 
+### Panel redesign
+
+Requested by the user on 2026-11-13. The design is in `docs/design/` (read `DESIGN_HANDOFF.md` first; the `.dc.html` files are visual mockups, not templates).
+
+- [x] Colour tokens as CSS custom properties in `web/static/`, dark values under `prefers-color-scheme: dark`; `motion.css` copied in
+- [x] Shared layout: sidebar, phone tab bar, problem badge
+- [x] Home, Clips, a clip's page, Streamers, Settings, the first-run password page and the six setup steps rebuilt from their mockups
+- [x] Every route, form field name and hidden form token unchanged
+- [x] System font stack from the handoff; inline SVG icons from the mockups (no SF fonts or SF Symbols bundled)
+- [x] Old CSS deleted once nothing uses it
+
+**Done when:** every panel page matches its mockup in light and dark; it follows the system appearance with no in-app theme setting; below 600 px the sidebar becomes a bottom tab bar; Reduce Motion turns all animation off; pytest and ruff pass.
+
 ### M13. Installers, server and sync
 
 - [ ] PyInstaller builds for Windows and macOS with bundled tools; start at login

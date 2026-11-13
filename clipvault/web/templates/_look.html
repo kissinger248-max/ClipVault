@@ -1,22 +1,54 @@
-<form method="post" action="/settings/look" class="look" data-look-form>
+{% set palette = [('#D9480F', 'Orange'), ('#F2C200', 'Yellow'), ('#1F9D55', 'Green'), ('#8B3FD9', 'Purple')] %}
+{% set accent = config.look.accent|upper %}
+{% set preview_query = 'style=' ~ config.look.headline_style ~ '&accent=' ~ (accent|urlpart) ~ '&size=' ~ config.look.caption_size ~ '&credit=' ~ (1 if config.look.show_credit else 0) %}
+<form method="post" action="/settings/look" class="{{ 'look-wizard' if look_wizard else 'card' }}" data-look-form {{ '' if look_wizard else 'data-autosubmit' }}>
   <input type="hidden" name="csrf" value="{{ csrf }}">
   <input type="hidden" name="next" value="{{ look_next|default('/settings#look') }}">
-  <div class="look-controls">
-    <label>Headline style <select name="style">
-      <option value="box" {{ 'selected' if config.look.headline_style == 'box' }}>White box</option>
-      <option value="outline" {{ 'selected' if config.look.headline_style == 'outline' }}>Outlined text</option></select></label>
-    <label>Highlight colour <input type="color" name="accent" value="{{ config.look.accent }}"></label>
-    <label class="check"><input type="checkbox" name="credit" value="1" {{ 'checked' if config.look.show_credit }}> Show “@streamer on Twitch” under the headline</label>
-    <label>Caption size <input type="range" name="size" min="56" max="96" step="4" value="{{ config.look.caption_size }}"> <span data-size-label>{{ config.look.caption_size }} px</span></label>
-  </div>
+  {% if look_wizard %}
   <div class="previews">
-    {% for layout, label in [('letterbox', 'Letterbox'), ('split', 'Facecam on top'), ('native', "Twitch's own vertical")] %}
-    <figure><img data-layout="{{ layout }}" alt="{{ label }} preview" loading="lazy"
-      src="/look/preview/{{ layout }}.jpg?style={{ config.look.headline_style }}&accent={{ config.look.accent|urlpart }}&size={{ config.look.caption_size }}&credit={{ 1 if config.look.show_credit else 0 }}">
-      <figcaption>{{ label }}</figcaption></figure>
-    {% endfor %}
+    <figure><img data-layout="split" alt="Facecam on top" src="/look/preview/split.jpg?{{ preview_query }}"><figcaption>Facecam on top</figcaption></figure>
+    <figure><img data-layout="letterbox" alt="Whole picture" src="/look/preview/letterbox.jpg?{{ preview_query }}"><figcaption>Whole picture</figcaption></figure>
   </div>
-  <p class="muted small">Previews use a recent clip. A layout shows a grey box when no saved clip suits it yet.</p>
-  {% if look_wizard %}<p class="row"><a class="button" href="/setup/4">Back</a><button class="primary">Next</button></p>
-  {% else %}<button class="primary">Save look</button>{% endif %}
+  <div class="boxed">
+    <div class="row"><span>Headline style</span>
+      <select name="style" class="small" aria-label="Headline style">
+        <option value="box" {{ 'selected' if config.look.headline_style == 'box' }}>White box</option>
+        <option value="outline" {{ 'selected' if config.look.headline_style == 'outline' }}>Outlined text</option>
+      </select></div>
+    <div class="row"><span>Highlight colour</span>
+      <div class="swatches" role="radiogroup" aria-label="Highlight colour">
+        {% for value, label in palette %}<input type="radio" name="accent" value="{{ value }}" aria-label="{{ label }}" style="--swatch: {{ value }}" {{ 'checked' if accent == value }}>{% endfor %}
+        {% if accent not in palette|map('first')|list %}<input type="radio" name="accent" value="{{ accent }}" aria-label="Current colour" style="--swatch: {{ accent }}" checked>{% endif %}
+      </div></div>
+  </div>
+  <input type="hidden" name="size" value="{{ config.look.caption_size }}">
+  {% if config.look.show_credit %}<input type="hidden" name="credit" value="1">{% endif %}
+  {% else %}
+  <div class="row" style="align-items: flex-start; gap: 20px; padding: 16px">
+    <img class="look-preview" data-layout="letterbox" alt="Live preview of a phone video with the current look" src="/look/preview/letterbox.jpg?{{ preview_query }}">
+    <div class="look-controls">
+      <div class="line"><span>Headline style</span>
+        <select name="style" class="small" aria-label="Headline style">
+          <option value="box" {{ 'selected' if config.look.headline_style == 'box' }}>White box</option>
+          <option value="outline" {{ 'selected' if config.look.headline_style == 'outline' }}>Outlined text</option>
+        </select></div>
+      <div class="line"><span>Highlight colour</span>
+        <div class="swatches" role="radiogroup" aria-label="Highlight colour">
+          {% for value, label in palette %}<input type="radio" name="accent" value="{{ value }}" aria-label="{{ label }}" style="--swatch: {{ value }}" {{ 'checked' if accent == value }}>{% endfor %}
+          {% if accent not in palette|map('first')|list %}<input type="radio" name="accent" value="{{ accent }}" aria-label="Current colour" style="--swatch: {{ accent }}" checked>{% endif %}
+        </div></div>
+      <div class="line"><span>Caption size</span>
+        {% set size = config.look.caption_size %}
+        <select name="size" class="small" aria-label="Caption size">
+          {% for value, label in [(64, 'Small'), (72, 'Medium'), (80, 'Large'), (88, 'Extra large')] %}<option value="{{ value }}" {{ 'selected' if size == value }}>{{ label }}</option>{% endfor %}
+          {% if size not in [64, 72, 80, 88] %}<option value="{{ size }}" selected>{{ size }} px</option>{% endif %}
+        </select></div>
+      <label class="line"><span>Credit line “@streamer on Twitch”</span>
+        <input type="checkbox" class="switch" role="switch" name="credit" value="1" {{ 'checked' if config.look.show_credit }}></label>
+      <div class="muted small">Changes apply to new phone versions. To redo an old one, open the clip and choose More › Make Again.</div>
+      <noscript><button class="btn small">Save Look</button></noscript>
+    </div>
+  </div>
+  {% endif %}
+  {% if look_wizard %}<div class="nav-row"><a class="btn large back-btn" href="/setup/4">Back</a><button class="btn large primary">Continue</button></div>{% endif %}
 </form>

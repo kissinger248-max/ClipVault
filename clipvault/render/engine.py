@@ -239,6 +239,12 @@ def render_clip(
                 "created_at) VALUES (?, ?, ?, ?, ?, ?, ?)",
                 (clip_id, chosen, *values),
             ).lastrowid
+        # A clip has one phone-version file whatever its layout, so an earlier render in
+        # another layout was just overwritten: its row would point at this file.
+        conn.execute(
+            "DELETE FROM renders WHERE clip_id = ? AND id != ? AND path = ?",
+            (clip_id, render_id, relpath),
+        )
     log.info(
         "clip rendered",
         extra=ctx(

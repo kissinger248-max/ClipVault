@@ -1,17 +1,11 @@
 {% extends "base.html" %}
-{% block title %}Alerts · ClipVault{% endblock %}
+{% from "_macros.html" import problem_card %}
+{% block title %}Needs you · ClipVault{% endblock %}
 {% block content %}
-<h1>Needs you</h1>
-{% for alert in alerts %}
-<section class="card alert">
-  <p>{{ alert.message }}</p>
-  <p class="sub">Since {{ alert.created_at[:16]|replace('T', ' ') }} UTC</p>
-  <div class="actions">
-    {% if alert.fix_url %}<a class="button primary" href="{{ alert.fix_url }}">Fix</a>{% endif %}
-    <form method="post" action="/alerts/{{ alert.id }}/dismiss"><input type="hidden" name="csrf" value="{{ csrf }}"><button>Dismiss</button></form>
-  </div>
+<a class="back" href="/">‹ Home</a>
+<h1 class="page-title">Needs you</h1>
+<section class="section" aria-label="Problems">
+  {% for alert in alerts %}{{ problem_card(alert, csrf) }}
+  {% else %}<p class="empty">Nothing needs you right now.</p>{% endfor %}
 </section>
-{% else %}
-<p>Nothing needs you right now.</p>
-{% endfor %}
 {% endblock %}

@@ -1,0 +1,176 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>ClipVault setup</title>
+<script src="./support.js"></script>
+<link rel="stylesheet" href="./motion.css">
+</head>
+<body>
+<x-dc>
+<helmet>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&amp;family=Montserrat:wght@800&amp;display=swap" rel="stylesheet">
+<style>body{margin:0}</style>
+</helmet>
+<div style="min-height: 940px; background: {{t.bg}}; color: {{t.label}}; font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Text', Inter, 'Segoe UI', sans-serif; font-size: 14px; line-height: 20px; display: flex; align-items: center; justify-content: center; padding: 40px 16px; box-sizing: border-box">
+  <main style="width: 100%; max-width: 640px; display: flex; flex-direction: column; gap: 24px; padding: 32px; box-sizing: border-box; border-radius: 16px; background: {{t.card}}; border: 1px solid {{t.sep}}; box-shadow: 0 8px 30px rgba(0,0,0,0.08)">
+
+    <sc-if value="{{showSteps}}" hint-placeholder-val="{{ true }}">
+      <ol aria-label="Setup steps" style="list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 6px; font-size: 12px; line-height: 16px">
+        <sc-for list="{{steps}}" as="s" hint-placeholder-count="6">
+          <li aria-current="{{s.current}}" style="display: flex; flex-direction: column; gap: 6px"><div style="height: 4px; border-radius: 2px; background: {{s.bar}}"></div><span style="color: {{s.color}}; font-weight: {{s.weight}}">{{s.name}}</span></li>
+        </sc-for>
+      </ol>
+    </sc-if>
+
+    <!-- 0 · Password -->
+    <sc-if value="{{s0}}" hint-placeholder-val="{{ false }}">
+      <div style="display: flex; flex-direction: column; gap: 6px">
+        <div style="font-size: 17px; line-height: 22px; font-weight: 700">ClipVault</div>
+        <h1 style="margin: 0; font-size: 26px; line-height: 32px; font-weight: 700">Choose a password for the control panel</h1>
+        <p style="margin: 0; color: {{t.label2}}">It keeps the panel private if you later open it on your phone. You stay logged in for 30 days on each device.</p>
+      </div>
+      <div style="display: flex; flex-direction: column; gap: 8px"><label for="pw1" style="font-weight: 600">Password</label><input id="pw1" type="password" value="example-pass" style="height: 40px; padding: 0 12px; border-radius: 9px; border: 1px solid {{t.sep}}; background: {{t.bg}}; font: inherit; color: {{t.label}}"><div style="font-size: 13px; color: {{t.label2}}">At least 8 characters.</div></div>
+      <div style="display: flex; flex-direction: column; gap: 8px"><label for="pw2" style="font-weight: 600">Type it again</label><input id="pw2" type="password" style="height: 40px; padding: 0 12px; border-radius: 9px; border: 1px solid {{t.sep}}; background: {{t.bg}}; font: inherit; color: {{t.label}}"></div>
+      <div style="display: flex; justify-content: flex-end"><button type="button" style="height: 40px; padding: 0 22px; border-radius: 10px; border: 0; background: {{t.accent}}; font: inherit; color: #FFFFFF; font-weight: 600; cursor: pointer">Set Password</button></div>
+    </sc-if>
+
+    <!-- 1 · Welcome -->
+    <sc-if value="{{s1}}" hint-placeholder-val="{{ true }}">
+      <div style="display: flex; flex-direction: column; gap: 6px">
+        <div style="font-size: 13px; color: {{t.label2}}">Step 1 of 6</div>
+        <h1 style="margin: 0; font-size: 26px; line-height: 32px; font-weight: 700">Welcome to ClipVault</h1>
+        <p style="margin: 0; color: {{t.label2}}">It saves the best moments from the Twitch streamers you choose, and makes a phone version of each one. Choose what it should do.</p>
+      </div>
+      <div style="display: flex; flex-direction: column; border-radius: 12px; border: 1px solid {{t.sep}}">
+        <label style="display: flex; gap: 12px; align-items: flex-start; padding: 14px 16px"><input type="checkbox" checked style="margin-top: 3px; width: 16px; height: 16px"><span><span style="font-weight: 600">Save the clips viewers make</span><br><span style="font-size: 13px; color: {{t.label2}}">The most-viewed clips from each day.</span></span></label>
+        <label style="display: flex; gap: 12px; align-items: flex-start; padding: 14px 16px; border-top: 1px solid {{t.sep}}"><input type="checkbox" checked style="margin-top: 3px; width: 16px; height: 16px"><span><span style="font-weight: 600">Find moments nobody clipped</span><br><span style="font-size: 13px; color: {{t.label2}}">After a stream ends, ClipVault reads its chat and saves the spots where chat went wild.</span></span></label>
+        <label style="display: flex; gap: 12px; align-items: flex-start; padding: 14px 16px; border-top: 1px solid {{t.sep}}"><input type="checkbox" checked style="margin-top: 3px; width: 16px; height: 16px"><span><span style="font-weight: 600">Catch moments while a stream is live</span><br><span style="font-size: 13px; color: {{t.label2}}">Needs your Twitch login. You can add it later in Settings.</span></span></label>
+      </div>
+      <div style="display: flex; gap: 10px; padding: 12px 14px; border-radius: 10px; background: {{t.bg}}; color: {{t.label2}}"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true" style="flex: none; margin-top: 1px"><rect x="5" y="11" width="14" height="9.5" rx="2"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/></svg>Everything stays on this computer. ClipVault never posts anything.</div>
+      <div style="display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 12px"><button type="button" style="height: 36px; padding: 0 4px; border: 0; background: transparent; font: inherit; color: {{t.link}}; cursor: pointer">Skip Setup</button><button type="button" style="height: 40px; padding: 0 22px; border-radius: 10px; border: 0; background: {{t.accent}}; font: inherit; color: #FFFFFF; font-weight: 600; cursor: pointer">Get Started</button></div>
+    </sc-if>
+
+    <!-- 2 · Twitch -->
+    <sc-if value="{{s2}}" hint-placeholder-val="{{ false }}">
+      <div style="display: flex; flex-direction: column; gap: 6px">
+        <div style="font-size: 13px; color: {{t.label2}}">Step 2 of 6</div>
+        <h1 style="margin: 0; font-size: 26px; line-height: 32px; font-weight: 700">Connect to Twitch</h1>
+        <p style="margin: 0; color: {{t.label2}}">ClipVault needs free app keys from Twitch to find clips. This takes about two minutes, once.</p>
+      </div>
+      <ol style="margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 14px">
+        <li style="display: flex; gap: 12px"><span style="flex: none; width: 24px; height: 24px; border-radius: 12px; background: {{t.sel}}; color: {{t.link}}; font-weight: 700; display: flex; align-items: center; justify-content: center">1</span><div style="display: flex; flex-direction: column; gap: 6px"><span>Open the Twitch developer console and register an application.</span><a href="https://dev.twitch.tv/console" style="align-self: flex-start; color: {{t.link}}; font-weight: 600; text-decoration: none">Open Twitch Developer Console ↗</a></div></li>
+        <li style="display: flex; gap: 12px"><span style="flex: none; width: 24px; height: 24px; border-radius: 12px; background: {{t.sel}}; color: {{t.link}}; font-weight: 700; display: flex; align-items: center; justify-content: center">2</span><div style="flex: 1; display: flex; flex-direction: column; gap: 6px"><span>Use this as the redirect URL:</span><div style="display: flex; gap: 8px"><input type="text" readonly value="http://localhost:8765/auth/twitch/callback" aria-label="Redirect URL" style="flex: 1; min-width: 0; height: 34px; padding: 0 10px; border-radius: 8px; border: 1px solid {{t.sep}}; background: {{t.bg}}; font: inherit; font-size: 13px; color: {{t.label}}"><button type="button" style="height: 34px; padding: 0 12px; border-radius: 8px; border: 1px solid {{t.sep}}; background: {{t.card}}; font: inherit; color: {{t.label}}; cursor: pointer">Copy</button></div></div></li>
+        <li style="display: flex; gap: 12px"><span style="flex: none; width: 24px; height: 24px; border-radius: 12px; background: {{t.sel}}; color: {{t.link}}; font-weight: 700; display: flex; align-items: center; justify-content: center">3</span><div style="flex: 1; display: flex; flex-direction: column; gap: 10px"><span>Paste the client ID and a new client secret.</span>
+          <div style="display: flex; flex-direction: column; gap: 6px"><label for="cid" style="font-weight: 600">Client ID</label><input id="cid" type="text" style="height: 36px; padding: 0 10px; border-radius: 8px; border: 1px solid {{t.sep}}; background: {{t.bg}}; font: inherit; color: {{t.label}}"></div>
+          <div style="display: flex; flex-direction: column; gap: 6px"><label for="csec" style="font-weight: 600">Client secret</label><input id="csec" type="password" style="height: 36px; padding: 0 10px; border-radius: 8px; border: 1px solid {{t.sep}}; background: {{t.bg}}; font: inherit; color: {{t.label}}"></div>
+        </div></li>
+      </ol>
+      <div style="font-size: 13px; color: {{t.label2}}">The keys are saved in your computer’s secure keychain and never shown again.</div>
+      <div style="display: flex; justify-content: space-between; align-items: center; gap: 12px"><button type="button" style="height: 40px; padding: 0 16px; border-radius: 10px; border: 1px solid {{t.sep}}; background: {{t.card}}; font: inherit; color: {{t.label}}; cursor: pointer">Back</button><button type="button" style="height: 40px; padding: 0 22px; border-radius: 10px; border: 0; background: {{t.accent}}; font: inherit; color: #FFFFFF; font-weight: 600; cursor: pointer">Check and Continue</button></div>
+    </sc-if>
+
+    <!-- 3 · Streamers -->
+    <sc-if value="{{s3}}" hint-placeholder-val="{{ false }}">
+      <div style="display: flex; flex-direction: column; gap: 6px">
+        <div style="font-size: 13px; color: {{t.label2}}">Step 3 of 6</div>
+        <h1 style="margin: 0; font-size: 26px; line-height: 32px; font-weight: 700">Which streamers should ClipVault watch?</h1>
+        <p style="margin: 0; color: {{t.label2}}">Start with two or three. You can add more any time.</p>
+      </div>
+      <div style="display: flex; gap: 8px"><label for="sn" style="position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0)">Twitch name or channel link</label><input id="sn" type="text" placeholder="Twitch name or channel link" style="flex: 1; min-width: 0; height: 40px; padding: 0 12px; border-radius: 9px; border: 1px solid {{t.sep}}; background: {{t.bg}}; font: inherit; color: {{t.label}}"><button type="button" style="height: 40px; padding: 0 18px; border-radius: 9px; border: 0; background: {{t.accent}}; font: inherit; color: #FFFFFF; font-weight: 600; cursor: pointer">Add</button></div>
+      <div style="display: flex; flex-direction: column; border-radius: 12px; border: 1px solid {{t.sep}}">
+        <div style="display: flex; align-items: center; gap: 12px; padding: 10px 14px"><span aria-hidden="true" style="width: 32px; height: 32px; border-radius: 16px; background: {{t.sel}}; color: {{t.link}}; font-weight: 700; display: flex; align-items: center; justify-content: center">V</span><span style="flex: 1; font-weight: 600">Valkyrae</span><button type="button" style="height: 30px; padding: 0 8px; border: 0; background: transparent; font: inherit; color: {{t.red}}; cursor: pointer">Remove</button></div>
+        <div style="display: flex; align-items: center; gap: 12px; padding: 10px 14px; border-top: 1px solid {{t.sep}}"><span aria-hidden="true" style="width: 32px; height: 32px; border-radius: 16px; background: {{t.sel}}; color: {{t.link}}; font-weight: 700; display: flex; align-items: center; justify-content: center">X</span><span style="flex: 1; font-weight: 600">xQc</span><button type="button" style="height: 30px; padding: 0 8px; border: 0; background: transparent; font: inherit; color: {{t.red}}; cursor: pointer">Remove</button></div>
+        <div style="display: flex; align-items: center; gap: 12px; padding: 10px 14px; border-top: 1px solid {{t.sep}}"><span aria-hidden="true" style="width: 32px; height: 32px; border-radius: 16px; background: {{t.sel}}; color: {{t.link}}; font-weight: 700; display: flex; align-items: center; justify-content: center">K</span><span style="flex: 1; font-weight: 600">Kai Cenat</span><button type="button" style="height: 30px; padding: 0 8px; border: 0; background: transparent; font: inherit; color: {{t.red}}; cursor: pointer">Remove</button></div>
+      </div>
+      <div style="font-size: 13px; color: {{t.label2}}">ClipVault keeps each streamer’s 5 most-viewed clips per day and looks back 7 days the first time. Change this per streamer later.</div>
+      <div style="display: flex; justify-content: space-between; align-items: center; gap: 12px"><button type="button" style="height: 40px; padding: 0 16px; border-radius: 10px; border: 1px solid {{t.sep}}; background: {{t.card}}; font: inherit; color: {{t.label}}; cursor: pointer">Back</button><button type="button" style="height: 40px; padding: 0 22px; border-radius: 10px; border: 0; background: {{t.accent}}; font: inherit; color: #FFFFFF; font-weight: 600; cursor: pointer">Continue</button></div>
+    </sc-if>
+
+    <!-- 4 · Storage -->
+    <sc-if value="{{s4}}" hint-placeholder-val="{{ false }}">
+      <div style="display: flex; flex-direction: column; gap: 6px">
+        <div style="font-size: 13px; color: {{t.label2}}">Step 4 of 6</div>
+        <h1 style="margin: 0; font-size: 26px; line-height: 32px; font-weight: 700">Where should clips be kept?</h1>
+        <p style="margin: 0; color: {{t.label2}}">The suggested folder works for most people.</p>
+      </div>
+      <div style="display: flex; flex-wrap: wrap; align-items: center; gap: 12px; padding: 14px 16px; border-radius: 12px; border: 1px solid {{t.sep}}">
+        <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="{{t.link}}" stroke-width="1.7" stroke-linejoin="round" aria-hidden="true"><path d="M3 6.5A1.5 1.5 0 0 1 4.5 5H9l2 2.5h8.5A1.5 1.5 0 0 1 21 9v9.5a1.5 1.5 0 0 1-1.5 1.5h-15A1.5 1.5 0 0 1 3 18.5z"/></svg>
+        <div style="flex: 1 1 220px"><div style="font-weight: 600">Twitch Archive</div><div style="font-size: 13px; color: {{t.label2}}">In your user folder · 412 GB free</div></div>
+        <button type="button" style="height: 32px; padding: 0 12px; border-radius: 8px; border: 1px solid {{t.sep}}; background: {{t.card}}; font: inherit; color: {{t.label}}; cursor: pointer">Choose Another Folder…</button>
+      </div>
+      <fieldset style="margin: 0; padding: 0; border: 0; display: flex; flex-direction: column; gap: 8px">
+        <legend style="padding: 0 0 8px; font-weight: 600">Video quality</legend>
+        <label style="display: flex; gap: 10px; align-items: flex-start; padding: 12px 14px; border-radius: 10px; border: 2px solid {{t.accent}}"><input type="radio" name="q" checked style="margin-top: 3px"><span><span style="font-weight: 600">720p (recommended)</span><br><span style="font-size: 13px; color: {{t.label2}}">Looks sharp on phones and uses less space.</span></span></label>
+        <label style="display: flex; gap: 10px; align-items: flex-start; padding: 12px 14px; border-radius: 10px; border: 1px solid {{t.sep}}"><input type="radio" name="q" style="margin-top: 3px"><span><span style="font-weight: 600">1080p</span><br><span style="font-size: 13px; color: {{t.label2}}">Sharper on big screens, larger files.</span></span></label>
+      </fieldset>
+      <div style="display: flex; gap: 10px; padding: 12px 14px; border-radius: 10px; background: {{t.bg}}"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="{{t.label2}}" stroke-width="2" stroke-linecap="round" aria-hidden="true" style="flex: none; margin-top: 1px"><circle cx="12" cy="12" r="9"/><path d="M12 11v5.5M12 7.8v.2"/></svg><div><span style="font-weight: 600">About 30 GB a month</span> <span style="color: {{t.label2}}">for 3 streamers. Less popular clips are removed after 60 days; starred clips are kept.</span></div></div>
+      <div style="display: flex; justify-content: space-between; align-items: center; gap: 12px"><button type="button" style="height: 40px; padding: 0 16px; border-radius: 10px; border: 1px solid {{t.sep}}; background: {{t.card}}; font: inherit; color: {{t.label}}; cursor: pointer">Back</button><button type="button" style="height: 40px; padding: 0 22px; border-radius: 10px; border: 0; background: {{t.accent}}; font: inherit; color: #FFFFFF; font-weight: 600; cursor: pointer">Continue</button></div>
+    </sc-if>
+
+    <!-- 5 · Look -->
+    <sc-if value="{{s5}}" hint-placeholder-val="{{ false }}">
+      <div style="display: flex; flex-direction: column; gap: 6px">
+        <div style="font-size: 13px; color: {{t.label2}}">Step 5 of 6</div>
+        <h1 style="margin: 0; font-size: 26px; line-height: 32px; font-weight: 700">How should phone videos look?</h1>
+        <p style="margin: 0; color: {{t.label2}}">ClipVault picks the best layout for each clip. These choices set the text style.</p>
+      </div>
+      <div style="display: flex; justify-content: center; gap: 16px">
+        <figure style="margin: 0; display: flex; flex-direction: column; gap: 6px; align-items: center"><div style="width: 126px; height: 224px; border-radius: 12px; background: #0E0E10; position: relative; overflow: hidden"><div style="position: absolute; left: 0; right: 0; top: 64px; height: 56px; background: #1E2633"></div><div style="position: absolute; left: 0; right: 0; top: 120px; height: 52px; background: #2A3442"></div><div style="position: absolute; left: 14px; right: 14px; top: 28px; padding: 3px; border-radius: 5px; background: #FFFFFF; color: #111111; font-family: Montserrat, Inter, sans-serif; font-weight: 800; font-size: 8px; line-height: 10px; text-align: center; text-transform: uppercase">Your headline <span style="color: #D9480F">here</span></div><div style="position: absolute; left: 14px; right: 14px; top: 182px; text-align: center; font-family: Montserrat, Inter, sans-serif; font-weight: 800; font-size: 9px; color: #FFFFFF; text-transform: uppercase">captions <span style="color: #FFD60A">like</span> this</div></div><figcaption style="font-size: 12px; color: {{t.label2}}">Facecam on top</figcaption></figure>
+        <figure style="margin: 0; display: flex; flex-direction: column; gap: 6px; align-items: center"><div style="width: 126px; height: 224px; border-radius: 12px; background: #0E0E10; position: relative; overflow: hidden"><div style="position: absolute; left: 0; right: 0; top: 82px; height: 71px; background: #1E2633"></div><div style="position: absolute; left: 14px; right: 14px; top: 28px; padding: 3px; border-radius: 5px; background: #FFFFFF; color: #111111; font-family: Montserrat, Inter, sans-serif; font-weight: 800; font-size: 8px; line-height: 10px; text-align: center; text-transform: uppercase">Your headline <span style="color: #D9480F">here</span></div><div style="position: absolute; left: 14px; right: 14px; top: 170px; text-align: center; font-family: Montserrat, Inter, sans-serif; font-weight: 800; font-size: 9px; color: #FFFFFF; text-transform: uppercase">captions <span style="color: #FFD60A">like</span> this</div></div><figcaption style="font-size: 12px; color: {{t.label2}}">Whole picture</figcaption></figure>
+      </div>
+      <div style="display: flex; flex-direction: column; border-radius: 12px; border: 1px solid {{t.sep}}">
+        <div style="display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px; padding: 12px 14px"><span>Headline style</span><select aria-label="Headline style" style="height: 30px; padding: 0 8px; border-radius: 7px; border: 1px solid {{t.sep}}; background: {{t.card}}; font: inherit; color: {{t.label}}"><option>White box</option><option>Outlined text</option></select></div>
+        <div style="display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px; padding: 12px 14px; border-top: 1px solid {{t.sep}}"><span>Highlight colour</span><div role="radiogroup" aria-label="Highlight colour" style="display: flex; gap: 8px"><button type="button" role="radio" aria-checked="true" aria-label="Orange" style="width: 28px; height: 28px; border-radius: 14px; border: 2px solid {{t.label}}; background: #D9480F; cursor: pointer"></button><button type="button" role="radio" aria-checked="false" aria-label="Yellow" style="width: 28px; height: 28px; border-radius: 14px; border: 2px solid transparent; background: #F2C200; cursor: pointer"></button><button type="button" role="radio" aria-checked="false" aria-label="Green" style="width: 28px; height: 28px; border-radius: 14px; border: 2px solid transparent; background: #1F9D55; cursor: pointer"></button><button type="button" role="radio" aria-checked="false" aria-label="Purple" style="width: 28px; height: 28px; border-radius: 14px; border: 2px solid transparent; background: #8B3FD9; cursor: pointer"></button></div></div>
+      </div>
+      <div style="display: flex; justify-content: space-between; align-items: center; gap: 12px"><button type="button" style="height: 40px; padding: 0 16px; border-radius: 10px; border: 1px solid {{t.sep}}; background: {{t.card}}; font: inherit; color: {{t.label}}; cursor: pointer">Back</button><button type="button" style="height: 40px; padding: 0 22px; border-radius: 10px; border: 0; background: {{t.accent}}; font: inherit; color: #FFFFFF; font-weight: 600; cursor: pointer">Continue</button></div>
+    </sc-if>
+
+    <!-- 6 · Phone -->
+    <sc-if value="{{s6}}" hint-placeholder-val="{{ false }}">
+      <div style="display: flex; flex-direction: column; gap: 6px">
+        <div style="font-size: 13px; color: {{t.label2}}">Step 6 of 6 · optional</div>
+        <h1 style="margin: 0; font-size: 26px; line-height: 32px; font-weight: 700">Get updates on your phone</h1>
+        <p style="margin: 0; color: {{t.label2}}">A summary each morning, and a message when something needs you. Uses the free ntfy app.</p>
+      </div>
+      <div style="display: flex; flex-wrap: wrap; gap: 20px; align-items: center; padding: 16px; border-radius: 12px; border: 1px solid {{t.sep}}">
+        <div role="img" aria-label="QR code for your private notification topic" style="flex: none; width: 132px; height: 132px; border-radius: 10px; background: #FFFFFF; border: 1px solid {{t.sep}}; display: flex; align-items: center; justify-content: center; color: #6E6E73; font-size: 12px">QR code</div>
+        <ol style="flex: 1 1 240px; margin: 0; padding-left: 18px; display: flex; flex-direction: column; gap: 6px"><li>Install ntfy on your phone.</li><li>Tap + and scan this code.</li><li>Send a test to check it works.</li></ol>
+      </div>
+      <div style="display: flex; flex-wrap: wrap; gap: 8px; align-items: center"><button type="button" style="height: 36px; padding: 0 14px; border-radius: 9px; border: 1px solid {{t.sep}}; background: {{t.card}}; font: inherit; color: {{t.label}}; cursor: pointer">Send Test</button><span style="font-size: 13px; color: {{t.label2}}">Keep this code private: anyone with it can read the messages.</span></div>
+      <label style="display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 12px 14px; border-radius: 12px; border: 1px solid {{t.sep}}"><span><span style="font-weight: 600">Also open the control panel on my phone</span><br><span style="font-size: 13px; color: {{t.label2}}">Works on the same Wi-Fi. Needs a restart of ClipVault.</span></span><input type="checkbox" style="width: 18px; height: 18px"></label>
+      <div style="display: flex; justify-content: space-between; align-items: center; gap: 12px"><button type="button" style="height: 40px; padding: 0 16px; border-radius: 10px; border: 1px solid {{t.sep}}; background: {{t.card}}; font: inherit; color: {{t.label}}; cursor: pointer">Back</button><div style="display: flex; gap: 8px"><button type="button" style="height: 40px; padding: 0 12px; border: 0; background: transparent; font: inherit; color: {{t.link}}; cursor: pointer">Skip for Now</button><button type="button" style="height: 40px; padding: 0 22px; border-radius: 10px; border: 0; background: {{t.accent}}; font: inherit; color: #FFFFFF; font-weight: 600; cursor: pointer">Finish</button></div></div>
+    </sc-if>
+
+    <!-- 7 · Done -->
+    <sc-if value="{{s7}}" hint-placeholder-val="{{ false }}">
+      <div style="display: flex; flex-direction: column; gap: 14px; align-items: center; text-align: center; padding: 12px 0">
+        <svg width="56" height="56" viewBox="0 0 24 24" fill="none" stroke="{{t.green}}" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9.5"/><path d="m7.8 12.5 2.9 2.9 5.6-6.1"/></svg>
+        <h1 style="margin: 0; font-size: 26px; line-height: 32px; font-weight: 700">ClipVault is running</h1>
+        <p style="margin: 0; max-width: 440px; color: {{t.label2}}">It’s looking for clips from the last 7 days now. New clips appear on Home as soon as their phone versions are ready.</p>
+      </div>
+      <div style="display: flex; flex-direction: column; border-radius: 12px; border: 1px solid {{t.sep}}">
+        <div style="display: flex; gap: 10px; padding: 12px 14px"><span style="color: {{t.green}}; font-weight: 700">✓</span><span>Twitch connected · 3 streamers</span></div>
+        <div style="display: flex; gap: 10px; padding: 12px 14px; border-top: 1px solid {{t.sep}}"><span style="color: {{t.green}}; font-weight: 700">✓</span><span>Clips kept in Twitch Archive</span></div>
+        <div style="display: flex; gap: 10px; padding: 12px 14px; border-top: 1px solid {{t.sep}}"><span style="color: {{t.label2}}; font-weight: 700">–</span><span>Live moments: log in to Twitch in Settings when you’re ready</span></div>
+      </div>
+      <div style="display: flex; justify-content: center"><a href="Main.dc.html" style="display: flex; align-items: center; height: 40px; padding: 0 26px; border-radius: 10px; background: {{t.accent}}; color: #FFFFFF; font-weight: 600; text-decoration: none">Go to Home</a></div>
+    </sc-if>
+  </main>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"step":{"editor":"int","default":1,"min":0,"max":7},"dark":{"editor":"boolean","default":false},"$preview":{"width":1000,"height":940}}'>
+class Component extends DCLogic {
+renderVals() {
+const L = {bg:'#F5F5F7',card:'#FFFFFF',label:'#1D1D1F',label2:'#6E6E73',sep:'#D9D9DE',fill:'#E6E6EB',accent:'#1E6EF4',link:'#1E6EF4',green:'#00782C',red:'#C50F25',sel:'#DCE8FD'};
+const D = {bg:'#1C1C1E',card:'#2C2C2E',label:'#F5F5F7',label2:'#A1A1A6',sep:'#3A3A3C',fill:'#3A3A3C',accent:'#1E6EF4',link:'#5CB8FF',green:'#4AD968',red:'#FF6165',sel:'#1D3557'};
+const t = this.props.dark ? D : L;
+const step = this.props.step ?? 1;
+const names = ['Welcome','Twitch','Streamers','Storage','Look','Phone'];
+const steps = names.map((name, i) => ({ name, bar: i < step ? t.accent : t.fill, color: i + 1 === step ? t.label : t.label2, weight: i + 1 === step ? 600 : 400, current: i + 1 === step ? 'step' : 'false' }));
+return { t, steps, showSteps: step >= 1 && step <= 6, s0: step === 0, s1: step === 1, s2: step === 2, s3: step === 3, s4: step === 4, s5: step === 5, s6: step === 6, s7: step === 7 };
+}
+}
+</script>
+</body>
+</html>

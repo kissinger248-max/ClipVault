@@ -1,30 +1,54 @@
 <!doctype html>
 <html lang="en">
 <head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<meta name="theme-color" content="#6441a5">
+{% include "_head.html" %}
 <title>{% block title %}ClipVault{% endblock %}</title>
-<link rel="manifest" href="/manifest.webmanifest">
-<link rel="icon" href="/static/icon.svg" type="image/svg+xml">
-<link rel="apple-touch-icon" href="/static/icon-192.png">
-<link rel="stylesheet" href="/static/style.css?v={{ version }}">
-<script src="/static/app.js?v={{ version }}" defer></script>
 </head>
-<body class="{% block bodyclass %}{% endblock %}">
-<header class="top">
-  <a class="brand" href="/">ClipVault</a>
-  {% block top %}{% endblock %}
-</header>
-{% if flash %}<div class="flash" role="status">{{ flash }}</div>{% endif %}
-<main>{% block content %}{% endblock %}</main>
-{% block nav %}
-<nav class="tabs" aria-label="Main">
-  <a href="/" class="{{ 'on' if tab == 'home' }}"><span aria-hidden="true">⌂</span>Home</a>
-  <a href="/clips" class="{{ 'on' if tab == 'clips' }}"><span aria-hidden="true">▶</span>Clips</a>
-  <a href="/streamers" class="{{ 'on' if tab == 'streamers' }}"><span aria-hidden="true">☺</span>Streamers</a>
-  <a href="/settings" class="{{ 'on' if tab == 'settings' }}"><span aria-hidden="true">⚙</span>Settings</a>
+<body>
+<div class="app">
+  <nav class="sidebar" aria-label="Sections">
+    <a class="brand" href="/">ClipVault</a>
+    <div class="side-nav">
+      <a href="/" {{ 'aria-current=page' if tab == 'home' }}>
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 10.5 12 3l9 7.5V20a1 1 0 0 1-1 1h-5v-6H9v6H4a1 1 0 0 1-1-1z"/></svg>
+        <span class="label">Home</span>
+        {% if problems %}<span class="count-badge" aria-label="{{ problems }} problem{{ 's' if problems != 1 }}">{{ problems }}</span>{% endif %}
+      </a>
+      <a href="/clips" {{ 'aria-current=page' if tab == 'clips' }}>
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="6" y="2.5" width="12" height="19" rx="2.5"/><path d="M10.5 9.5l4 2.5-4 2.5z"/></svg>
+        <span class="label">Clips</span>
+      </a>
+      <a href="/streamers" {{ 'aria-current=page' if tab == 'streamers' }}>
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="9" cy="8" r="3.5"/><path d="M2.5 20c.8-3.5 3.4-5.5 6.5-5.5s5.7 2 6.5 5.5"/><path d="M16 4.5a3.5 3.5 0 0 1 0 7M18 14.8c1.8.7 3 2.4 3.5 5.2"/></svg>
+        <span class="label">Streamers</span>
+      </a>
+      <a href="/settings" {{ 'aria-current=page' if tab == 'settings' }}>
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 6h10M18 6h2M4 12h4M12 12h8M4 18h12"/><circle cx="16" cy="6" r="2"/><circle cx="10" cy="12" r="2"/><circle cx="18" cy="18" r="2"/></svg>
+        <span class="label">Settings</span>
+      </a>
+    </div>
+  </nav>
+
+  <main class="content {% block contentclass %}{% endblock %}">
+    {% if flash %}<div class="flash" role="status">{{ flash }}</div>{% endif %}
+    {% block content %}{% endblock %}
+  </main>
+</div>
+
+<nav class="tabbar" aria-label="Sections">
+  <a href="/" {{ 'aria-current=page' if tab == 'home' }}>
+    <svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M3 10.5 12 3l9 7.5V20a1 1 0 0 1-1 1h-5v-6H9v6H4a1 1 0 0 1-1-1z"/></svg>Home
+    {% if problems %}<span class="count-badge" aria-label="{{ problems }} problem{{ 's' if problems != 1 }}">{{ problems }}</span>{% endif %}
+  </a>
+  <a href="/clips" {{ 'aria-current=page' if tab == 'clips' }}>
+    <svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path fill-rule="evenodd" d="M8.5 2h7A2.5 2.5 0 0 1 18 4.5v15a2.5 2.5 0 0 1-2.5 2.5h-7A2.5 2.5 0 0 1 6 19.5v-15A2.5 2.5 0 0 1 8.5 2zm2 7.5v5l4-2.5z"/></svg>Clips
+  </a>
+  <a href="/streamers" {{ 'aria-current=page' if tab == 'streamers' }}>
+    <svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><circle cx="9" cy="8" r="4"/><path d="M1.5 21c.8-4 3.8-6.5 7.5-6.5s6.7 2.5 7.5 6.5z"/><path d="M16 4a4 4 0 0 1 0 8zM17.5 14.6c2.6.8 4.4 3.1 5 6.4h-4.6c-.2-2.5-1.1-4.6-2.6-6.1z"/></svg>Streamers
+  </a>
+  <a href="/settings" {{ 'aria-current=page' if tab == 'settings' }}>
+    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><path d="M4 6h10M18 6h2M4 12h4M12 12h8M4 18h12"/><circle cx="16" cy="6" r="2" fill="currentColor"/><circle cx="10" cy="12" r="2" fill="currentColor"/><circle cx="18" cy="18" r="2" fill="currentColor"/></svg>Settings
+  </a>
 </nav>
-{% endblock %}
 </body>
 </html>

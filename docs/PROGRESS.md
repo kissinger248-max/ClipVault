@@ -436,3 +436,46 @@ User request: "i should be seeing edited clips in mobile format not the raw down
 **Verified**
 - `pytest -q`: 342 passed; ruff clean. New tests: credit off unless switched on; layout choice saved per streamer (invalid values ignored); automatic choice ignores the vertical version.
 - Live: choosing Twitch's version on a Kai Cenat clip with nothing downloaded fetched it and rendered with it. The three test renders and their downloads were removed afterwards, so nothing is left that the user didn't choose.
+
+## 2026-11-13: Panel redesign
+
+Request: replace the control panel's look with the design in `docs/design/` (DESIGN_HANDOFF.md plus the `.dc.html` mockups).
+
+**What changed**
+- New stylesheets in `clipvault/web/static/`: `tokens.css` (colour tokens as CSS custom properties; dark values under `prefers-color-scheme: dark`; the phone mockups' own page, card and fill colours below 600 px), `panel.css` (all components), and `motion.css` copied unchanged from the design folder. `style.css` and `_phone.html` were deleted; a test checks nothing links to them.
+- The shared layout was rebuilt: a sidebar with stroke icons and a red problem badge on Home. Below 600 px it becomes a floating bottom tab bar with filled icons and the same badge. Shared `<head>` in `_head.html`; the setup and login pages use the centred card in `bare.html`.
+- Home, Clips, a clip's page, Streamers, Settings, the Look editor, the problems page, the login page, the first-run password page and the six setup steps were rebuilt from their mockups.
+  - Switches are real checkboxes.
+  - Segmented controls and colour swatches are radio buttons.
+  - Forms marked `data-autosubmit` save on change, with a Save button for browsers without scripts.
+- It follows the system appearance; there is no theme setting.
+- System font stack from the handoff; icons are the inline SVGs from the mockups. No SF fonts or SF Symbols are bundled.
+- Routes, form field names and the hidden `csrf` field are unchanged. There were no HTMX attributes to keep.
+  - The server changes are display data only: problem count, free space, per-streamer bytes and estimate, transcript lines with timings, and the phone version's id and time in thumbnail links so a re-made version shows a fresh picture.
+  - One renderer fix: making a clip again in a layout that writes to the same file no longer leaves two records for one file. Deleting one record had removed the shared file; a test covers it.
+- Clip page: "What was said" lists the transcript line by line. Clicking a line jumps the video there, and the line being spoken is highlighted.
+
+**Verified, and how**
+- The mockups were rendered in the built-in browser with a small stand-in for their template runtime (props from the URL, e.g. `?dark=true`, `?step=3`). They were compared with the real panel, run from a copy of the database, at the same window size: desktop 1280x1000, setup 1000x940, phone 390x844.
+- **Layout.** A script measured the position, size, font size, line height, padding and corner radius of matching elements on both, and every difference was fixed to the mockup's number. Screenshots were compared for:
+  - Home, Clips, a clip's page, Streamers and Settings (light and dark);
+  - setup steps 1-6 and the password page (light; step 3 also dark);
+  - phone Home and Clips (light and dark).
+- **Colours.** A second script read each element's text colour and background on both versions:
+  - identical on every page checked in dark (Home, Clips, clip page, Streamers, Settings, setup);
+  - identical on phone in light and dark, after giving the phone pages the phone mockups' own colours.
+- **Reduce Motion:** motion.css sets `animation: none; transition: none` on every element under `prefers-reduced-motion: reduce`. The two transitions in panel.css are covered by that rule, and no script animates anything.
+- `pytest -q`: 344 passed. `ruff check` and `ruff format --check` are clean.
+- The real ClipVault was restarted and serves the new panel at 127.0.0.1:8765.
+
+**Differences from the mockups, on purpose**
+- **Font.** The mockups load Inter from Google Fonts. The panel uses the handoff's system stack, which is Segoe UI on this Windows PC, so some text is a few pixels wider or narrower and a few lines wrap differently. Bundling Inter (open font licence) would close that gap.
+- **Streamers.** Each row has an extra **Phone layout** choice (added before the redesign). It sits on the second row with Remove. "Keep" combines the old top-N and minimum-views settings into one choice; the per-day number is kept in a hidden field.
+- **Setup and Settings.**
+  - Step 6 shows a "Set Up Notifications" button until a notification topic exists. After that it shows the QR code and steps as drawn.
+  - Settings has no restart or logout rows; those features aren't in the mockup either.
+  - The Look colour row also shows the current colour when it isn't one of the four in the palette, so the existing choice isn't lost.
+- **Phone width.** The chip and newest-clip rows scroll sideways like the mockup. Windows shows a thin scrollbar under them; phones don't.
+
+**Open issues**
+- None blocking. Optional: bundle Inter for exact text widths.

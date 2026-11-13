@@ -147,11 +147,11 @@ def test_dashboard_shows_phone_versions_with_the_original_one_tap_away(
     )
     # Not edited yet: listed as "being edited", not shown as a clip.
     home_page = client.get("/").text
-    assert "Running" in home_page and "1 new clip is being edited" in home_page
-    assert "Huge" not in home_page
-    assert "0 clips" in client.get("/clips").text
+    assert "Running" in home_page and "Still being edited" in home_page
+    assert "kind=vertical" not in home_page  # nothing edited to show yet
+    assert "1 more clip is still being edited" in client.get("/clips").text
     original_only = client.get("/clips/clip1").text
-    assert "still being made" in original_only and "Download original" in original_only
+    assert "still being made" in original_only and "Download Original" in original_only
 
     vertical = library / "alpha/2026-11/vertical/clip1_9x16.mp4"
     vertical.parent.mkdir()
@@ -162,17 +162,18 @@ def test_dashboard_shows_phone_versions_with_the_original_one_tap_away(
     )
     conn.close()
     home_page = client.get("/").text
-    assert "Huge &lt;b&gt;play&lt;/b&gt;" in home_page and "being edited" not in home_page
+    assert "/clips/clip1" in home_page and "still being edited" not in home_page
     assert "kind=vertical" in home_page  # the card shows the phone version
     listing = client.get("/clips", params={"q": "insane"})
     assert "<mark>insane</mark>" in listing.text and "1 clip saying" in listing.text
     assert "0 clips" in client.get("/clips", params={"q": "zebra"}).text
     page = client.get("/clips/clip1").text
-    assert "phone-player" in page and "Save video" in page and "See original" in page
+    assert "phone-player" in page and "Save Video" in page and "See Original" in page
+    assert "Huge &lt;b&gt;play&lt;/b&gt;" in page  # titles are escaped
     assert "no way that was insane" in page
     assert client.get("/media/clip1", params={"kind": "vertical"}).content == b"phone video"
     original = client.get("/clips/clip1", params={"view": "original"}).text
-    assert "See phone version" in original and "Download original" in original
+    assert "See Phone Version" in original and "Download Original" in original
     assert client.get("/media/clip1").content == b"video"
     assert client.get("/clips/missing").status_code == 404
 
@@ -265,8 +266,8 @@ def test_twitch_keys_are_stored_but_never_shown(client) -> None:
 def test_notifications_setup_shows_a_qr_code(client) -> None:
     login(client)
     client.post("/settings/ntfy", data={"csrf": csrf(client)})
-    page = client.get("/settings").text
-    assert "<svg" in page and cfg.get_secret("ntfy_topic") in page
+    page = client.get("/setup/6").text  # the code to scan is on the phone step
+    assert "<svg" in page and "Send Test" in client.get("/settings").text
 
 
 def test_estimate_grows_with_streamers_and_quality() -> None:
@@ -352,7 +353,7 @@ def test_look_is_saved_and_previews_are_cached(client, home, library, monkeypatc
     again = client.get(f"/look/preview/letterbox.jpg?{query}")
     assert first.headers["content-type"] == "image/jpeg" and again.content == first.content
     assert drawn == [("letterbox", "box", "#00FF00", 64)]  # made once, then served from cache
-    assert "Look of vertical videos" in client.get("/settings").text
+    assert "Look of phone videos" in client.get("/settings").text
 
 
 def test_twitch_login_from_the_panel_shows_the_code(client, monkeypatch) -> None:
@@ -377,7 +378,7 @@ def test_twitch_login_from_the_panel_shows_the_code(client, monkeypatch) -> None
         if client.app.state.panel.twitch_login is None:
             break
         threading.Event().wait(0.05)
-    assert "Logged in to Twitch as <b>viewer</b>" in client.get("/settings").text
+    assert "Logged in. Used only to read chat" in client.get("/settings").text
     client.post("/settings/twitch-logout", data={"csrf": csrf(client)})
     assert user_auth.stored() is None
 
@@ -395,3 +396,20 @@ def test_phone_layout_can_be_chosen_per_streamer(client, home) -> None:
     client.post(f"/streamers/{streamer_id}/update", data={**form, "layout": "nonsense"})
     assert conn.execute("SELECT layout_override FROM streamers").fetchone()[0] is None
     conn.close()
+
+
+def test_every_page_uses_the_new_design_and_shows_the_problem_badge(client, home) -> None:
+    login(client)
+    finish_setup(home)
+    conn = db.open_db(home / "clipvault.db")
+    alerts.raise_alert(conn, "storage", "Disk almost full")
+    conn.close()
+    for path in ("/", "/clips", "/streamers", "/settings", "/alerts", "/setup/3"):
+        text = client.get(path).text
+        assert "/static/tokens.css" in text and "/static/motion.css" in text, path
+        assert "style.css" not in text, path
+    home_page = client.get("/").text
+    assert 'aria-label="1 problem"' in home_page and "Needs you" in home_page
+    assert home_page.count('class="count-badge"') == 2  # sidebar and phone tab bar
+    assert 'name="csrf"' in home_page
+    assert client.get("/static/style.css").status_code == 404

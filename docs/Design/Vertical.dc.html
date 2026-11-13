@@ -1,0 +1,123 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Make a vertical copy</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&amp;family=Montserrat:wght@800&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0}
+a{color:#1E6EF4;text-decoration:none}a:hover{color:#1557C7;text-decoration:underline}
+button,input,select{font:inherit;color:inherit}
+</style>
+</helmet>
+<div style="min-height: 980px; background: {{t.bg}}; color: {{t.label}}; font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Text', Inter, 'Segoe UI', sans-serif; font-size: 14px; line-height: 20px; display: flex; flex-direction: column">
+
+<header style="display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px; padding: 14px 24px; background: {{t.card}}; border-bottom: 1px solid {{t.sep}}">
+  <div style="display: flex; align-items: center; gap: 16px">
+    <a href="Clips.dc.html" style="display: flex; align-items: center; gap: 4px; font-weight: 600">‹ Clips</a>
+    <div><h1 style="margin: 0; font-size: 17px; line-height: 22px; font-weight: 600">Vertical copy</h1><div style="font-size: 13px; color: {{t.label2}}">Boss dies to a single potion · kestrelplays</div></div>
+  </div>
+  <div style="display: flex; gap: 8px">
+    <a href="Clips.dc.html" style="display: flex; align-items: center; height: 32px; padding: 0 14px; border-radius: 8px; border: 1px solid {{t.sep}}; color: {{t.label}}; text-decoration: none">Cancel</a>
+    <button type="button" style="height: 32px; padding: 0 16px; border-radius: 8px; border: 0; background: {{t.accent}}; color: #FFFFFF; font-weight: 600; cursor: pointer">Render Vertical Copy</button>
+  </div>
+</header>
+
+<div style="flex: 1; display: flex; flex-wrap: wrap; gap: 32px; padding: 24px; justify-content: center; align-items: flex-start">
+
+  <section aria-label="Preview" style="flex: none; display: flex; flex-direction: column; gap: 12px; align-items: center">
+    <div role="img" aria-label="Preview of the 9:16 video with the headline at the top, the clip in the middle and captions below, all inside the safe area" style="width: 360px; height: 640px; border-radius: 14px; background: #0E0E10; position: relative; overflow: hidden">
+      <div style="position: absolute; left: 0; top: 219px; width: 360px; height: 202px; background: #1E2633; display: flex; align-items: center; justify-content: center; color: rgba(255,255,255,0.55); font-size: 12px">Clip, 16:9</div>
+      <div style="position: absolute; left: 50px; top: 104px; width: 260px; text-align: center; font-family: Montserrat, Inter, sans-serif; font-weight: 800; font-size: 22px; line-height: 26px; color: #FFFFFF; text-transform: uppercase">He threw <span style="color: #FFD60A">one potion</span> and the boss just died</div>
+      <div style="position: absolute; left: 50px; top: 440px; width: 260px; text-align: center; font-family: Montserrat, Inter, sans-serif; font-weight: 800; font-size: 20px; line-height: 24px; color: #FFFFFF; text-transform: uppercase">and it <span style="color: #FFD60A">just</span> fell</div>
+      <sc-if value="{{showSafe}}" hint-placeholder-val="{{ true }}">
+        <div style="position: absolute; left: 50px; top: 90px; width: 260px; height: 357px; border: 1.5px dashed #34C759; box-sizing: border-box"></div>
+        <div style="position: absolute; left: 52px; top: 72px; font-size: 10px; color: #34C759; font-weight: 600">Safe area 150–930 × 270–1340</div>
+      </sc-if>
+      <sc-if value="{{showButtons}}" hint-placeholder-val="{{ true }}">
+        <div style="position: absolute; right: 10px; top: 300px; display: flex; flex-direction: column; gap: 14px">
+          <div style="width: 30px; height: 30px; border-radius: 15px; background: rgba(255,255,255,0.28)"></div>
+          <div style="width: 30px; height: 30px; border-radius: 15px; background: rgba(255,255,255,0.28)"></div>
+          <div style="width: 30px; height: 30px; border-radius: 15px; background: rgba(255,255,255,0.28)"></div>
+          <div style="width: 30px; height: 30px; border-radius: 15px; background: rgba(255,255,255,0.28)"></div>
+        </div>
+        <div style="position: absolute; left: 12px; bottom: 28px; width: 220px; display: flex; flex-direction: column; gap: 6px">
+          <div style="height: 10px; width: 120px; border-radius: 5px; background: rgba(255,255,255,0.28)"></div>
+          <div style="height: 10px; width: 200px; border-radius: 5px; background: rgba(255,255,255,0.28)"></div>
+        </div>
+      </sc-if>
+    </div>
+    <div style="display: flex; flex-wrap: wrap; gap: 16px; font-size: 13px">
+      <label style="display: flex; align-items: center; gap: 6px"><input type="checkbox" checked>Show safe area</label>
+      <label style="display: flex; align-items: center; gap: 6px"><input type="checkbox" checked>Show TikTok and Shorts buttons</label>
+    </div>
+  </section>
+
+  <section aria-label="Options" style="flex: 1 1 380px; max-width: 520px; min-width: 0; display: flex; flex-direction: column; gap: 20px">
+
+    <div style="display: flex; flex-direction: column; gap: 8px">
+      <div style="font-weight: 600">Layout</div>
+      <div role="radiogroup" aria-label="Layout" style="display: inline-flex; align-self: flex-start; padding: 2px; border-radius: 9px; background: {{t.fill}}; gap: 2px">
+        <button type="button" role="radio" aria-checked="true" style="height: 28px; padding: 0 14px; border: 0; border-radius: 7px; background: {{t.card}}; font-weight: 600; box-shadow: 0 1px 2px rgba(0,0,0,0.12); cursor: pointer">Letterbox</button>
+        <button type="button" role="radio" aria-checked="false" style="height: 28px; padding: 0 14px; border: 0; border-radius: 7px; background: transparent; cursor: pointer">Face cam on top</button>
+        <button type="button" role="radio" aria-checked="false" style="height: 28px; padding: 0 14px; border: 0; border-radius: 7px; background: transparent; cursor: pointer">Crop to fill</button>
+      </div>
+    </div>
+
+    <div style="display: flex; flex-direction: column; gap: 8px">
+      <label for="hl" style="font-weight: 600">Headline</label>
+      <input id="hl" type="text" value="He threw one potion and the boss just died" style="height: 34px; padding: 0 10px; border-radius: 8px; border: 1px solid {{t.sep}}; background: {{t.card}}; font-size: 14px">
+      <div style="font-size: 13px; color: {{t.label2}}">41 of 60 characters · stays inside the safe area at this length</div>
+    </div>
+
+    <div style="display: flex; flex-direction: column; gap: 10px; padding: 14px; border-radius: 12px; background: {{t.card}}; border: 1px solid {{t.sep}}">
+      <div style="display: flex; justify-content: space-between; align-items: center; gap: 8px">
+        <div style="display: flex; align-items: center; gap: 6px; font-weight: 600"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="{{t.link}}" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M12 3v4M12 17v4M3 12h4M17 12h4M6 6l2.5 2.5M15.5 15.5 18 18M6 18l2.5-2.5M15.5 8.5 18 6"/></svg>Headline ideas written by AI</div>
+        <button type="button" style="height: 28px; padding: 0 10px; border-radius: 7px; border: 1px solid {{t.sep}}; background: {{t.card}}; cursor: pointer">Try Again</button>
+      </div>
+      <div style="font-size: 13px; color: {{t.label2}}">Based on the transcript. Check that it matches what happens in the clip.</div>
+      <label style="display: flex; align-items: center; gap: 10px; min-height: 32px"><input type="radio" name="idea" checked>He threw one potion and the boss just died</label>
+      <label style="display: flex; align-items: center; gap: 10px; min-height: 32px"><input type="radio" name="idea">The shortest boss fight ever streamed</label>
+      <label style="display: flex; align-items: center; gap: 10px; min-height: 32px"><input type="radio" name="idea">One potion. That’s the whole fight.</label>
+    </div>
+
+    <div style="display: flex; flex-wrap: wrap; gap: 16px">
+      <div style="flex: 1 1 180px; display: flex; flex-direction: column; gap: 8px">
+        <label for="cap" style="font-weight: 600">Caption style</label>
+        <select id="cap" style="height: 34px; padding: 0 8px; border-radius: 8px; border: 1px solid {{t.sep}}; background: {{t.card}}"><option>Bold, word by word</option></select>
+      </div>
+      <div style="flex: 1 1 180px; display: flex; flex-direction: column; gap: 8px">
+        <div style="font-weight: 600">Length</div>
+        <div style="height: 34px; display: flex; align-items: center">0:00 – 0:34 · 34 seconds</div>
+      </div>
+    </div>
+
+    <div style="display: flex; flex-direction: column; border-radius: 12px; background: {{t.card}}; border: 1px solid {{t.sep}}">
+      <div style="padding: 12px 14px 6px; font-weight: 600">Quality checks</div>
+      <div style="display: flex; gap: 10px; align-items: center; padding: 8px 14px; border-top: 1px solid {{t.sep}}"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="{{t.green}}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="m8 12.5 2.8 2.8L16.5 9"/></svg><span style="flex: 1">All text inside the safe area</span><span style="color: {{t.green}}; font-weight: 600">Passed</span></div>
+      <div style="display: flex; gap: 10px; align-items: center; padding: 8px 14px; border-top: 1px solid {{t.sep}}"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="{{t.green}}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="m8 12.5 2.8 2.8L16.5 9"/></svg><span style="flex: 1">Length between 15 and 59 seconds</span><span style="color: {{t.green}}; font-weight: 600">Passed</span></div>
+      <div style="display: flex; gap: 10px; align-items: center; padding: 8px 14px; border-top: 1px solid {{t.sep}}"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="{{t.green}}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="m8 12.5 2.8 2.8L16.5 9"/></svg><span style="flex: 1">Loudness evened out</span><span style="color: {{t.green}}; font-weight: 600">Passed</span></div>
+      <div style="display: flex; gap: 10px; align-items: center; padding: 8px 14px 12px; border-top: 1px solid {{t.sep}}"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="{{t.orange}}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3.5 22 20H2z"/><path d="M12 10v4.5M12 17.2v.3"/></svg><span style="flex: 1">Background music detected at 0:20</span><span style="color: {{t.orange}}; font-weight: 600">Check</span></div>
+    </div>
+
+    <div style="font-size: 13px; color: {{t.label2}}">The vertical copy is saved to the library. Nothing is posted.</div>
+  </section>
+</div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"dark":{"editor":"boolean","default":false},"showSafe":{"editor":"boolean","default":true},"showButtons":{"editor":"boolean","default":true},"$preview":{"width":1280,"height":980}}'>
+class Component extends DCLogic {
+renderVals() {
+const L = {bg:'#F5F5F7',side:'#ECECF0',card:'#FFFFFF',label:'#1D1D1F',label2:'#6E6E73',sep:'#D9D9DE',fill:'#E6E6EB',accent:'#1E6EF4',link:'#1E6EF4',green:'#00782C',greenBg:'#E3F4E8',red:'#C50F25',redBg:'#FDE7EA',orange:'#B04A00',orangeBg:'#FFF0E3',sel:'#DCE8FD'};
+const D = {bg:'#1C1C1E',side:'#252527',card:'#2C2C2E',label:'#F5F5F7',label2:'#A1A1A6',sep:'#3A3A3C',fill:'#3A3A3C',accent:'#1E6EF4',link:'#5CB8FF',green:'#4AD968',greenBg:'#173B22',red:'#FF6165',redBg:'#4A1C1F',orange:'#FFA056',orangeBg:'#45290F',sel:'#1D3557'};
+return { t: this.props.dark ? D : L, showSafe: this.props.showSafe ?? true, showButtons: this.props.showButtons ?? true };
+}
+}
+</script>
+</body>
+</html>

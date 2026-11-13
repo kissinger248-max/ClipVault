@@ -81,6 +81,22 @@ def register(
             return back(target, f"Not saved: {exc}")
         return back(target, message)
 
+    def folder_info(current: cfg.Config) -> dict[str, Any]:
+        """Where the library is, in words ("in your user folder"), and its free space."""
+        import shutil
+
+        root = current.library_root
+        try:
+            inside_home = root.resolve().is_relative_to(Path.home().resolve())
+        except (OSError, ValueError):
+            inside_home = False
+        probe = root if root.exists() else root.parent
+        try:
+            free = shutil.disk_usage(probe).free
+        except OSError:
+            free = None
+        return {"folder_home": inside_home, "folder_free": free}
+
     def phone_info(current: cfg.Config) -> dict[str, Any]:
         from clipvault.notify import ntfy
 
@@ -109,7 +125,8 @@ def register(
         token = user_auth.stored()
         return page(request, "settings.html", tab="settings", config=current, keys=keys,
                     estimate=estimate, twitch_user=token.login if token else "",
-                    twitch_login=app.state.panel.twitch_login, **phone_info(current))  # fmt: skip
+                    twitch_login=app.state.panel.twitch_login, **phone_info(current),
+                    **folder_info(current))  # fmt: skip
 
     @app.post("/settings/storage")
     def save_storage(
@@ -341,7 +358,7 @@ def register(
         return page(request, "setup.html", step=step, steps=WIZARD_STEPS, config=current,
                     streamers=streamers, has_keys=bool(keys),
                     estimate=estimate_gb_per_month(streamers, current.quality),
-                    **phone_info(current))  # fmt: skip
+                    **phone_info(current), **folder_info(current))  # fmt: skip
 
     @app.post("/setup/1")
     def wizard_mode(mode: str = Form("archive")):

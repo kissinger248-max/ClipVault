@@ -1,80 +1,190 @@
 {% extends "base.html" %}
 {% block title %}Settings · ClipVault{% endblock %}
 {% block content %}
-<h1>Settings</h1>
-<section class="card" id="storage">
-  <h2>Storage</h2>
-  <form method="post" action="/settings/storage">
-    <input type="hidden" name="csrf" value="{{ csrf }}">
-    <label>Library folder <input name="library_root" value="{{ config.library_root }}" required></label>
-    <label>Quality <select name="quality">
-      <option value="720p" {{ 'selected' if config.quality == '720p' }}>720p (smaller files)</option>
-      <option value="1080p" {{ 'selected' if config.quality == '1080p' }}>1080p (sharper, about twice the size)</option></select></label>
-    <label>Remove below-median clips after (days) <input type="number" name="keep_days" min="1" value="{{ config.retention.keep_days_below_median }}"></label>
-    <label>Pause downloads when free space is below (%) <input type="number" name="min_free" min="0" max="90" value="{{ config.retention.min_free_space_pct }}"></label>
-    <p class="muted">About {{ '%.1f'|format(estimate) }} GB a month with the current streamers. Starred clips and anything in the Favorites folder are never removed.</p>
-    <button class="primary">Save storage</button>
-  </form>
-</section>
-<section class="card" id="schedule">
-  <h2>Schedule</h2>
-  <form method="post" action="/settings/schedule">
-    <input type="hidden" name="csrf" value="{{ csrf }}">
-    <label>Look for new clips every (minutes) <input type="number" name="interval" min="1" value="{{ config.discover_interval_min }}"></label>
-    <label>Time zone <input name="timezone" value="{{ config.timezone }}"></label>
-    <label class="check"><input type="checkbox" name="transcripts" value="1" {{ 'checked' if config.transcription.enabled }}> Make transcripts (subtitles and search)</label>
-    <label class="check"><input type="checkbox" name="battery" value="1" {{ 'checked' if config.heavy_jobs_on_battery }}> Also do heavy work on battery</label>
-    <button class="primary">Save schedule</button>
-  </form>
-</section>
-<section class="card" id="look">
-  <h2>Look of vertical videos</h2>
-  {% include "_look.html" %}
-</section>
-<section class="card" id="twitch">
-  <h2>Twitch keys</h2>
-  <p class="muted">Client ID: {{ 'stored' if keys.twitch_client_id else 'not set' }} · Client secret: {{ 'stored' if keys.twitch_client_secret else 'not set' }}. Kept in this computer's keychain and never shown again.</p>
-  <form method="post" action="/settings/twitch">
-    <input type="hidden" name="csrf" value="{{ csrf }}">
-    <label>Client ID <input name="client_id" autocomplete="off" spellcheck="false"></label>
-    <label>Client secret <input type="password" name="client_secret" autocomplete="off"></label>
-    <button>Save and check</button>
-  </form>
-</section>
-<section class="card" id="twitch-login">
-  <h2>Live chat</h2>
-  {% if twitch_login and not twitch_login.error %}
-  <p class="busy" data-reload="5">Open <a href="{{ twitch_login.url }}" target="_blank" rel="noopener">{{ twitch_login.url }}</a> and enter the code <b class="code">{{ twitch_login.code }}</b>. This page updates by itself.</p>
-  {% elif twitch_user %}
-  <p>Logged in to Twitch as <b>{{ twitch_user }}</b>. While ClipVault runs, it reads the chat of saved streamers who are live and keeps the moments where chat goes wild.</p>
-  <form method="post" action="/settings/twitch-logout"><input type="hidden" name="csrf" value="{{ csrf }}"><button class="link danger">Log out of Twitch</button></form>
-  {% else %}
-  {% if twitch_login and twitch_login.error %}<p class="error">{{ twitch_login.error }}</p>{% endif %}
-  <p>To catch moments while a stream is live, ClipVault reads its chat with your Twitch account (read only; it never writes in chat).</p>
-  <form method="post" action="/settings/twitch-login"><input type="hidden" name="csrf" value="{{ csrf }}"><button class="primary">Log in to Twitch</button></form>
-  {% endif %}
-</section>
-<section class="card" id="phone">
-  <h2>Phone</h2>
-  {% include "_phone.html" %}
-  <form method="post" action="/settings/notifications">
-    <input type="hidden" name="csrf" value="{{ csrf }}">
-    <label>Quiet from <input type="time" name="quiet_from" value="{{ config.notifications.quiet_hours[0] }}"></label>
-    <label>until <input type="time" name="quiet_to" value="{{ config.notifications.quiet_hours[1] }}"></label>
-    <label>Daily summary at <input type="time" name="summary" value="{{ config.notifications.summary_time }}"></label>
-    <button>Save times</button>
-  </form>
-</section>
-<section class="card" id="password">
-  <h2>Panel password</h2>
-  <form method="post" action="/settings/password">
-    <input type="hidden" name="csrf" value="{{ csrf }}">
-    <label>Current password <input type="password" name="current" required autocomplete="current-password"></label>
-    <label>New password <input type="password" name="new" minlength="8" required autocomplete="new-password"></label>
-    <label>New password again <input type="password" name="again" minlength="8" required autocomplete="new-password"></label>
-    <button>Change password</button>
-  </form>
-  <form method="post" action="/logout"><input type="hidden" name="csrf" value="{{ csrf }}"><button class="link">Log out</button></form>
-</section>
-<p class="muted small">ClipVault {{ version }}. Settings are saved in config.yaml in the ClipVault folder.</p>
+<h1 class="page-title">Settings</h1>
+<div class="groups">
+
+  <section class="group" id="storage" aria-labelledby="g-storage">
+    <h2 id="g-storage">Storage</h2>
+    <form method="post" action="/settings/storage" class="card list" data-autosubmit>
+      <input type="hidden" name="csrf" value="{{ csrf }}">
+      <div class="row">
+        <details class="disclose">
+          <summary class="row" style="padding: 0">
+            <div><div>Library folder</div><div class="hint">{% if folder_home %}{{ config.library_root.name }} in your user folder{% else %}{{ config.library_root }}{% endif %}{% if folder_free is not none %} · {{ folder_free|gigabytes }} free{% endif %}</div></div>
+            <span class="btn small">Change…</span>
+          </summary>
+          <div class="reveal">
+            <label class="field"><span class="sr-only">Library folder</span><input type="text" name="library_root" value="{{ config.library_root }}" required></label>
+            <button class="btn primary">Save Folder</button>
+          </div>
+        </details>
+      </div>
+      <div class="row">
+        <div><div>Video quality</div><div class="hint">720p uses less space.</div></div>
+        <div class="segmented small" role="radiogroup" aria-label="Video quality">
+          <input type="radio" name="quality" value="720p" id="q720" {{ 'checked' if config.quality == '720p' }}><label for="q720">720p</label>
+          <input type="radio" name="quality" value="1080p" id="q1080" {{ 'checked' if config.quality == '1080p' }}><label for="q1080">1080p</label>
+        </div>
+      </div>
+      <div class="row">
+        <div class="grow"><div>Remove less popular clips after</div><div class="hint">Only clips with fewer views than that streamer’s usual. Starred clips and the Favorites folder are always kept.</div></div>
+        {% set days = config.retention.keep_days_below_median %}
+        <select name="keep_days" class="small" aria-label="Remove less popular clips after">
+          {% for d in [30, 60, 90, 180, 365] %}<option value="{{ d }}" {{ 'selected' if days == d }}>{{ d }} days</option>{% endfor %}
+          {% if days not in [30, 60, 90, 180, 365] %}<option value="{{ days }}" selected>{{ days }} days</option>{% endif %}
+        </select>
+      </div>
+      <div class="row">
+        <div>Pause downloads when free space is below</div>
+        {% set pct = config.retention.min_free_space_pct %}
+        <select name="min_free" class="small" aria-label="Pause downloads when free space is below">
+          {% for p in [5, 10, 15, 20, 25] %}<option value="{{ p }}" {{ 'selected' if pct == p }}>{{ p }}%</option>{% endfor %}
+          {% if pct not in [5, 10, 15, 20, 25] %}<option value="{{ pct }}" selected>{{ pct }}%</option>{% endif %}
+        </select>
+      </div>
+      <div class="row muted">Estimate: about {{ '%.0f'|format(estimate) }} GB of new clips a month for your streamers, mostly phone versions.</div>
+    </form>
+  </section>
+
+  <section class="group" id="look" aria-labelledby="g-look">
+    <h2 id="g-look">Look of phone videos</h2>
+    {% include "_look.html" %}
+  </section>
+
+  <section class="group" id="schedule" aria-labelledby="g-schedule">
+    <h2 id="g-schedule">Schedule</h2>
+    <form method="post" action="/settings/schedule" class="card list" data-autosubmit>
+      <input type="hidden" name="csrf" value="{{ csrf }}">
+      <div class="row">
+        <div>Look for new clips</div>
+        {% set every = config.discover_interval_min %}
+        <select name="interval" class="small" aria-label="Look for new clips">
+          {% for m, label in [(15, 'Every 15 minutes'), (30, 'Every 30 minutes'), (60, 'Every hour'), (120, 'Every 2 hours')] %}<option value="{{ m }}" {{ 'selected' if every == m }}>{{ label }}</option>{% endfor %}
+          {% if every not in [15, 30, 60, 120] %}<option value="{{ every }}" selected>Every {{ every }} minutes</option>{% endif %}
+        </select>
+      </div>
+      <div class="row">
+        <div>Time zone</div>
+        {% set zones = [('America/Los_Angeles', 'Pacific Time (Los Angeles)'), ('America/Denver', 'Mountain Time (Denver)'), ('America/Chicago', 'Central Time (Chicago)'), ('America/New_York', 'Eastern Time (New York)'), ('Europe/London', 'London'), ('Europe/Berlin', 'Central Europe (Berlin)'), ('Asia/Tokyo', 'Tokyo'), ('Australia/Sydney', 'Sydney'), ('UTC', 'UTC')] %}
+        <select name="timezone" class="small" aria-label="Time zone">
+          {% for value, label in zones %}<option value="{{ value }}" {{ 'selected' if config.timezone == value }}>{{ label }}</option>{% endfor %}
+          {% if config.timezone not in zones|map('first')|list %}<option value="{{ config.timezone }}" selected>{{ config.timezone }}</option>{% endif %}
+        </select>
+      </div>
+      <label class="row">
+        <div class="grow"><div>Make subtitles</div><div class="hint">Needed for captions and for searching by what was said.</div></div>
+        <input type="checkbox" class="switch" role="switch" name="transcripts" value="1" {{ 'checked' if config.transcription.enabled }}>
+      </label>
+      <label class="row">
+        <div class="grow"><div>Heavy work on battery</div><div class="hint">Downloads always run. Subtitles and phone versions wait for the charger unless this is on.</div></div>
+        <input type="checkbox" class="switch" role="switch" name="battery" value="1" {{ 'checked' if config.heavy_jobs_on_battery }}>
+      </label>
+    </form>
+  </section>
+
+  <section class="group" id="twitch" aria-labelledby="g-twitch">
+    <h2 id="g-twitch">Twitch</h2>
+    <div class="card list">
+      <div class="row">
+        <details class="disclose">
+          <summary class="row" style="padding: 0">
+            <div><div>App keys</div>
+              {% if keys.twitch_client_id and keys.twitch_client_secret %}<div class="hint good">Saved securely. They’re never shown again.</div>
+              {% else %}<div class="hint bad">Not set: client ID {{ 'stored' if keys.twitch_client_id else 'missing' }}, client secret {{ 'stored' if keys.twitch_client_secret else 'missing' }}.</div>{% endif %}</div>
+            <span class="btn small">{{ 'Replace…' if keys.twitch_client_id else 'Add…' }}</span>
+          </summary>
+          <form method="post" action="/settings/twitch" class="reveal">
+            <input type="hidden" name="csrf" value="{{ csrf }}">
+            <label class="field"><span>Client ID</span><input type="text" name="client_id" autocomplete="off" spellcheck="false"></label>
+            <label class="field"><span>Client secret</span><input type="password" name="client_secret" autocomplete="off"></label>
+            <button class="btn primary">Save and Check</button>
+          </form>
+        </details>
+      </div>
+      <div class="row" id="twitch-login">
+        {% if twitch_login and not twitch_login.error %}
+        <div class="grow" data-reload="5"><div>Live chat</div><div class="hint">Open <a href="{{ twitch_login.url }}" target="_blank" rel="noopener">{{ twitch_login.url }}</a> and enter the code <b class="code">{{ twitch_login.code }}</b>. This updates by itself.</div></div>
+        {% elif twitch_user %}
+        <div class="grow"><div>Live chat</div><div class="hint">Logged in. Used only to read chat; ClipVault never writes in chat.</div></div>
+        <form method="post" action="/settings/twitch-logout" class="inline"><input type="hidden" name="csrf" value="{{ csrf }}"><button class="btn small">Log Out</button></form>
+        {% else %}
+        <div class="grow"><div>Live chat</div>
+          {% if twitch_login and twitch_login.error %}<div class="hint bad">{{ twitch_login.error }}</div>{% endif %}
+          <div class="hint">Log in to catch moments while a stream is live. Used only to read chat.</div></div>
+        <form method="post" action="/settings/twitch-login" class="inline"><input type="hidden" name="csrf" value="{{ csrf }}"><button class="btn small primary">Log In to Twitch</button></form>
+        {% endif %}
+      </div>
+    </div>
+  </section>
+
+  <section class="group" id="phone" aria-labelledby="g-phone">
+    <h2 id="g-phone">Phone</h2>
+    <div class="card list">
+      <div class="row">
+        <div><div>Notifications</div><div class="hint">{% if topic %}Set up with the ntfy app. Keep the topic name private.{% else %}A summary each morning and a message when something needs you, through the free ntfy app.{% endif %}</div></div>
+        {% if topic %}
+        <form method="post" action="/settings/ntfy-test" class="inline"><input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="next" value="/settings#phone"><button class="btn small">Send Test</button></form>
+        {% else %}
+        <form method="post" action="/settings/ntfy" class="inline"><input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="next" value="/setup/6"><button class="btn small">Set Up…</button></form>
+        {% endif %}
+      </div>
+      <form method="post" action="/settings/notifications" class="list" data-autosubmit>
+        <input type="hidden" name="csrf" value="{{ csrf }}">
+        <div class="row">
+          <div>Daily summary</div>
+          {% set at = config.notifications.summary_time %}
+          {% set hours = ['06:00', '07:00', '08:00', '09:00', '10:00', '12:00', '18:00'] %}
+          <select name="summary" class="small" aria-label="Daily summary time">
+            {% for h in hours %}<option value="{{ h }}" {{ 'selected' if at == h }}>{{ h }}</option>{% endfor %}
+            {% if at not in hours %}<option value="{{ at }}" selected>{{ at }}</option>{% endif %}
+          </select>
+        </div>
+        <div class="row">
+          <details class="disclose">
+            <summary class="row" style="padding: 0">
+              <div><div>Quiet hours</div><div class="hint">Messages wait until morning, except a full-disk warning.</div></div>
+              <div class="muted">{{ config.notifications.quiet_hours[0] }} – {{ config.notifications.quiet_hours[1] }}</div>
+            </summary>
+            <div class="reveal" style="justify-content: flex-end; align-items: center">
+              <input type="time" name="quiet_from" value="{{ config.notifications.quiet_hours[0] }}" class="small" aria-label="Quiet from">
+              <span class="muted">–</span>
+              <input type="time" name="quiet_to" value="{{ config.notifications.quiet_hours[1] }}" class="small" aria-label="Quiet until">
+            </div>
+          </details>
+        </div>
+      </form>
+      <form method="post" action="/settings/phone-access" class="row" data-autosubmit>
+        <input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="next" value="/settings#phone">
+        <label class="row grow" style="padding: 0">
+          <div class="grow"><div>Allow phones on my Wi-Fi</div>
+            <div class="hint">{% if reachable and panel_qr %}Scan this or open <code>{{ panel_url }}</code> on the phone, then use Add to Home Screen.{% elif reachable %}On after a restart of ClipVault. The password still protects the panel.{% else %}After a restart, a code to scan appears here. The password still protects the panel.{% endif %}</div></div>
+          <input type="checkbox" class="switch" role="switch" name="allow" value="1" {{ 'checked' if reachable }}>
+        </label>
+        {% if reachable and panel_qr %}<div class="qr">{{ panel_qr|safe }}</div>{% endif %}
+      </form>
+    </div>
+  </section>
+
+  <section class="group" id="password" aria-labelledby="g-password">
+    <h2 id="g-password">Panel password</h2>
+    <div class="card">
+      <div class="row">
+        <details class="disclose">
+          <summary class="row" style="padding: 0">
+            <div><div>Password</div><div class="hint">Changing it logs out every device.</div></div>
+            <span class="btn small">Change…</span>
+          </summary>
+          <form method="post" action="/settings/password" class="reveal">
+            <input type="hidden" name="csrf" value="{{ csrf }}">
+            <label class="field"><span>Current password</span><input type="password" name="current" required autocomplete="current-password"></label>
+            <label class="field"><span>New password</span><input type="password" name="new" minlength="8" required autocomplete="new-password"></label>
+            <label class="field"><span>Type it again</span><input type="password" name="again" minlength="8" required autocomplete="new-password"></label>
+            <button class="btn primary">Change Password</button>
+          </form>
+        </details>
+      </div>
+    </div>
+  </section>
+</div>
 {% endblock %}

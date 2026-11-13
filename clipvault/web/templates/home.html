@@ -1,27 +1,50 @@
 {% extends "base.html" %}
-{% from "_macros.html" import clip_card %}
+{% block contentclass %}home-page{% endblock %}
+{% from "_macros.html" import clip_card, status_icon, problem_card %}
 {% block content %}
-<a class="status {{ status }}" href="{{ '/alerts' if status == 'red' else '#' }}">
-  <strong>{% if status == 'red' %}Needs you{% elif status == 'yellow' %}Paused{% else %}Running{% endif %}</strong>
-  <span>{% if status == 'red' %}{{ alerts|length }} problem{{ 's' if alerts|length != 1 }} to look at. Tap to see.
-  {% elif status == 'yellow' %}Nothing new is looked for or downloaded.
-  {% else %}Looks for new clips on its own{% if last_run %}; last activity {{ last_run[11:16] }} UTC{% endif %}.{% endif %}</span>
-</a>
-<section class="numbers">
-  <div><b>{{ counts.saved }}</b><span>saved today</span></div>
-  <div><b>{{ counts.waiting }}</b><span>waiting</span></div>
-  <div><b>{{ counts.library[0] }}</b><span>in library ({{ counts.library[1]|megabytes }})</span></div>
+<header>
+  <h1 class="page-title">Home</h1>
+  <div class="subhead desk-only" data-today></div>
+</header>
+
+<section class="status {{ status }}" aria-label="Status">
+  {{ status_icon(status) }}
+  <div class="what">
+    <div class="headline">{% if alerts %}<span class="desk-only">{% if paused %}Paused{% else %}Running{% endif %} · </span>{% else %}{% if paused %}Paused{% else %}Running{% endif %}{% endif %}{% if alerts %}{{ alerts|length }} problem{{ 's' if alerts|length != 1 }} need{{ 's' if alerts|length == 1 }} you{% endif %}</div>
+    <div class="detail">{% if paused %}Nothing new is looked for, downloaded or edited until you resume.
+      {% elif alerts %}Everything else is fine.{% if last_run %} Last activity {{ last_run|ago }}.{% endif %}
+      {% else %}ClipVault looks for new clips on its own.{% if last_run %} Last activity {{ last_run|ago }}.{% endif %}{% endif %}</div>
+  </div>
+  <form method="post" action="{{ '/resume' if paused else '/pause' }}">
+    <input type="hidden" name="csrf" value="{{ csrf }}">
+    {% if paused %}<button class="btn primary"><svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M7 4.5v15l12-7.5z"/></svg>Resume</button>
+    {% else %}<button class="btn"><svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><rect x="6" y="5" width="4" height="14" rx="1"/><rect x="14" y="5" width="4" height="14" rx="1"/></svg>Pause</button>{% endif %}
+  </form>
 </section>
-<form method="post" action="{{ '/resume' if paused else '/pause' }}" class="row">
-  <input type="hidden" name="csrf" value="{{ csrf }}">
-  <button class="{{ 'primary' if paused else '' }}">{{ 'Resume' if paused else 'Pause everything' }}</button>
-</form>
-<h2>Newest clips</h2>
-{% if editing %}<p class="muted">{{ editing }} new clip{{ 's are' if editing != 1 else ' is' }} being edited for phones.</p>{% endif %}
-{% if newest %}
-<div class="grid">{% for clip in newest %}{{ clip_card(clip, csrf) }}{% endfor %}</div>
-<p><a href="/clips">All clips →</a></p>
-{% else %}
-<p class="muted">No edited clips yet. While ClipVault runs, it finds the newest clips and edits each one for phones (with the charger plugged in on a laptop).</p>
+
+{% if alerts %}
+<section class="section" aria-labelledby="needs">
+  <h2 id="needs" class="section-title">Needs you</h2>
+  {% for alert in alerts %}{{ problem_card(alert, csrf) }}{% endfor %}
+</section>
 {% endif %}
+
+<section class="section" aria-labelledby="today">
+  <h2 id="today" class="section-title desk-only">Today</h2>
+  <div class="stats">
+    <div class="card stat"><div class="number">{{ counts.saved }}</div><div class="what"><span class="desk-only">Clips saved</span><span class="phone-only">Saved today</span></div></div>
+    <div class="card stat"><div class="number">{{ editing }}</div><div class="what"><span class="desk-only">Still being edited</span><span class="phone-only">Being edited</span></div></div>
+    <div class="card stat"><div class="number">{{ counts.live }}</div><div class="what">Live moments</div></div>
+    <div class="card stat"><div class="number">{{ counts.free|gigabytes if counts.free is not none else '–' }}</div><div class="what">Free in library</div></div>
+  </div>
+</section>
+
+<section class="section" aria-labelledby="newest">
+  <div class="section-head"><h2 id="newest" class="section-title">Newest clips</h2>{% if newest %}<a href="/clips"><span class="desk-only">Show All</span><span class="phone-only">See All</span></a>{% endif %}</div>
+  {% if newest %}
+  <div class="clip-grid home-strip">{% for clip in newest[:5] %}{{ clip_card(clip) }}{% endfor %}</div>
+  {% else %}
+  <p class="empty">No edited clips yet. While ClipVault runs, it finds the newest clips and makes a phone version of each one (with the charger plugged in on a laptop).</p>
+  {% endif %}
+</section>
 {% endblock %}

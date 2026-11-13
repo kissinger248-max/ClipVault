@@ -1,19 +1,36 @@
-{% macro clip_card(clip, csrf, snippet='') %}
-<article class="clip{{ ' vertical-card' if clip.render_id }}">
-  <a class="thumb" href="/clips/{{ clip.id|urlpart }}">
-    {% if clip.render_id %}<img src="/thumb/{{ clip.id|urlpart }}?kind=vertical&render={{ clip.render_id }}" alt="" loading="lazy" width="360" height="640">
-    {% else %}<img src="/thumb/{{ clip.id|urlpart }}" alt="" loading="lazy" width="480" height="270">{% endif %}
-    <span class="len">{{ clip.duration|clock }}</span>
-    {% if clip.source == 'vod_spike' %}<span class="badge chat">chat moment</span>{% elif clip.source == 'live_spike' %}<span class="badge chat">live moment</span>{% endif %}
-  </a>
-  <div class="meta">
-    <a href="/clips/{{ clip.id|urlpart }}" class="title">{{ clip.headline or clip.title or 'Untitled clip' }}</a>
-    <div class="sub">{{ clip.display_name or clip.login }} · {{ (clip.created_at or '')[:10] }}{% if clip.view_count is not none %} · {{ '{:,}'.format(clip.view_count) }} view{{ 's' if clip.view_count != 1 }}{% endif %}</div>
+{% macro clip_card(clip, snippet='') %}
+<a class="clip-card" href="/clips/{{ clip.id|urlpart }}">
+  <div class="cv-thumb">
+    {% if clip.render_id %}<img src="/thumb/{{ clip.id|urlpart }}?kind=vertical&render={{ clip.render_id }}&at={{ clip.render_at|urlpart }}" alt="" loading="lazy" width="360" height="640">
+    {% else %}<img src="/thumb/{{ clip.id|urlpart }}" alt="" loading="lazy">{% endif %}
+    {% if clip.source == 'live_spike' %}<span class="tag kind">Live moment</span>{% elif clip.source == 'vod_spike' %}<span class="tag kind">Chat moment</span>{% endif %}
+    <span class="tag len">{{ clip.duration|clock }}</span>
+    {% if clip.starred %}<svg class="starred" width="20" height="20" viewBox="0 0 24 24" fill="#FFD60A" stroke="#7A5A00" stroke-width="1.2" stroke-linejoin="round" role="img" aria-label="Starred"><path d="m12 3 2.8 5.7 6.2.9-4.5 4.4 1 6.2L12 17.3 6.5 20.2l1-6.2L3 9.6l6.2-.9z"/></svg>{% endif %}
+  </div>
+  <div>
+    <div class="who">{{ clip.display_name or clip.login }}</div>
+    <div class="meta">{% if clip.source == 'live_spike' %}From live chat{% elif clip.source == 'vod_spike' %}Found in chat{% else %}{{ clip.view_count|compact }} view{{ 's' if clip.view_count != 1 }}{% endif %} · {{ clip.created_at|ago }}</div>
     {% if snippet %}<div class="snippet">{{ snippet|highlight }}</div>{% endif %}
   </div>
-  <form method="post" action="/clips/{{ clip.id|urlpart }}/star" class="star">
-    <input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="next" value="">
-    <button aria-label="{{ 'Unstar' if clip.starred else 'Star' }}" title="Starred clips are never deleted">{{ '★' if clip.starred else '☆' }}</button>
-  </form>
-</article>
+</a>
+{% endmacro %}
+
+{% macro status_icon(status) %}
+{% if status == 'red' %}<svg class="icon" width="34" height="34" viewBox="0 0 24 24" fill="none" stroke="var(--red)" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="12" r="9.5"/><path d="M12 7v6M12 16.5v.3"/></svg>
+{% elif status == 'yellow' %}<svg class="icon" width="34" height="34" viewBox="0 0 24 24" fill="none" stroke="var(--orange)" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="12" r="9.5"/><path d="M10 8.5v7M14 8.5v7"/></svg>
+{% else %}<svg class="icon" width="34" height="34" viewBox="0 0 24 24" fill="none" stroke="var(--green)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9.5"/><path d="m7.8 12.5 2.9 2.9 5.6-6.1"/></svg>{% endif %}
+{% endmacro %}
+
+{% macro problem_card(alert, csrf) %}
+<div class="card problem">
+  <svg class="icon" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3.5 22 20H2z"/><path d="M12 10v4.5M12 17.2v.3"/></svg>
+  <div class="what">
+    <div class="title">{{ {'relogin': 'Log in again', 'storage': 'Disk almost full', 'broken': 'Something keeps failing', 'downloader': 'Downloads keep failing', 'library': 'Library folder missing', 'campaign': 'New campaign'}.get(alert.kind, 'Needs you') }}</div>
+    <div class="muted">{{ alert.message }}</div>
+  </div>
+  <div class="actions">
+    <form method="post" action="/alerts/{{ alert.id }}/dismiss" class="inline"><input type="hidden" name="csrf" value="{{ csrf }}"><button class="btn medium">Dismiss</button></form>
+    {% if alert.fix_url %}<a class="btn medium primary" href="{{ alert.fix_url }}">Fix</a>{% endif %}
+  </div>
+</div>
 {% endmacro %}
