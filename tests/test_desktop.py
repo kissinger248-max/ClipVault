@@ -87,7 +87,7 @@ def test_start_at_login_on_windows_uses_the_run_key(
     monkeypatch.setattr(sys, "platform", "win32")
     assert autostart.supported() and not autostart.is_enabled()
     autostart.set_enabled(True)
-    assert fake.values["ClipVault"] == f'"{Path(sys.executable).resolve()}"'
+    assert fake.values["ClipVault"] == f'"{Path(sys.executable).resolve()}" run --no-browser'
     assert autostart.is_enabled()
     autostart.set_enabled(False)
     autostart.set_enabled(False)  # already off: no error
@@ -102,7 +102,7 @@ def test_start_at_login_on_mac_uses_a_launch_agent(
     agent = Path.home() / "Library" / "LaunchAgents" / f"{autostart.AGENT_LABEL}.plist"
     plist = plistlib.loads(agent.read_bytes())
     assert plist["RunAtLoad"] is True
-    assert plist["ProgramArguments"] == [str(Path(sys.executable).resolve())]
+    assert plist["ProgramArguments"] == [str(Path(sys.executable).resolve()), "run", "--no-browser"]
     assert autostart.is_enabled()
     autostart.set_enabled(False)
     assert not agent.exists()
@@ -114,13 +114,17 @@ def test_first_run_switches_things_on_once(
     monkeypatch.setattr(sys, "platform", "win32")
     calls: list[bool] = []
     monkeypatch.setattr(autostart, "set_enabled", calls.append)
+    monkeypatch.setattr(autostart, "is_enabled", lambda: bool(calls) and calls[-1])
     monkeypatch.setattr(desktop, "local_timezone", lambda: "Europe/Berlin")
     desktop.first_run(conn)
     assert calls == [True]
     assert cfg.load_config(home / "config.yaml").timezone == "Europe/Berlin"
     cfg.save_settings({"timezone": "UTC"}, home / "config.yaml")
-    desktop.first_run(conn)  # the user's later choices are kept
-    assert calls == [True]
+    desktop.first_run(conn)  # still on: the entry is refreshed; the time zone is kept
+    assert calls == [True, True]
+    calls.append(False)  # the user switched it off in Settings
+    desktop.first_run(conn)
+    assert calls == [True, True, False]
     assert cfg.load_config(home / "config.yaml").timezone == "UTC"
 
 
@@ -204,4 +208,6 @@ def test_the_console_copy_registers_the_windowless_app(
     monkeypatch.setattr(sys, "platform", "win32")
     monkeypatch.setattr(sys, "executable", str(packaged / "ClipVault-console.exe"))
     autostart.set_enabled(True)
-    assert fake.values["ClipVault"] == f'"{(packaged / "ClipVault.exe").resolve()}"'
+    assert (
+        fake.values["ClipVault"] == f'"{(packaged / "ClipVault.exe").resolve()}" run --no-browser'
+    )

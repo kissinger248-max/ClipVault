@@ -26,6 +26,8 @@ RUN_KEY = r"Software\Microsoft\Windows\CurrentVersion\Run"
 VALUE_NAME = "ClipVault"
 AGENT_LABEL = "app.clipvault.desktop"
 FIRST_RUN_SETTING = "autostart_set"
+# At login it starts quietly in the background: no browser window every time.
+LOGIN_ARGS = ("run", "--no-browser")
 
 log = logging.getLogger(__name__)
 
@@ -76,7 +78,8 @@ def set_enabled(enabled: bool) -> None:
 
         with winreg.OpenKey(winreg.HKEY_CURRENT_USER, RUN_KEY, 0, winreg.KEY_SET_VALUE) as key:
             if enabled:
-                winreg.SetValueEx(key, VALUE_NAME, 0, winreg.REG_SZ, f'"{_program()}"')
+                command = f'"{_program()}" ' + " ".join(LOGIN_ARGS)
+                winreg.SetValueEx(key, VALUE_NAME, 0, winreg.REG_SZ, command)
             else:
                 try:
                     winreg.DeleteValue(key, VALUE_NAME)
@@ -86,7 +89,8 @@ def set_enabled(enabled: bool) -> None:
         path = _agent_path()
         if enabled:
             path.parent.mkdir(parents=True, exist_ok=True)
-            agent = {"Label": AGENT_LABEL, "ProgramArguments": [_program()], "RunAtLoad": True,
+            agent = {"Label": AGENT_LABEL, "ProgramArguments": [_program(), *LOGIN_ARGS],
+                     "RunAtLoad": True,
                      "ProcessType": "Interactive"}  # fmt: skip
             path.write_bytes(plistlib.dumps(agent))
         else:
@@ -95,8 +99,19 @@ def set_enabled(enabled: bool) -> None:
 
 
 def first_run(conn: sqlite3.Connection) -> None:
-    """On the installed app's first run, switch starting at login on (once)."""
-    if not supported() or alerts.get_setting(conn, FIRST_RUN_SETTING):
+    """On the installed app's first run, switch starting at login on (once).
+
+    Later runs re-register it if it is on, so the entry follows the program after
+    an update or a move.
+    """
+    if not supported():
+        return
+    if alerts.get_setting(conn, FIRST_RUN_SETTING):
+        if is_enabled():
+            try:
+                set_enabled(True)
+            except OSError as exc:
+                log.warning("could not refresh start at login: %s", exc, extra=ctx(job="autostart"))
         return
     try:
         set_enabled(True)

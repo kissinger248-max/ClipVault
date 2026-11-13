@@ -60,6 +60,7 @@ STEPS = {
     "cleanup": StepInfo("cleanup", "daily cleanup"),
     "summary": StepInfo("summary", "daily summary", runs_while_paused=True),
     "notify": StepInfo("notify", "send notifications", runs_while_paused=True),
+    "updates": StepInfo("updates", "check for updates", runs_while_paused=True),
 }
 
 
@@ -314,6 +315,13 @@ def step_notify(conn: sqlite3.Connection, config: cfg.Config, now: datetime) -> 
     return f"sent {result.sent}, {result.failed} waiting for a connection, {result.dropped} dropped"
 
 
+def step_updates(conn: sqlite3.Connection, config: cfg.Config, now: datetime) -> str:
+    """Look for a newer ClipVault, announce it, and install it at a quiet moment."""
+    from clipvault import updates
+
+    return updates.step_updates(conn, config, now)
+
+
 STEP_FUNCTIONS: dict[str, Step] = {
     "discover": step_discover,
     "worker": step_worker,
@@ -321,4 +329,5 @@ STEP_FUNCTIONS: dict[str, Step] = {
     "cleanup": step_cleanup,
     "summary": step_summary,
     "notify": step_notify,
+    "updates": step_updates,
 }

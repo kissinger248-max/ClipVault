@@ -2,8 +2,9 @@
 ; passes AppVersion, SourceDir (the PyInstaller folder), OutputDir and IconFile.
 ;
 ; Installs for the current user only (no administrator prompt) into
-; %LOCALAPPDATA%\Programs\ClipVault, adds Start menu (and optional desktop)
-; shortcuts, and starts ClipVault at the end so the control panel opens.
+; %LOCALAPPDATA%\Programs\ClipVault, adds Start menu and desktop shortcuts (the
+; desktop one can be unticked), and starts ClipVault at the end so the control panel
+; opens. ClipVault's own updater runs it with /VERYSILENT; it then restarts the app.
 ; Uninstalling removes the program and its start-at-login entry; the clip library
 ; and settings (%LOCALAPPDATA%\ClipVault) are kept.
 
@@ -35,7 +36,7 @@ CloseApplications=force
 RestartApplications=no
 
 [Tasks]
-Name: "desktopicon"; Description: "Put a ClipVault shortcut on the desktop"; Flags: unchecked
+Name: "desktopicon"; Description: "Put a ClipVault shortcut on the desktop"
 
 [Files]
 Source: "{#SourceDir}\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs
@@ -50,6 +51,8 @@ Root: HKCU; Subkey: "Software\Microsoft\Windows\CurrentVersion\Run"; ValueType: 
 
 [Run]
 Filename: "{app}\ClipVault.exe"; Description: "Start ClipVault now"; Flags: nowait postinstall skipifsilent
+; An automatic update runs this installer silently: start ClipVault again, in the background.
+Filename: "{app}\ClipVault.exe"; Parameters: "run --no-browser"; Flags: nowait; Check: WizardSilent
 
 [UninstallRun]
 Filename: "{sys}\taskkill.exe"; Parameters: "/f /im ClipVault.exe"; Flags: runhidden; RunOnceId: "StopClipVault"

@@ -363,6 +363,53 @@ def register(
         }
         return save(updates, next, "Look saved. New vertical copies use it.")
 
+    # --- updates ------------------------------------------------------------------------
+
+    @app.post("/update-now")
+    def update_now():
+        from clipvault import updates as upd
+
+        if not upd.can_install():
+            return back("/settings#updates", "This copy can't update itself; use the release page.")
+        if not upd.update_now_in_background(home / cfg.DB_FILENAME):
+            return back("/", "An update is already under way.")
+        return back(
+            "/", "Downloading the update. ClipVault restarts by itself when it's installed."
+        )
+
+    @app.post("/settings/update-check")
+    def update_check():
+        import httpx
+
+        from clipvault import updates as upd
+
+        c = conn()
+        try:
+            with httpx.Client(timeout=30.0, headers={"User-Agent": "ClipVault"}) as http:
+                release = upd.check(c, http)
+            error = alerts.get_setting(c, upd.ERROR)
+        finally:
+            c.close()
+        if release:
+            return back("/settings#updates", f"ClipVault {release.version} is available.")
+        if error:
+            return back(
+                "/settings#updates", "Couldn't reach GitHub to check; is this computer online?"
+            )
+        return back("/settings#updates", f"ClipVault {upd.__version__} is the newest version.")
+
+    @app.post("/settings/updates")
+    def save_updates(auto: str = Form(""), checks: str = Form("")):
+        from clipvault import updates as upd
+
+        c = conn()
+        try:
+            alerts.set_setting(c, upd.AUTO, "1" if auto else "0")
+            alerts.set_setting(c, upd.CHECKS, "1" if checks else "0")
+        finally:
+            c.close()
+        return back("/settings#updates", "Saved.")
+
     # --- setup wizard -------------------------------------------------------------------
 
     @app.get("/setup/{step}", response_class=HTMLResponse)

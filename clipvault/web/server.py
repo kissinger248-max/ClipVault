@@ -77,6 +77,26 @@ def _asset_version(folder: Path) -> str:
     return digest.hexdigest()[:10]
 
 
+def _update_info(c: sqlite3.Connection) -> dict[str, Any]:
+    """What the Home card and Settings show about updates."""
+    from clipvault import updates
+
+    state = alerts.get_setting(c, updates.STATE) or ""
+    return {
+        "current": __version__,
+        "available": updates.available(c),
+        "can_install": updates.can_install(),
+        "auto": updates.auto_install(c),
+        "checks": updates.checks_on(c),
+        "checked_at": alerts.get_setting(c, updates.CHECKED) or "",
+        "error": alerts.get_setting(c, updates.ERROR) or "",
+        "busy": state in ("downloading", "installing"),
+        "state": state,
+        "just_updated": updates.just_updated(c),
+        "releases": updates.RELEASES_PAGE,
+    }
+
+
 def create_app(home: Path | None = None) -> FastAPI:
     """Build the control-panel app (the home folder decides which database it uses)."""
     home = home or cfg.home_dir()
@@ -115,9 +135,10 @@ def create_app(home: Path | None = None) -> FastAPI:
         values["flash"] = request.query_params.get("msg", "")
         values["version"] = __version__
         values["assets"] = assets
-        if "problems" not in values:
-            with _db(conn) as c:
+        with _db(conn) as c:
+            if "problems" not in values:
                 values["problems"] = len(alerts.open_alerts(c))
+            values["update"] = _update_info(c)
         return templates.TemplateResponse(request, name, values)
 
     def back(url: str, message: str = "") -> RedirectResponse:

@@ -30,7 +30,7 @@ from clipvault.timeutil import parse_rfc3339, to_rfc3339, utc_now
 TOPIC_SECRET = "ntfy_topic"
 TOPIC_RE = re.compile(r"^[-_A-Za-z0-9]{1,64}$")
 KINDS = ("summary", "approve", "relogin", "storage", "broken", "campaign", "downloader", "library",
-         "test")  # fmt: skip
+         "test", "update")  # fmt: skip
 # These ignore quiet hours: they need an answer (approve), are about to cost data
 # (storage), or the user is waiting for them (test).
 URGENT_KINDS = ("approve", "storage", "test")

@@ -174,6 +174,35 @@
     </div>
   </section>
 
+  <section class="group" id="updates" aria-labelledby="g-updates">
+    <h2 id="g-updates">Updates</h2>
+    <div class="card list">
+      <div class="row">
+        <div class="grow"><div>ClipVault {{ update.current }}</div>
+          <div class="hint{{ ' good' if not update.available and not update.error and update.checked_at }}">{% if update.available %}Version {{ update.available.version }} is available.
+            {% elif update.error %}The last check couldn’t reach GitHub.
+            {% elif update.checked_at %}Up to date. Checked {{ update.checked_at|ago }}.
+            {% else %}Not checked yet.{% endif %}
+            {% if update.state.startswith('Update failed') %}<span class="bad-text">{{ update.state }}</span>{% endif %}</div></div>
+        {% if update.available and update.can_install and not update.busy %}<form method="post" action="/update-now" class="inline"><input type="hidden" name="csrf" value="{{ csrf }}"><button class="btn small primary">Update Now</button></form>{% endif %}
+        <form method="post" action="/settings/update-check" class="inline"><input type="hidden" name="csrf" value="{{ csrf }}"><button class="btn small">Check Now</button></form>
+      </div>
+      <form method="post" action="/settings/updates" class="contents" data-autosubmit>
+        <input type="hidden" name="csrf" value="{{ csrf }}">
+        {% if not update.can_install and update.auto %}<input type="hidden" name="auto" value="1">{% endif %}
+        <label class="row">
+          <div class="grow"><div>Install updates automatically</div><div class="hint">{% if update.can_install %}At a quiet moment: just after the computer starts, or overnight. ClipVault restarts by itself.{% else %}Only the installed app updates itself; this copy shows when a new version is out.{% endif %}</div></div>
+          <input type="checkbox" class="switch" role="switch" name="auto" value="1" {{ 'checked' if update.auto }} {{ 'disabled' if not update.can_install }}>
+        </label>
+        <label class="row">
+          <div class="grow"><div>Check for updates</div><div class="hint">Asks GitHub every 6 hours. Nothing about you or your clips is sent.</div></div>
+          <input type="checkbox" class="switch" role="switch" name="checks" value="1" {{ 'checked' if update.checks }}>
+        </label>
+        <noscript><div class="row"><button class="btn small">Save</button></div></noscript>
+      </form>
+    </div>
+  </section>
+
   <section class="group" id="password" aria-labelledby="g-password">
     <h2 id="g-password">Panel password</h2>
     <div class="card">

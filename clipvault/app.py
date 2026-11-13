@@ -33,6 +33,8 @@ log = logging.getLogger(__name__)
 WORKER_EVERY = timedelta(minutes=2)
 VODS_EVERY = timedelta(minutes=60)
 TICK_EVERY = timedelta(minutes=1)
+# How often the updates step looks at its state; it asks GitHub only every 6 hours.
+UPDATES_EVERY = timedelta(minutes=30)
 # A heartbeat this late means the computer was asleep (or the process was frozen).
 WAKE_GAP = timedelta(minutes=3)
 # A daily step that failed is tried again after this long, not on every heartbeat.
@@ -220,6 +222,9 @@ class App:
         every(self._run, "interval", args=["notify"], id="notify",
               next_run_time=now + timedelta(seconds=5),
               seconds=TICK_EVERY.total_seconds())  # fmt: skip
+        every(self._run, "interval", args=["updates"], id="updates",
+              next_run_time=now + timedelta(minutes=1),
+              seconds=UPDATES_EVERY.total_seconds())  # fmt: skip
         every(self.heartbeat.tick, "interval", id="heartbeat",
               next_run_time=now + timedelta(seconds=10),
               seconds=TICK_EVERY.total_seconds())  # fmt: skip

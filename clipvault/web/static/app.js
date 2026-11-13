@@ -87,3 +87,20 @@ document.addEventListener("DOMContentLoaded", () => {
     window.history.replaceState(null, "", url.toString());
   }
 });
+
+// While an update installs, wait for ClipVault to come back as the new version, then reload.
+(() => {
+  const card = document.querySelector("[data-wait-update]");
+  if (!card) return;
+  const before = card.dataset.waitUpdate;
+  const look = () => {
+    fetch("/healthz", { cache: "no-store" })
+      .then((reply) => reply.json())
+      .then((health) => {
+        if (health.version && health.version !== before) window.location.href = "/";
+        else window.setTimeout(look, 3000);
+      })
+      .catch(() => window.setTimeout(look, 3000)); // restarting: try again shortly
+  };
+  window.setTimeout(look, 3000);
+})();

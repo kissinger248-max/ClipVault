@@ -582,12 +582,13 @@ def _cmd_run(args: argparse.Namespace) -> int:
     from clipvault.notify import ntfy
 
     config = cfg.load_config()
-    from clipvault import desktop
+    from clipvault import desktop, lifecycle, updates
 
     conn = db.open_db(cfg.db_path())  # also brings the database up to date before jobs start
     try:
         paused = is_paused(conn)
         desktop.first_run(conn)  # installed app: start at login, local time zone (once)
+        updates.after_start(conn)  # clear what an update left behind
     finally:
         conn.close()
     try:
@@ -610,6 +611,14 @@ def _cmd_run(args: argparse.Namespace) -> int:
                 main_thread_icon = tray.needs_main_thread()
                 icon = tray.start(panel.local_url, cfg.db_path(), quit_event.set,
                                   on_main_thread=main_thread_icon)  # fmt: skip
+
+            def stop_everything() -> None:
+                quit_event.set()
+                if icon is not None and main_thread_icon:
+                    icon.stop()  # ends run_on_main_thread on macOS
+
+            lifecycle.mark_started()
+            lifecycle.on_quit(stop_everything)  # an update or the tray can end the app
             _say("ClipVault is running. Leave this window open; press Ctrl+C to stop.")
             if panel is not None:
                 _say(f"  Control panel: {panel.local_url}")
@@ -635,6 +644,7 @@ def _cmd_run(args: argparse.Namespace) -> int:
             runner.stop()
             if panel is not None:
                 panel.stop()
+            lifecycle.on_quit(None)
     except app.AlreadyRunning as exc:
         if cfg.is_packaged() and not args.no_browser:
             # Opened again from the Start menu or Dock: show the running copy's panel.

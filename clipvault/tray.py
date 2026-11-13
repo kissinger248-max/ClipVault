@@ -18,7 +18,6 @@ from typing import Any
 from clipvault import alerts, db
 from clipvault.logging_setup import ctx
 
-COLORS = {"green": "#1d9a55", "yellow": "#e0a800", "red": "#d93025"}
 REFRESH_S = 30
 log = logging.getLogger(__name__)
 
@@ -35,15 +34,9 @@ def status(db_path: Path) -> str:
 
 
 def _image(color: str) -> Any:
-    from PIL import Image, ImageDraw
+    from clipvault.brand import tray_icon
 
-    size = 64
-    image = Image.new("RGBA", (size, size), (0, 0, 0, 0))
-    draw = ImageDraw.Draw(image)
-    draw.rounded_rectangle([2, 2, size - 3, size - 3], radius=14, fill="#6441a5")
-    draw.polygon([(24, 18), (24, 46), (46, 32)], fill="white")
-    draw.ellipse([40, 40, 62, 62], fill=COLORS[color], outline="white", width=3)
-    return image
+    return tray_icon(color)
 
 
 def start(
@@ -69,6 +62,34 @@ def start(
         except Exception:
             return "Pause / Resume"
 
+    def waiting_release() -> Any:
+        from clipvault import updates
+
+        conn = db.open_db(db_path)
+        try:
+            release = updates.available(conn)
+        finally:
+            conn.close()
+        return release if release and updates.can_install() else None
+
+    def update_waiting(item: Any) -> bool:
+        try:
+            return waiting_release() is not None
+        except Exception:
+            return False
+
+    def update_label(item: Any) -> str:
+        try:
+            release = waiting_release()
+        except Exception:
+            release = None
+        return f"Update to {release.version}" if release else "Update"
+
+    def update_now(icon: Any, item: Any) -> None:
+        from clipvault import updates
+
+        updates.update_now_in_background(db_path)
+
     def quit_app(icon: Any, item: Any) -> None:
         icon.stop()
         on_quit()
@@ -88,6 +109,7 @@ def start(
             "Open control panel", lambda icon, item: webbrowser.open(url), default=True
         ),  # fmt: skip
         pystray.MenuItem(paused_label, toggle_pause),
+        pystray.MenuItem(update_label, update_now, visible=update_waiting),
         pystray.MenuItem("Quit ClipVault", quit_app),
     )
     icon = pystray.Icon("clipvault", _image("green"), "ClipVault", menu)

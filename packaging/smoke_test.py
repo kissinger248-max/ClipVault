@@ -53,7 +53,7 @@ def main() -> int:
         )
         env = {**__import__("os").environ, "CLIPVAULT_HOME": str(home),
                "CLIPVAULT_KEYRING_SERVICE": service,
-               "CLIPVAULT_NO_AUTOSTART": "1"}  # fmt: skip
+               "CLIPVAULT_NO_AUTOSTART": "1", "CLIPVAULT_NO_UPDATES": "1"}  # fmt: skip
         try:
             subprocess.run([program, "pause"], env=env, check=True, timeout=120)
             log = open(home / "run-output.txt", "w", encoding="utf-8")  # noqa: SIM115

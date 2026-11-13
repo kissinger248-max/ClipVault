@@ -509,3 +509,10 @@ details.card > .inside { padding: 0 16px 14px; }
 /* setup step 2: Twitch sign-in code */
 .copy-row input.code-box { font-size: 20px; font-weight: 700; letter-spacing: 0.12em; text-transform: uppercase; }
 .note.bad { color: var(--red); }
+
+/* updates: Home card and the Settings rows */
+.problem.update .icon { stroke: var(--link); }
+.problem.update.done .icon { stroke: var(--green); }
+.problem.update .spinner.icon { width: 20px; height: 20px; border-radius: 10px; }
+.bad-text { color: var(--red); }
+.list > form.contents > .row { border-top: 1px solid var(--sep); }

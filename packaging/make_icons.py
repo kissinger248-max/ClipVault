@@ -1,4 +1,4 @@
-"""Draw the app icon (the tray icon's purple play button) as .png, .ico and .icns.
+"""Draw the app icon (the ClipVault logo mark, clipvault/brand.py) as .png, .ico and .icns.
 
 Run by packaging/build.py; output goes to packaging/icons/ (not in git).
 """
@@ -8,21 +8,17 @@ from __future__ import annotations
 import sys
 from pathlib import Path
 
-from PIL import Image, ImageDraw
+from PIL import Image
 
 OUT = Path(__file__).resolve().parent / "icons"
 
 
 def draw(size: int = 1024) -> Image.Image:
-    """The icon at ``size`` pixels: rounded purple square with a white play triangle."""
-    image = Image.new("RGBA", (size, size), (0, 0, 0, 0))
-    d = ImageDraw.Draw(image)
-    inset = round(size * 0.06)
-    d.rounded_rectangle([inset, inset, size - inset, size - inset], radius=round(size * 0.22),
-                        fill="#6441a5")  # fmt: skip
-    s = size / 64
-    d.polygon([(23 * s, 17 * s), (23 * s, 47 * s), (47 * s, 32 * s)], fill="white")
-    return image
+    """The logo mark (clipvault/brand.py) with a small margin, as app icons usually have."""
+    sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+    from clipvault.brand import logo
+
+    return logo(size, inset=0.06)
 
 
 def main() -> int:
