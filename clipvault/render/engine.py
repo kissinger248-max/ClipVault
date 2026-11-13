@@ -19,7 +19,7 @@ from clipvault.logging_setup import ctx
 from clipvault.process import transcribe
 from clipvault.process.transcribe import Transcript, Word
 from clipvault.render import facecam, ffmpeg, layouts, qa
-from clipvault.render.ass import build_overlay
+from clipvault.render.ass import build_overlay, fit_headline
 from clipvault.render.ffmpeg import RenderError
 from clipvault.render.layouts import Rect
 from clipvault.render.template import FONTS_DIR, Look, load_look
@@ -164,7 +164,8 @@ def render_clip(
         Word(w.text, w.start - start, w.end - start) for w in transcript.words if w.end > start
     )
     mask = transcribe.mask_pattern(transcribe.load_mask_words())
-    headline = headline if headline is not None else default_headline(clip["title"])
+    if headline is None:
+        headline = fit_headline(default_headline(clip["title"]), look)
     disclosure = None
     if streamer["permission_type"] == "campaign":
         disclosure = f"#ad Paid partnership with @{clip['login']}"

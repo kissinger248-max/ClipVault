@@ -99,25 +99,26 @@ Accounts and keys the user needs, by milestone:
 
 ### M6. Transcription and search
 
-- [ ] Audio extraction (16 kHz mono) and Groq transcription with word timestamps (SPEC §8)
-- [ ] faster-whisper fallback; switch automatically when Groq fails
-- [ ] `.srt` and word-timing JSON next to each clip
-- [ ] Transcript search in the Clips screen
-- [ ] Slur masking list
+- [x] Audio extraction (16 kHz mono) and Groq transcription with word timestamps (SPEC §8)
+- [x] faster-whisper fallback; switch automatically when Groq fails
+- [x] `.srt` and word-timing JSON next to each clip
+- [ ] Transcript search in the Clips screen (search itself works: `python -m clipvault search`; the screen comes with M5)
+- [x] Slur masking list
 
 **Done when:** 20 clips transcribed, search finds a phrase the user remembers hearing, and pulling the network cable switches to the local fallback.
 
 ### M7. Render engine and QA
 
-- [ ] Bundle Montserrat (Black, ExtraBold, SemiBold) and Anton in `assets/fonts/`
-- [ ] ASS writer for headline, credit, disclosure and karaoke captions with styles from a YAML template (SPEC §10.5)
-- [ ] Letterbox layout first, then native vertical, then split
-- [ ] Facecam detection and caching (SPEC §10.4); 320 px minimum cam width rule
-- [ ] Export settings and two-pass loudness (SPEC §10.6)
-- [ ] All QA checks in SPEC §11, with the UI-overlay preview still
-- [ ] Music tagger and the posting-candidate filter (SPEC §7)
-- [ ] CLI: `python -m clipvault render CLIP_ID [--layout ...]`
-- [ ] Optional "make vertical copy" button in Clips
+- [x] Bundle Montserrat (Black, ExtraBold, SemiBold) and Anton in `assets/fonts/`
+- [x] ASS writer for headline, credit, disclosure and karaoke captions with styles from a YAML template (SPEC §10.5)
+- [x] Letterbox layout first, then native vertical, then split
+- [x] Facecam detection and caching (SPEC §10.4); 320 px minimum cam width rule
+- [x] Export settings and two-pass loudness (SPEC §10.6)
+- [x] All QA checks in SPEC §11, with the UI-overlay preview still
+- [x] Posting-candidate filter and score (SPEC §7)
+- [ ] Music tagger (moved to M9: only posting needs it; until then a clip with no music score is flagged "listen first")
+- [x] CLI: `python -m clipvault render CLIP_ID [--layout ...]`
+- [ ] Optional "make vertical copy" button in Clips (with M5)
 
 **Done when:** 10 renders across 3 streamers pass QA; the user views them on a real phone (send via any method) and confirms text is never under TikTok or Shorts buttons; safe-zone numbers adjusted if needed and recorded.
 
@@ -138,6 +139,7 @@ Accounts and keys the user needs, by milestone:
 
 - [ ] Permission fields and badges in Streamers; Post switch locked until permission is recorded; authorize-with-Twitch flow (user token, `channel:manage:clips`) for official downloads via Get Clips Download (SPEC §6)
 - [ ] Posting gate in the publish path + unit test proving a non-permissioned streamer can never be posted
+- [ ] Music tagger (YAMNet or PANNs, moved here from M7); clips with no music score are never auto-posted
 - [ ] Publisher interface; Upload-Post adapter (SPEC §12.1); `--dry-run` that logs exactly what would be sent
 - [ ] Wizard step 5: Upload-Post connect link for TikTok and YouTube
 - [ ] Queue with caps, spacing, jitter, active hours (SPEC §12.2)

@@ -49,6 +49,7 @@ disclosure:
 caption:
   font: Montserrat-ExtraBold
   size: 72
+  min_size: 56          # only for a single word too wide for the line
   color: "#FFFFFF"
   outline: 7
   shadow: 4

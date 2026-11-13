@@ -81,7 +81,7 @@ def test_longer_headline_wraps_evenly_then_shrinks() -> None:
     two = ass.layout_headline("Kai loses it over GTA cops", LOOK)
     assert [list(line) for line in two.lines] == [["Kai", "loses", "it"], ["over", "GTA", "cops"]]
     assert two.size == 88 and two.fits
-    shrunk = ass.layout_headline("Streamer accidentally deletes entire inventory", LOOK)
+    shrunk = ass.layout_headline("Chat cannot believe this ending", LOOK)
     assert shrunk.fits and len(shrunk.lines) == 2 and 64 <= shrunk.size < 88
     assert shrunk.box.x1 - shrunk.box.x0 <= 780 and shrunk.box.inside(LOOK.safe_box)
 
@@ -89,6 +89,15 @@ def test_longer_headline_wraps_evenly_then_shrinks() -> None:
 def test_headline_that_cannot_fit_is_reported() -> None:
     shape = ass.layout_headline("supercalifragilisticexpialidocious " * 4, LOOK)
     assert not shape.fits and shape.size == 64
+    assert len(shape.lines) == 2  # still split evenly, so QA measures a realistic box
+
+
+def test_title_headline_is_trimmed_until_it_fits() -> None:
+    assert ass.fit_headline("Clutch play", LOOK) == "Clutch play"
+    trimmed = ass.fit_headline("Streamer accidentally deletes entire inventory again", LOOK)
+    assert trimmed and "Streamer accidentally deletes entire inventory again".startswith(trimmed)
+    assert ass.layout_headline(trimmed, LOOK).fits
+    assert ass.fit_headline(None, LOOK) is None
 
 
 def test_key_word_defaults_to_the_longest() -> None:
@@ -128,6 +137,7 @@ def test_wide_blocks_use_two_lines_and_stay_inside_the_safe_box() -> None:
     captions = [b for b in overlay.boxes if b.name == "caption"]
     assert captions and all(b.inside(LOOK.safe_box) for b in captions)
     assert all(len(block.lines) <= 2 for block in overlay.blocks)
+    assert min(block.size for block in overlay.blocks) >= LOOK.caption.min_size
 
 
 def test_masked_words_never_reach_the_captions() -> None:

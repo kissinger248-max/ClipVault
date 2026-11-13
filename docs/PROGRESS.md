@@ -197,3 +197,41 @@ Read on 2026-11-12: Get Clips, Get Users, Get Games, client credentials flow, AP
 - M14 depends on M4 (the spike detector is shared) and on M3 (the app must be running continuously while a streamer is live), so it cannot come before those.
 - To check against Twitch's docs before building (hard rule 10): which token and scope let the app read another channel's chat over EventSub (expected: the user's own Twitch login with `user:read:chat`), connection and subscription limits per account, and whether a live stream's recording can be cut while the stream is still running.
 - Streamers who disable or subscriber-lock their recordings yield no footage this way; the spike is still detected and can be logged.
+
+## 2026-11-13: M6 (transcription and search) and M7 (render engine and QA)
+
+Built ahead of M3 to M5 at the user's request ("Phone-ready video"). Both milestones are complete except the parts that need the control panel (M5) or the user's own eyes; those boxes stay open.
+
+**What changed**
+- `clipvault/process/transcribe.py`: audio extraction (16 kHz mono FLAC), Groq `whisper-large-v3-turbo` with word timestamps, faster-whisper (small, int8) on this computer as the fallback, automatic switch when Groq fails, slur masking from `clipvault/data/mask_words.txt` plus an optional `mask_words.txt` in the ClipVault folder, `.srt` and `.words.json` next to each clip. Migration `0004_transcripts`: clip language, transcript provider, and an FTS5 `transcripts` table.
+- `clipvault/library/search.py` and `python -m clipvault search WORDS...`: exact phrase first, then all words (the last one as a prefix).
+- `clipvault/render/`: `template.py` (look YAML + real font metrics), `ass.py` (headline, credit, disclosure, karaoke captions, all positioned by our code), `layouts.py` (letterbox, split, native), `facecam.py` (YuNet), `ffmpeg.py` (two-pass loudness, H.264 export), `qa.py` (SPEC §11 checks and the preview still), `engine.py` (render one clip end to end). `python -m clipvault render`.
+- `clipvault/process/filter.py` + `candidates.py`: posting-candidate rules and the SPEC §7 score. `render` with no clip id now renders the best-scoring clips, taking turns between streamers.
+- Bundled fonts (Montserrat Black/ExtraBold/SemiBold, Anton, SIL OFL licences included) and the YuNet face model (`clipvault/data/`).
+
+**Decisions worth knowing**
+- **Transcription is local and free for now.** Groq is built and tested against a recorded response, but there is no Groq key (paid services need the user's OK), so `provider: auto` uses faster-whisper. About 17 s per clip on this laptop. With a key, Groq becomes the first choice with no code change.
+- **faster-whisper is fed raw samples decoded by FFmpeg**, not a file: its PyAV 19 dependency fails on file input ("unexpected keyword argument 'metadata_errors'").
+- **libass sizes fonts differently from "px".** Font size in the ASS file = wanted px x (winAscent + winDescent) / unitsPerEm (1.562 for Montserrat). Without this, text came out about 35% too small and every safe-box measurement was wrong.
+- **Clips over 59 s keep their last 59 s** (the payoff is usually at the end); word timings are shifted to match.
+- **Caption blocks never flash by:** each block gets at least 0.4 s; in very fast speech neighbouring blocks are joined (up to 5 words) and, if still needed, later blocks wait a moment. Only a single word too wide for the line makes its block smaller (72 px down to `min_size` 56).
+- **Stand-in headlines** (from the clip title, until M8 writes real ones) lose words from the end until they fit 2 lines at 64 px or more.
+- **Split layout needs a cam at least 320 px wide in the source.** Faces are detected once per streamer over several clips and stored in `streamers.cam_rect`; each clip gets a 3-frame check; 3 misses in a row trigger a fresh detection.
+- **Twitch's own portrait versions** ("Dual Format") are used for the native layout when they exist (`download_portrait`).
+- **Music tagger moved to M9.** Only posting needs it, and it needs a model file not yet chosen. Until then a clip with no music score counts as a candidate but is flagged "listen first" (`Verdict.music_unchecked`); M9 must not auto-post such clips.
+
+**Verified**
+- All 120 saved clips transcribed locally: 117 with speech, 3 without (marked "none"), 6,503 words, average 1.5 words per second, 119 English and 1 Portuguese.
+- Search returns real clips from all 3 streamers with the matching words highlighted (spot-checked with a few words; a title that is not spoken, like "nose hairs", correctly finds nothing).
+- 15 vertical renders across all 3 streamers (kaicenat 6, valkyrae 4, xqc 5), including a forced split layout: all pass QA. Render time 14 to 35 s each; average file 36 MB (10 Mbps target), about 7 times the size of the source clip.
+- `pytest -q`: 243 passed. `ruff check .` and `ruff format --check .`: clean.
+
+**Not done yet (needs the user or a later milestone)**
+- M6 "Done when": the user searching for a phrase they remember; the network-cable fallback test only means something once there is a Groq key.
+- M7 "Done when": the user watching renders on a real phone and confirming no text sits under the TikTok or Shorts buttons. The preview stills in `qa/` show the button zones.
+- Search in the Clips screen and the "make vertical copy" button: with M5.
+
+**Open issues and things to watch**
+- In the split layout the facecam crop for xqc includes part of a chat overlay under the camera; the crop could be tighter. valkyrae's stored cam rectangle has never been confirmed by a clip check.
+- Vertical copies are big (about 36 MB each). Retention (M2) only counts source clips; renders need to be covered once rendering runs on a schedule (M9 at the latest).
+- The 3 rejected clips are duplicates from M2's overlap check, as expected.

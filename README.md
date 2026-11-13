@@ -141,12 +141,18 @@ python -m clipvault streamers list                 # show the streamer list
 python -m clipvault discover [--streamer LOGIN] [--since 7d] [--all]
 python -m clipvault fetch [--streamer LOGIN] [--limit N]    # download found clips
 python -m clipvault cleanup [--dry-run]            # retention, disk check, hand-deleted files
+python -m clipvault transcribe [--streamer LOGIN] [--limit N]   # subtitles for saved clips
+python -m clipvault search WORDS...                # find clips by what was said
+python -m clipvault render [CLIP_ID] [--streamer LOGIN] [--limit N]   # phone-ready vertical copies
 python scripts/twitch_live_check.py LOGIN...       # manual check against the real Twitch API
 pytest -q                                          # run the tests
 ruff check . && ruff format --check .
 ```
 
-`run`, `render` and `publish` arrive in later milestones.
+`run` and `publish` arrive in later milestones. `render` without a clip id picks the
+best-scoring clips (views per hour, amount of speech, not a repeat of a past post),
+taking turns between streamers. Each render saves a preview picture with the TikTok
+and Shorts buttons drawn in, under `qa/` in the ClipVault folder.
 
 ## Logs
 

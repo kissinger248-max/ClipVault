@@ -269,6 +269,7 @@ def _cmd_transcribe(args: argparse.Namespace) -> int:
 
 
 def _cmd_render(args: argparse.Namespace) -> int:
+    from clipvault.process import candidates
     from clipvault.render import engine
     from clipvault.render.ffmpeg import RenderError
     from clipvault.streamers import normalize_login
@@ -279,22 +280,11 @@ def _cmd_render(args: argparse.Namespace) -> int:
         if args.clip_id:
             clip_ids = [args.clip_id]
         else:
-            # Most-viewed clips that fit a Short and have no vertical version yet,
-            # spread across streamers.
-            query = (
-                "SELECT c.id, s.login, row_number() OVER (PARTITION BY c.streamer_id "
-                "ORDER BY c.view_count DESC) AS place FROM clips c "
-                "JOIN streamers s ON s.id = c.streamer_id "
-                "WHERE c.state NOT IN ('found', 'rejected', 'dead') AND c.removed_at IS NULL "
-                "AND c.file_path IS NOT NULL AND c.duration >= 15 "
-                "AND NOT EXISTS (SELECT 1 FROM renders r WHERE r.clip_id = c.id)"
-            )
-            params: list[str] = []
-            if args.streamer:
-                query += " AND s.login = ?"
-                params.append(normalize_login(args.streamer))
-            rows = conn.execute(query + " ORDER BY place, c.view_count DESC", params).fetchall()
-            clip_ids = [row["id"] for row in rows[: args.limit]]
+            # Best-scoring posting candidates without a vertical version yet (SPEC §7),
+            # taking turns between streamers.
+            login = normalize_login(args.streamer) if args.streamer else None
+            ranked = candidates.rank_candidates(conn, login=login)
+            clip_ids = [c.clip_id for c in candidates.spread_across_streamers(ranked, args.limit)]
         if not clip_ids:
             print("Nothing to render: no saved clip of 15 s or more is waiting.")
             return 0

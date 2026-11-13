@@ -41,6 +41,7 @@ class CaptionBlock:
     start: float
     end: float
     lines: tuple[tuple[int, ...], ...] = ()  # word indexes per line
+    size: float = 0.0  # font size in px; 0 means the template size
 
 
 @dataclass
@@ -131,7 +132,7 @@ def layout_headline(text: str, look: Look) -> HeadlineLayout:
     fits = chosen is not None
     if chosen is None:
         size = float(spec.min_size)
-        chosen = _break_lines(words, font, size, float("inf"), spec.max_lines) or (words,)
+        chosen = _even_split(words, font, size) if spec.max_lines >= 2 else (words,)
     widest = max(font.width(" ".join(line), size) for line in chosen)
     height = len(chosen) * size * spec.line_spacing + 2 * spec.padding_y
     width = widest + 2 * spec.padding_x
@@ -157,6 +158,35 @@ def _break_lines(
         if widest <= max_width and (best is None or widest < best[0]):
             best = (widest, (first, second))
     return best[1] if best else None
+
+
+def _even_split(words: tuple[str, ...], font: Font, size: float) -> tuple[tuple[str, ...], ...]:
+    """The most even two-line split, whatever the width (for a headline that can't fit)."""
+    if len(words) < 2:
+        return (words,)
+    cut = min(
+        range(1, len(words)),
+        key=lambda c: max(
+            font.width(" ".join(words[:c]), size), font.width(" ".join(words[c:]), size)
+        ),
+    )
+    return (words[:cut], words[cut:])
+
+
+def fit_headline(text: str | None, look: Look, min_words: int = 2) -> str | None:
+    """Drop words from the end of ``text`` until it fits the headline box.
+
+    Used for the stand-in headline made from a clip title. Returns the text
+    unchanged when even ``min_words`` words don't fit (QA then reports it).
+    """
+    if not text:
+        return text
+    words = text.split()
+    for count in range(len(words), min_words - 1, -1):
+        candidate = " ".join(words[:count])
+        if layout_headline(candidate, look).fits:
+            return candidate
+    return text
 
 
 def pick_key_word(words: list[str]) -> int:
@@ -249,10 +279,8 @@ def build_caption_blocks(
     limit = spec.max_width
 
     def fits(group: list[Word]) -> bool:
-        return (
-            _caption_lines([display_word(w.text, spec.uppercase) for w in group], font, look)[1]
-            <= limit
-        )
+        texts = [display_word(w.text, spec.uppercase) for w in group]
+        return _caption_lines(texts, font, look)[1] <= limit
 
     shown = [
         Word(mask_text(w.text, mask), w.start, w.end)
@@ -293,7 +321,21 @@ def build_caption_blocks(
         else:
             merged.append(list(group))
 
-    return _time_blocks(merged, look, font, duration)
+    # In very fast speech, blocks that would flash by too quickly are joined up.
+    roomy: list[list[Word]] = []
+    for group in merged:
+        previous = roomy[-1] if roomy else None
+        if (
+            previous
+            and group[0].start - previous[0].start < spec.min_seconds
+            and len(previous) + len(group) <= spec.max_words
+            and fits(previous + group)
+        ):
+            previous.extend(group)
+        else:
+            roomy.append(list(group))
+
+    return _time_blocks(roomy, look, font, duration)
 
 
 def _time_blocks(
@@ -323,17 +365,23 @@ def _time_blocks(
         if following is not None:
             end = min(end, following)
         display = tuple(Word(display_word(w.text, spec.uppercase), w.start, w.end) for w in group)
-        lines, _width = _caption_lines([w.text for w in display], font, look)
-        blocks.append(CaptionBlock(display, starts[i], max(end, starts[i]), lines))
+        texts = [w.text for w in display]
+        size = float(spec.size)
+        lines, width = _caption_lines(texts, font, look, size)
+        # Only a single word too wide for a line makes a block smaller (down to min_size).
+        while width > spec.max_width and size - 4 >= spec.get("min_size", spec.size):
+            size -= 4
+            lines, width = _caption_lines(texts, font, look, size)
+        blocks.append(CaptionBlock(display, starts[i], max(end, starts[i]), lines, size))
     return blocks
 
 
 def _caption_lines(
-    texts: list[str], font: Font, look: Look
+    texts: list[str], font: Font, look: Look, size: float | None = None
 ) -> tuple[tuple[tuple[int, ...], ...], float]:
     """Split a block over one or two lines; return the lines and the widest line's width."""
     spec = look.caption
-    size = float(spec.size)
+    size = float(size or spec.size)
 
     def width(indexes: range | tuple[int, ...]) -> float:
         if not indexes:
@@ -360,7 +408,7 @@ def _caption_lines(
 def _caption_events(block: CaptionBlock, look: Look, layout: str) -> tuple[list[str], Box]:
     spec = look.caption
     font = get_font(spec.font)
-    size = float(spec.size)
+    size = float(block.size or spec.size)
     white, _ = ass_color(spec.color)
     accent, _ = ass_color(look.accent)
     y_centre = float(spec.y_center[layout])
