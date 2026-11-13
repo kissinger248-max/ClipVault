@@ -4,6 +4,7 @@ Timing (SPEC §4):
 
 - discover: every ``discover_interval_min`` minutes, right at start, and right after waking
 - worker: every 2 minutes (downloads, then transcription on mains power)
+- vods: every hour (new finished streams; their chat is searched for moments)
 - notify: every minute
 - heartbeat: every minute; runs the daily steps when due (cleanup 04:00, summary
   at ``notifications.summary_time``) and notices when the computer slept
@@ -30,6 +31,7 @@ from clipvault.timeutil import utc_now
 log = logging.getLogger(__name__)
 
 WORKER_EVERY = timedelta(minutes=2)
+VODS_EVERY = timedelta(minutes=60)
 TICK_EVERY = timedelta(minutes=1)
 # A heartbeat this late means the computer was asleep (or the process was frozen).
 WAKE_GAP = timedelta(minutes=3)
@@ -157,6 +159,9 @@ class App:
         every(self._run, "interval", args=["worker"], id="worker",
               next_run_time=now + timedelta(seconds=20),
               seconds=WORKER_EVERY.total_seconds())  # fmt: skip
+        every(self._run, "interval", args=["vods"], id="vods",
+              next_run_time=now + timedelta(minutes=2),
+              seconds=VODS_EVERY.total_seconds())  # fmt: skip
         every(self._run, "interval", args=["notify"], id="notify",
               next_run_time=now + timedelta(seconds=5),
               seconds=TICK_EVERY.total_seconds())  # fmt: skip

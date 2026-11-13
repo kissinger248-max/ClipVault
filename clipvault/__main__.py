@@ -80,6 +80,9 @@ def build_parser() -> argparse.ArgumentParser:
             )
     secrets_sub.add_parser("list", help="show which keys are stored (never their values)")
 
+    vods = sub.add_parser("vods", help="search finished streams' chat for moments nobody clipped")
+    vods.add_argument("--streamer", metavar="LOGIN", help="only this streamer")
+    vods.add_argument("--limit", type=int, metavar="N", help="search at most N streams")
     sub.add_parser("run", help="keep running: find, download and transcribe clips on a schedule")
     sub.add_parser("pause", help="pause scheduled work (a running 'run' finishes its current step)")
     sub.add_parser("resume", help="resume scheduled work")
@@ -113,6 +116,7 @@ def main(argv: list[str] | None = None) -> int:
         "streamers": _cmd_streamers,
         "secrets": _cmd_secrets,
         "run": _cmd_run,
+        "vods": _cmd_vods,
         "pause": lambda _args: _set_paused(True),
         "resume": lambda _args: _set_paused(False),
         "notify": _cmd_notify,
@@ -469,6 +473,51 @@ def _cmd_streamers(args: argparse.Namespace) -> int:
     if result.added:
         print("Added: " + ", ".join(result.added))
     return 0
+
+
+def _cmd_vods(args: argparse.Namespace) -> int:
+    from clipvault import twitch
+    from clipvault.discover import vods
+    from clipvault.streamers import normalize_login
+    from clipvault.twitch.chat_replay import find_tool
+
+    config = cfg.load_config()
+    tool = find_tool(cfg.home_dir())
+    if tool is None:
+        print("TwitchDownloaderCLI is needed to read stream chat and isn't installed.")
+        print("Run: python -m clipvault doctor   (it says where to get it and where to put it)")
+        return 1
+    login = normalize_login(args.streamer) if args.streamer else None
+    conn = db.open_db(cfg.db_path())
+    try:
+        client = twitch.build_client()
+    except twitch.MissingCredentials as exc:
+        conn.close()
+        print(exc)
+        return 1
+    try:
+        found = vods.find_vods(conn, client, login=login)
+        _say(f"{found} new finished stream(s) found. Reading chat (a long stream takes minutes)...")
+        summary = vods.process_vods(
+            conn, config, tool, client=client, login=login, limit=args.limit
+        )
+    except (twitch.TwitchAuthError, twitch.TwitchAPIError) as exc:
+        print(f"Twitch problem: {exc}")
+        return 1
+    finally:
+        client.close()
+        conn.close()
+    print(
+        f"Searched {summary.processed} stream(s): {summary.moments} moment(s) nobody clipped. "
+        "They are downloaded by: python -m clipvault fetch"
+    )
+    if summary.skipped:
+        print(f"  {summary.skipped} skipped (chat not available, e.g. subscriber-only)")
+    if summary.failed:
+        print(f"  {summary.failed} failed and will be retried later")
+    if summary.waiting:
+        print(f"  {summary.waiting} waiting for their retry time")
+    return 1 if summary.failed else 0
 
 
 # --- running unattended ------------------------------------------------------

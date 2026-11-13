@@ -4,6 +4,9 @@ Docs checked 2026-11-12:
 - https://dev.twitch.tv/docs/api/reference/clips.md
 - https://dev.twitch.tv/docs/api/reference/users.md
 - https://dev.twitch.tv/docs/api/reference/games.md
+- https://dev.twitch.tv/docs/api/reference/videos (checked 2026-11-13: app token works;
+  ``duration`` like "3h8m33s"; ``muted_segments`` is always null with an app token)
+- https://dev.twitch.tv/docs/api/reference/streams
 - https://dev.twitch.tv/docs/api/guide/ (rate limits, pagination)
 """
 
@@ -104,6 +107,21 @@ class TwitchClient:
             for game in self._get("/games", [("id", v) for v in chunk]).get("data", []):
                 names[game["id"]] = game["name"]
         return names
+
+    def get_archives(self, user_id: str, first: int = 20) -> list[dict[str, Any]]:
+        """A broadcaster's most recent past broadcasts (VODs), newest first."""
+        params = [("user_id", user_id), ("type", "archive"), ("sort", "time")]
+        params.append(("first", str(min(max(first, 1), MAX_PAGE_SIZE))))
+        return self._get("/videos", params).get("data", [])
+
+    def get_live_stream_ids(self, user_ids: Iterable[str]) -> dict[str, str]:
+        """``{user_id: stream_id}`` for the broadcasters that are live right now."""
+        live: dict[str, str] = {}
+        for chunk in _chunks(sorted(set(user_ids)), MAX_IDS_PER_REQUEST):
+            params = [("user_id", v) for v in chunk] + [("first", str(MAX_PAGE_SIZE))]
+            for stream in self._get("/streams", params).get("data", []):
+                live[stream["user_id"]] = stream["id"]
+        return live
 
     def iter_clips(
         self,

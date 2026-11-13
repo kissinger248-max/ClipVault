@@ -68,6 +68,8 @@ class FakeTwitch:
         self.tokens_issued = 0
         self.requests: list[httpx.Request] = []
         self.fail_clips_for: set[str] = set()  # broadcaster ids that answer HTTP 500
+        self.videos: list[dict] = []
+        self.live: dict[str, str] = {}  # user id -> stream id of a broadcast going on now
 
     def add_user(self, user_id: str, login: str, display_name: str | None = None) -> None:
         self.users.append(
@@ -99,6 +101,8 @@ class FakeTwitch:
             "/helix/users": self._users,
             "/helix/games": self._games,
             "/helix/clips": self._clips,
+            "/helix/videos": self._videos,
+            "/helix/streams": self._streams,
         }
         return route[request.url.path](params)
 
@@ -141,6 +145,35 @@ class FakeTwitch:
         more = offset + first < len(matching)
         pagination = {"cursor": str(offset + first)} if more else {}
         return httpx.Response(200, json={"data": page, "pagination": pagination})
+
+    def add_video(
+        self, video_id: str, user_id: str, created_at: str, duration: str, stream_id: str = ""
+    ) -> None:
+        self.videos.append(
+            {
+                "id": video_id,
+                "stream_id": stream_id or f"s{video_id}",
+                "user_id": user_id,
+                "title": f"Stream {video_id}",
+                "created_at": created_at,
+                "url": f"https://www.twitch.tv/videos/{video_id}",
+                "type": "archive",
+                "duration": duration,
+                "muted_segments": None,
+            }
+        )
+
+    def _videos(self, params: dict) -> httpx.Response:
+        user = params["user_id"][0]
+        data = [v for v in self.videos if v["user_id"] == user]
+        data.sort(key=lambda v: v["created_at"], reverse=True)
+        return httpx.Response(200, json={"data": data[: int(params["first"][0])], "pagination": {}})
+
+    def _streams(self, params: dict) -> httpx.Response:
+        users = params.get("user_id", [])
+        data = [{"id": sid, "user_id": uid, "type": "live"} for uid, sid in self.live.items()
+                if uid in users]  # fmt: skip
+        return httpx.Response(200, json={"data": data, "pagination": {}})
 
     @staticmethod
     def _minute(text: str) -> datetime:

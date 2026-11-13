@@ -12,7 +12,7 @@ YouTube Shorts. See [docs/SPEC.md](docs/SPEC.md) for what it does and
 | Find clips | Finds each streamer's most-viewed clips every day | Working |
 | Save clips | Downloads them into a tidy library folder, skips repeats, cleans up old ones | Working |
 | Run by itself | Schedule, catch-up after sleep, phone notifications | Working (M3) |
-| Missed moments | Cuts moments nobody clipped, found from chat activity | M4 |
+| Missed moments | Cuts moments nobody clipped, found from chat activity | Working (M4), needs the free chat tool |
 | Control panel | Browser and phone screens, tray icon | M5 |
 | Subtitles | Transcripts with word-by-word timing, searchable | Working (M6) |
 | Phone-ready video | Vertical 9:16 versions with a headline and captions kept clear of TikTok and Shorts buttons | Working (M7), waiting for a check on a real phone |
@@ -131,6 +131,24 @@ median. Starred clips and anything in `Favorites/` are never removed. It also
 notices files you deleted by hand (they are not downloaded again) and reports
 free disk space.
 
+## Moments nobody clipped
+
+After a stream ends, ClipVault can read its chat replay and look for the
+moments where chat suddenly went wild (lots of messages, laughing and hype
+emotes) that no viewer turned into a clip. For each finished stream of the last
+7 days it keeps the best 3 such moments (`vod_moments=` in streamers.txt; 0
+turns it off) and cuts 40 seconds around each one from the stream recording,
+never downloading the whole stream. Their file names say `chat` instead of a
+view count, and their titles say where in the stream they happened.
+
+This needs one free extra program, TwitchDownloaderCLI, to read the chat:
+`python -m clipvault doctor` says where to get it and where to put it. Without
+it everything else works as before. Streams whose recording is subscriber-only
+or switched off are skipped. Twitch mutes copyrighted music in recordings; a
+moment with no sound is kept but marked `muted` and never suggested for posting.
+
+Try it by hand with `python -m clipvault vods`; `run` does it every hour.
+
 ## Leaving it running
 
 ```
@@ -172,6 +190,7 @@ python -m clipvault streamers import [FILE]        # add streamers from a text f
 python -m clipvault streamers list                 # show the streamer list
 python -m clipvault discover [--streamer LOGIN] [--since 7d] [--all]
 python -m clipvault fetch [--streamer LOGIN] [--limit N]    # download found clips
+python -m clipvault vods [--streamer LOGIN] [--limit N]     # moments nobody clipped, from stream chat
 python -m clipvault cleanup [--dry-run]            # retention, disk check, hand-deleted files
 python -m clipvault transcribe [--streamer LOGIN] [--limit N]   # subtitles for saved clips
 python -m clipvault search WORDS...                # find clips by what was said

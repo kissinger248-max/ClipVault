@@ -124,6 +124,59 @@ def download_clip(
     return dest
 
 
+def download_section(
+    url: str,
+    dest: Path,
+    quality: str,
+    start: float,
+    end: float,
+    *,
+    runner: Runner | None = None,
+    timeout: float = DOWNLOAD_TIMEOUT_S,
+) -> Path:
+    """Download only ``start``..``end`` seconds of a VOD (never the whole VOD, SPEC §6).
+
+    yt-dlp fetches just the stream segments it needs and FFmpeg joins them, so
+    the cut snaps to the nearest keyframe (Twitch: every 2 s); moments are padded
+    enough for that. Raises ``DownloadError``.
+    """
+    if end <= start:
+        raise DownloadError(f"empty section {start}-{end}", permanent=True)
+    dest.parent.mkdir(parents=True, exist_ok=True)
+    template = str(dest.with_suffix("")).replace("%", "%%") + ".%(ext)s"
+    command = [
+        *ytdlp_command(),
+        "--format", format_selector(quality),
+        "--download-sections", f"*{start:.0f}-{end:.0f}",
+        "--remux-video", "mp4", "--output", template,
+        "--no-playlist", "--no-progress", "--no-warnings", "--no-mtime", "--no-overwrites",
+        "--retries", "3", "--socket-timeout", "20", url,
+    ]  # fmt: skip
+    try:
+        result = (runner or _run)(
+            command,
+            capture_output=True,
+            text=True,
+            timeout=timeout,
+            encoding="utf-8",
+            errors="replace",
+        )
+    except subprocess.TimeoutExpired as exc:
+        raise DownloadError(f"cut took longer than {timeout:.0f} s and was stopped") from exc
+    except OSError as exc:
+        raise DownloadError(f"could not start yt-dlp: {exc}") from exc
+    if result.returncode != 0:
+        message = _error_line(result.stderr) or f"yt-dlp exited with code {result.returncode}"
+        lowered = message.lower()
+        permanent = any(marker in lowered for marker in _PERMANENT_MARKERS) or (
+            "subscriber" in lowered or "sub-only" in lowered
+        )
+        raise DownloadError(message, permanent=permanent)
+    if not dest.is_file() or dest.stat().st_size == 0:
+        raise DownloadError("yt-dlp reported success but the file is missing or empty")
+    return dest
+
+
 def download_portrait(
     url: str, dest: Path, *, runner: Runner | None = None, timeout: float = DOWNLOAD_TIMEOUT_S
 ) -> Path | None:

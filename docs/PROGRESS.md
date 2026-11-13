@@ -268,3 +268,35 @@ Built ahead of M3 to M5 at the user's request ("Phone-ready video"). Both milest
 - `run` has to stay open in a terminal window until the tray icon (M5) and start-at-login (M13) exist.
 - When the computer is shut down mid-transcription, Ctrl+C waits for the current batch (up to 5 clips, about a minute and a half).
 - Windows can put the laptop to sleep while ClipVault is working; nothing keeps it awake. That is by design (it catches up), but long transcription backlogs only move while the laptop is awake and plugged in.
+
+## 2026-11-13: M4 (VOD chat-spike moments), built; waiting for the chat tool
+
+**What changed**
+- `clipvault/discover/vod_spikes.py`: the SPEC 5.2 detector as pure functions: 10-second windows, messages + 2 for each message with a hype/laugh emote, spike = above mean + 3 standard deviations of the previous 10 minutes and at least twice that mean, cut from peak - 30 s to peak + 10 s, peaks under 20 s apart merged (capped at 60 s), moments overlapping a clip skipped, best `vod_moments` kept.
+- `clipvault/twitch/chat_replay.py`: runs TwitchDownloaderCLI `chatdownload`, stores the chat gzipped in the library (`<login>/chat/`), reads its JSON (`comments[].content_offset_seconds`, `message.body`, falling back to `message.fragments[].text`).
+- `clipvault/discover/vods.py`: `find_vods` (Helix Get Videos, type archive, last 7 days, a stream still live is left for later) and `process_vods` (chat -> spikes -> clips `vod:<vod_id>:<offset>` with source `vod_spike`, state `found`). Migration `0006_vods` (vods table with state, skip reason, retries, counts).
+- `TwitchClient.get_archives` and `get_live_stream_ids` (Helix Get Streams).
+- `ytdlp.download_section` (`--download-sections "*START-END"`), used by `run_fetch` for `vod_spike` clips. Cuts are heavy work: they wait for mains power on a laptop. A cut quieter than -50 LUFS is flagged `reject_reason = 'muted'` (stays `fetched`, never a posting candidate).
+- File names of chat moments say `chat` instead of `<n>views`.
+- Scheduler step `vods` every hour (3 VODs per round); CLI `python -m clipvault vods`.
+
+**Decisions worth knowing**
+- **"Already clipped" includes every clip Twitch lists for the broadcast,** not only the ones in the library: a moment someone clipped with 3 views was still clipped (Get Clips over the stream's time span, matched on `video_id` and `vod_offset`).
+- **Long streams are read in 4-hour pieces.** Live check showed kaicenat streams of 35 and 48 hours; one chat file for those would be millions of messages. Each piece is downloaded with `--beginning`/`--ending`, saved as `_partNN.json.gz` (so an interrupted VOD resumes), turned into window scores and dropped from memory. If a piece's offsets turn out to count from the piece rather than the VOD (TwitchDownloader's docs don't say), they are shifted.
+- **Extra guards beyond SPEC 5.2:** no spike in the first minute of a stream (not enough history), and a window must score at least 10 (so a near-silent chat going from 0 to 4 messages isn't a "moment"). Both are constants in `vod_spikes.py` for tuning.
+- **Chat download failures** are retried after 30 min, 2 h and 8 h, then the VOD is skipped with the reason. "Subscriber-only", "not found", 403/404 skip straight away.
+- **Twitch's `muted_segments` is always null with an app token** (docs, 2026-11-13), so muted audio is detected from the cut file itself.
+- TwitchDownloaderCLI is MIT-licensed; its JSON layout is not documented, so the parser is tolerant and tested on a synthetic fixture (`tests/fixtures/chat/`).
+
+**Verified**
+- `pytest -q`: 287 passed. `ruff check .` and `ruff format --check .`: clean. Detector tests on the fixture chat: steady chat gives nothing, a quiet chat needs a real burst, the three bursts are found at 15, 25 and 35 minutes, the clipped one is skipped.
+- Live, Helix: `find_vods` recorded 10 finished streams from the last 7 days for the 3 streamers (3.0 to 47.8 hours long).
+- Live, yt-dlp: a 40-second cut from a real xqc VOD took 8 s and came out exactly 40.0 s, 1280x720 at 60 fps, H.264 + AAC, 16 MB. `--download-sections` works on Twitch VODs.
+
+**Not done yet (needs the user)**
+- TwitchDownloaderCLI is not installed, so no real chat has been read. Installing it means downloading a program from GitHub (github.com/lay295/TwitchDownloader/releases), which needs the user's OK.
+- "Done when": the user watches the moments from 2 real VODs and judges at least half "worth keeping"; hit rate and tuning to be recorded here.
+
+**Open issues and things to watch**
+- The 10 VODs found are waiting in the `vods` table; they will be searched as soon as the tool is installed. VODs older than 7 days are not looked at, so after a long break some are missed.
+- Chat volume differs hugely between streamers; the emote list (`DEFAULT_EMOTES`) and the minimum score may need tuning per channel once real results are in.

@@ -90,6 +90,7 @@ python -m clipvault secrets set NAME [--window]   # store a key in the OS keycha
 python -m clipvault streamers import [FILE]   # add streamers from streamers.txt (also: streamers list)
 python -m clipvault discover [--streamer LOGIN] [--since 7d] [--all]   # find new clips
 python -m clipvault fetch [--streamer LOGIN] [--limit N]   # download found clips into the library
+python -m clipvault vods [--streamer LOGIN] [--limit N]    # chat of finished streams -> moments nobody clipped
 python -m clipvault cleanup [--dry-run]       # retention, disk check, files deleted by hand
 python -m clipvault transcribe [--streamer LOGIN] [--limit N]   # subtitles + word timings for saved clips
 python -m clipvault search WORDS... [--limit N]   # find clips by what was said

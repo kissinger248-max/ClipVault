@@ -54,7 +54,7 @@ def rank_candidates(
         "c.created_at, t.text FROM clips c JOIN streamers s ON s.id = c.streamer_id "
         "LEFT JOIN transcripts t ON t.clip_id = c.id "
         "WHERE c.state NOT IN ('found', 'rejected', 'dead') AND c.removed_at IS NULL "
-        "AND c.file_path IS NOT NULL"
+        "AND c.file_path IS NOT NULL AND coalesce(c.reject_reason, '') != 'muted'"
     )
     params: list[str] = []
     if unrendered_only:

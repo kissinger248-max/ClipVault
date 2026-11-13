@@ -77,14 +77,10 @@ def check_ytdlp() -> CheckResult:
 
 def find_twitch_downloader(home: Path) -> str | None:
     """Return the path to TwitchDownloaderCLI (PATH first, then ``<home>/bin``)."""
-    found = shutil.which("TwitchDownloaderCLI")
-    if found:
-        return found
-    for name in ("TwitchDownloaderCLI.exe", "TwitchDownloaderCLI"):
-        candidate = home / "bin" / name
-        if candidate.is_file():
-            return str(candidate)
-    return None
+    from clipvault.twitch.chat_replay import find_tool
+
+    found = find_tool(home)
+    return str(found) if found else None
 
 
 def check_twitch_downloader(home: Path) -> CheckResult:

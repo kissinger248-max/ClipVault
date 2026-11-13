@@ -55,6 +55,7 @@ class StepInfo:
 STEPS = {
     "discover": StepInfo("discover", "find new clips"),
     "worker": StepInfo("worker", "download and transcribe"),
+    "vods": StepInfo("vods", "find moments in stream chat"),
     "cleanup": StepInfo("cleanup", "daily cleanup"),
     "summary": StepInfo("summary", "daily summary", runs_while_paused=True),
     "notify": StepInfo("notify", "send notifications", runs_while_paused=True),
@@ -159,7 +160,8 @@ def step_worker(conn: sqlite3.Connection, config: cfg.Config, now: datetime) -> 
     from clipvault.fetch import ytdlp
 
     ytdlp.update_if_due(conn, now=now)
-    fetched = jobs.run_fetch(conn, config, limit=FETCH_BATCH, now=now)
+    heavy = power.heavy_allowed(config)
+    fetched = jobs.run_fetch(conn, config, limit=FETCH_BATCH, now=now, allow_vod_cuts=heavy)
     if fetched.stopped_on_failures:
         raise StepFailed("downloads failed several times in a row")
     notes = []
@@ -167,8 +169,8 @@ def step_worker(conn: sqlite3.Connection, config: cfg.Config, now: datetime) -> 
     if saved or fetched.failed or fetched.remaining:
         notes.append(f"saved {saved}, {fetched.failed} failed, {fetched.remaining} waiting")
     if config.transcription.enabled:
-        if not power.heavy_allowed(config):
-            notes.append("transcription waits for mains power")
+        if not heavy:
+            notes.append("transcription and VOD cuts wait for mains power")
         else:
             done = jobs.run_transcribe(conn, config, limit=TRANSCRIBE_BATCH, now=now)
             if done.stopped_on_failures:
@@ -179,6 +181,37 @@ def step_worker(conn: sqlite3.Connection, config: cfg.Config, now: datetime) -> 
                     f"transcribed {finished}, {done.failed} failed, {done.remaining} waiting"
                 )
     return "; ".join(notes)
+
+
+VODS_PER_ROUND = 3
+
+
+def step_vods(conn: sqlite3.Connection, config: cfg.Config, now: datetime) -> str:
+    """Look for finished streams and search their chat for moments nobody clipped."""
+    from clipvault import twitch
+    from clipvault.discover import vods
+    from clipvault.twitch import chat_replay
+
+    tool = chat_replay.find_tool(cfg.home_dir())
+    if tool is None:
+        return ""  # optional tool not installed; `doctor` says how to add it
+    if not conn.execute("SELECT 1 FROM streamers WHERE vod_moments > 0").fetchone():
+        return ""
+    try:
+        client = twitch.build_client()
+    except twitch.MissingCredentials as exc:
+        raise StepFailed(str(exc)) from exc
+    try:
+        found = vods.find_vods(conn, client, now=now)
+        done = vods.process_vods(conn, config, tool, client=client, limit=VODS_PER_ROUND, now=now)
+    finally:
+        client.close()
+    if not (found or done.processed or done.skipped or done.failed):
+        return ""
+    return (
+        f"{found} new VOD(s); searched {done.processed}, {done.moments} moment(s) found, "
+        f"{done.skipped} skipped, {done.failed} failed"
+    )
 
 
 def step_cleanup(conn: sqlite3.Connection, config: cfg.Config, now: datetime) -> str:
@@ -278,6 +311,7 @@ def step_notify(conn: sqlite3.Connection, config: cfg.Config, now: datetime) -> 
 STEP_FUNCTIONS: dict[str, Step] = {
     "discover": step_discover,
     "worker": step_worker,
+    "vods": step_vods,
     "cleanup": step_cleanup,
     "summary": step_summary,
     "notify": step_notify,

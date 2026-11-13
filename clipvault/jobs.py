@@ -52,10 +52,12 @@ MAX_FAILURES = len(RETRY_DELAYS_MIN) + 1
 # alert says the downloader may need an update (SPEC §6).
 DOWNLOADER_ALERT_AFTER = 3
 _FAILURE_STREAK_SETTING = "fetch.consecutive_failures"
+SILENT_LUFS = -50.0  # quieter than this is treated as muted
 DOWNLOADER_ALERT = "Clip downloads keep failing; the downloader (yt-dlp) may need an update."
 
 FETCH_JOB = "fetch"
 Downloader = Callable[[str, Path, str], Path]
+SectionDownloader = Callable[[str, Path, str, float, float], Path]
 log = logging.getLogger(__name__)
 
 
@@ -150,12 +152,18 @@ def run_fetch(
     limit: int | None = None,
     now: datetime | None = None,
     download: Downloader = ytdlp.download_clip,
+    cut: SectionDownloader = ytdlp.download_section,
+    is_silent: Callable[[Path], bool] | None = None,
+    allow_vod_cuts: bool = True,
     on_progress: Callable[[str], None] | None = None,
 ) -> FetchSummary:
     """Download every clip in state ``found`` (most-viewed first) into the library.
 
     Safe to run again at any time: a clip whose file is already complete is
-    simply marked ``fetched``, and nothing is downloaded twice.
+    simply marked ``fetched``, and nothing is downloaded twice. Moments found
+    from chat (``vod_spike``) are cut from their VOD; they count as heavy work,
+    so ``allow_vod_cuts=False`` (laptop on battery) leaves them waiting. A cut
+    with no sound (Twitch mutes copyrighted music in VODs) is flagged ``muted``.
     """
     now = now or utc_now()
     tz = ZoneInfo(config.timezone)
@@ -188,6 +196,8 @@ def run_fetch(
         params.append(login)
     pending = conn.execute(query + " ORDER BY c.view_count DESC, c.id", params).fetchall()
     due = [c for c in pending if not c["retry_at"] or parse_rfc3339(c["retry_at"]) <= now]
+    if not allow_vod_cuts:
+        due = [c for c in due if c["source"] != "vod_spike"]
     summary.waiting = len(pending) - len(due)
     todo = due[:limit] if limit else due
 
@@ -205,7 +215,7 @@ def run_fetch(
                 clip["login"],
                 clip["id"],
                 clip["title"] or "",
-                clip["view_count"] or 0,
+                clip["view_count"],
                 parse_rfc3339(clip["created_at"]),
                 tz,
                 root_chars=len(str(library.root)),
@@ -216,7 +226,12 @@ def run_fetch(
 
         path = storage.resolve(library, relpath)
         try:
-            if path is None:
+            if path is None and clip["source"] == "vod_spike":
+                start = clip["vod_offset"] or 0
+                end = start + (clip["duration"] or 0)
+                path = cut(clip["url"], library.write_base / relpath, config.quality, start, end)
+                summary.downloaded += 1
+            elif path is None:
                 path = download(clip["url"], library.write_base / relpath, config.quality)
                 summary.downloaded += 1
             else:
@@ -249,6 +264,9 @@ def run_fetch(
             continue
 
         done = index
+        if clip["source"] == "vod_spike" and (is_silent or _is_silent)(path):
+            conn.execute("UPDATE clips SET reject_reason = 'muted' WHERE id = ?", (clip["id"],))
+            log.info("VOD cut has no sound (muted by Twitch?)", extra=log_ctx)
         size = path.stat().st_size
         fetched_at = to_rfc3339(utc_now())
         sidecar_rel = storage.sidecar_relpath(relpath)
@@ -275,6 +293,17 @@ def run_fetch(
 
     summary.remaining = len(due) - done
     return summary
+
+
+def _is_silent(path: Path) -> bool:
+    """True for a file with no audio or only near-silence (muted VOD stretch)."""
+    from clipvault.render import ffmpeg
+
+    values = ffmpeg.measure_loudness(path)
+    try:
+        return values is None or float(values["input_i"]) < SILENT_LUFS
+    except (KeyError, ValueError):
+        return True
 
 
 def _sidecar(clip: sqlite3.Row, relpath: str, sidecar_rel: str, size: int, fetched_at: str) -> dict:

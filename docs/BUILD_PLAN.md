@@ -67,12 +67,12 @@ Accounts and keys the user needs, by milestone:
 
 ### M4. VOD chat-spike moments
 
-- [ ] `GET /helix/videos` (archives) since cursor
-- [ ] Chat replay download via TwitchDownloaderCLI
-- [ ] Spike detector exactly as SPEC §5.2, as a pure function with unit tests on fixture chat logs
-- [ ] Skip spikes covered by viewer clips; keep top `vod_moments`
-- [ ] Section download with `yt-dlp --download-sections`; ids `vod:<vod_id>:<offset>`
-- [ ] Handle sub-only/disabled VODs and muted audio (flag near-silent files)
+- [x] `GET /helix/videos` (archives) since cursor
+- [x] Chat replay download via TwitchDownloaderCLI
+- [x] Spike detector exactly as SPEC §5.2, as a pure function with unit tests on fixture chat logs
+- [x] Skip spikes covered by viewer clips; keep top `vod_moments`
+- [x] Section download with `yt-dlp --download-sections`; ids `vod:<vod_id>:<offset>`
+- [x] Handle sub-only/disabled VODs and muted audio (flag near-silent files)
 
 **Done when:** on 2 real recent VODs, the saved moments are watched by the user and at least half are judged "worth keeping"; record the hit rate and any tuning in PROGRESS.md.
 
