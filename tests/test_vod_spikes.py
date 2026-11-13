@@ -88,9 +88,19 @@ def test_pick_skips_clipped_moments_and_keeps_the_best(chat) -> None:
     assert len(picked) == 2 and all(m.duration == 40 for m in picked)
     assert all(not vs.overlaps(m, 2080, 30) for m in picked)
     assert {round(m.peak / 60) for m in picked} == {15, 25}
-    assert picked[0].score >= picked[1].score
+    assert picked[0].surge >= picked[1].surge > 2
     assert len(vs.pick_moments(chat, length_s=2400, keep=1)) == 1
 
 
 def test_clock() -> None:
     assert vs.clock(5025) == "1:23:45" and vs.clock(59) == "0:00:59"
+
+
+def test_a_surge_in_quiet_chat_beats_a_bump_in_busy_chat() -> None:
+    busy = [vs.ChatMessage(w * 10 + i * 0.3, "hi") for w in range(120) for i in range(30)]
+    busy += [vs.ChatMessage(605 + i * 0.1, "hi") for i in range(70)]  # 30 -> 100 a window
+    quiet = [vs.ChatMessage(1200 + w * 10 + i, "hi") for w in range(120) for i in range(3)]
+    quiet += [vs.ChatMessage(1805 + i * 0.1, "KEKW") for i in range(25)]  # 3 -> 75 a window
+    picked = vs.pick_moments(busy + quiet, length_s=2400, keep=2)
+    assert [round(m.peak / 60) for m in picked] == [30, 10]  # the quiet-chat surge first
+    assert picked[0].score < picked[1].score and picked[0].surge > picked[1].surge

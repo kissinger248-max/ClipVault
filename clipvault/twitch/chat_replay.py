@@ -4,6 +4,10 @@ TwitchDownloaderCLI (MIT licence, github.com/lay295/TwitchDownloader) is a
 separate program. ClipVault looks for it on the PATH and in ``bin/`` inside the
 ClipVault folder. Its ``chatdownload`` verb writes the whole chat of a VOD as
 JSON: ``comments[]`` with ``content_offset_seconds`` and ``message.body``.
+Checked with version 1.56.5 on a real VOD (2026-11-13): that layout is right,
+and with ``--beginning``/``--ending`` the offsets still count from the start of
+the VOD (the shift in :func:`load_chat` is only a safeguard for other versions).
+Busy chat downloads at about 2 minutes of stream per 4 seconds.
 
 Chat logs are kept, gzipped, in the library next to the streamer's clips
 (``<login>/chat/<date>_<vod id>[_partNN].json.gz``), so the detector can be

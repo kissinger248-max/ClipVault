@@ -361,3 +361,18 @@ Built ahead of M3 to M5 at the user's request ("Phone-ready video"). Both milest
 **Open issues and things to watch**
 - valkyrae's facecam detection is wrong (it found a box above her chat). Real renders fall back to letterbox, but split will not be used for her until a re-detection finds the real cam; the detector may need a better grow-to-border step for cams without a frame. xqc's split crop includes a strip of chat under his camera.
 - "Twitch's own vertical" preview shows a placeholder: none of the 3 streamers' saved clips has a portrait version.
+
+## 2026-11-13: M4 live check with TwitchDownloaderCLI
+
+**What changed**
+- With the user's OK, installed TwitchDownloaderCLI 1.56.5 for Windows x64 from the official GitHub release (52.2 MB zip; SHA-256 matched GitHub's published digest `8b1b0695...c813a0`) into `bin/` (gitignored): the program and its licence files, without the 23 MB debug-symbols file. `doctor` finds it.
+- **Moments are now ranked by surge** (score divided by the normal level of the 10 minutes before) instead of raw score. On a real 6.7-hour Valkyrae stream, chat in the first hour was 3 to 5 times busier than later, so raw scores picked only moments from the first hour (the biggest of which viewers had clipped already). Surge spreads the picks over the whole stream and favours real surprises. New test for it.
+
+**Verified live**
+- Chat file layout matches the parser (`comments[].content_offset_seconds`, `message.body`, `message.fragments`). With `--beginning`/`--ending`, offsets still count from the start of the VOD, so the shift safeguard in `load_chat` isn't needed for this version.
+- Valkyrae VOD 2926244338 (6.7 h): 31,022 messages downloaded in 2 pieces in 72 s, 63 spikes. Re-running the detector reused the saved chat pieces (3 s). The 6:31:45 spike (12.7 times normal) was skipped because a viewer had clipped it.
+- Kept moments at 3:15:55, 3:18:15 and 5:03:15. All three cut from the VOD (17.4, 16.2, 17.3 MB, 39 s together), none muted, transcribed. From their transcripts and a frame: a story about a long-time regular outing himself in chat, a voice-changer joke with a friend, and a game moment (crushed next to a giant chess pawn at 7/100 health, laughing on camera). By that reading all three are real moments; the user's own viewing is still the "Done when" check.
+- `pytest -q`: 322 passed; ruff clean.
+
+**Still to do (user)**
+- M4 "Done when": the user watches the moments from 2 real VODs and judges at least half worth keeping. The three are in `Twitch Archive/valkyrae/2026-11/` with `_chat_` in their names, and on the Clips screen under "Chat moments". Nine more finished VODs are waiting and will be searched by `run` (3 per hour) or `python -m clipvault vods`.

@@ -60,6 +60,7 @@ class Moment:
     end: int
     score: float
     peak: float
+    surge: float = 0.0  # score divided by the normal level of the 10 minutes before
 
     @property
     def duration(self) -> int:
@@ -121,6 +122,11 @@ def _peak(run: list[tuple[int, float, float]]) -> Spike:
     return Spike(index * WINDOW_S + WINDOW_S / 2, score, mean)
 
 
+def surge(spike: Spike) -> float:
+    """How many times the normal level a spike is (normal counted as at least 1)."""
+    return spike.score / max(spike.baseline, 1.0)
+
+
 def moments_from_spikes(spikes: list[Spike], length_s: float | None = None) -> list[Moment]:
     """Turn peaks into cut ranges, merging peaks less than 20 s apart."""
     moments: list[Moment] = []
@@ -139,9 +145,15 @@ def moments_from_spikes(spikes: list[Spike], length_s: float | None = None) -> l
             if merged_end - merged_start > MAX_MOMENT_S:  # keep the range around the bigger peak
                 merged_start = max(int(peak - BEFORE_PEAK_S), 0)
                 merged_end = merged_start + BEFORE_PEAK_S + AFTER_PEAK_S
-            moments[-1] = Moment(merged_start, merged_end, max(previous.score, spike.score), peak)
+            moments[-1] = Moment(
+                merged_start,
+                merged_end,
+                max(previous.score, spike.score),
+                peak,
+                max(previous.surge, surge(spike)),
+            )
         else:
-            moments.append(Moment(start, end, spike.score, spike.peak))
+            moments.append(Moment(start, end, spike.score, spike.peak, surge(spike)))
     return moments
 
 
@@ -158,7 +170,7 @@ def pick_moments(
     keep: int = 3,
     emotes: Iterable[str] = DEFAULT_EMOTES,
 ) -> list[Moment]:
-    """The best ``keep`` moments of a VOD that no viewer clip covers, best first.
+    """The best ``keep`` moments of a VOD that no viewer clip covers, biggest surge first.
 
     ``covered`` holds (vod_offset, duration) of the clips already made from it.
     """
@@ -186,7 +198,9 @@ def pick_from_scores(
     spans = list(covered)
     moments = moments_from_spikes(find_spikes(scores), length_s)
     fresh = [m for m in moments if not any(overlaps(m, s, d) for s, d in spans)]
-    return sorted(fresh, key=lambda m: (-m.score, m.start))[:keep]
+    # Ranked by surge, not raw score: chat is often several times busier early in a
+    # stream, so raw counts would pick only the first hour (seen on a real 6.7 h VOD).
+    return sorted(fresh, key=lambda m: (-m.surge, -m.score, m.start))[:keep]
 
 
 def parse_duration(text: str) -> int:
