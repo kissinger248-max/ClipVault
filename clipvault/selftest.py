@@ -88,6 +88,20 @@ def _app_window() -> str:
     return "pywebview (no window backend checked on this system)"
 
 
+def _secure_connections() -> str:
+    """Twitch's certificates can be checked: live chat's connection uses certifi's list.
+
+    The installed Mac app's Python has no system list; without this the live chat
+    connection failed with "unable to get local issuer certificate" (0.3.4).
+    """
+    from clipvault.twitch import eventsub
+
+    count = eventsub.ssl_context().cert_store_stats()["x509_ca"]
+    if count < 50:
+        raise RuntimeError(f"only {count} trusted certificates loaded")
+    return f"{count} trusted certificates for live chat"
+
+
 def _whisper_assets() -> str:
     import faster_whisper
 
@@ -202,6 +216,7 @@ CHECKS: list[Check] = [
     ("Downloader", _downloader),
     ("Libraries", _libraries),
     ("App window", _app_window),
+    ("Secure connections", _secure_connections),
     ("Speech model files", _whisper_assets),
     ("Face model", _face_model),
     ("Caption fonts", _fonts),

@@ -417,3 +417,23 @@ def test_live_moments_can_be_switched_off(watcher, conn) -> None:
     watcher.clock_state["now"] += 200
     watcher.step(receive_timeout=0)
     assert watcher.channels == {} and activity.snapshot()["live"]["status"] == "off"
+
+
+def test_the_chat_connection_checks_twitch_with_the_shipped_certificates(monkeypatch) -> None:
+    """The Mac app's Python has no system certificate list: without certifi's, live chat
+    failed with "unable to get local issuer certificate" (0.3.4)."""
+    import ssl
+
+    import websockets.sync.client
+
+    used: dict = {}
+
+    def connect(url, **kwargs):
+        used.update(kwargs)
+        return object()
+
+    monkeypatch.setattr(websockets.sync.client, "connect", connect)
+    eventsub._default_connect(eventsub.URL)
+    assert isinstance(used["ssl"], ssl.SSLContext)
+    assert used["ssl"].verify_mode == ssl.CERT_REQUIRED and used["ssl"].check_hostname
+    assert used["ssl"].cert_store_stats()["x509_ca"] > 50

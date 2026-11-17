@@ -16,6 +16,7 @@ from __future__ import annotations
 import json
 import logging
 import re
+import ssl
 from collections.abc import Callable
 from dataclasses import dataclass
 from datetime import datetime
@@ -52,9 +53,22 @@ class ChatMessage:
     when: float  # UTC seconds
 
 
+def ssl_context() -> ssl.SSLContext:
+    """How Twitch's certificate is checked: against certifi's list, shipped with the app.
+
+    The installed Mac app's Python has no system list of trusted certificates, so the
+    default check failed there ("unable to get local issuer certificate") and live chat
+    never connected (reported on 0.3.4). httpx already uses certifi for every other call.
+    """
+    import certifi
+
+    return ssl.create_default_context(cafile=certifi.where())
+
+
 def _default_connect(url: str, **kwargs: Any) -> Any:
     from websockets.sync.client import connect
 
+    kwargs.setdefault("ssl", ssl_context())
     return connect(url, open_timeout=15, close_timeout=5, max_size=2**20, **kwargs)
 
 

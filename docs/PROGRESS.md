@@ -800,3 +800,21 @@ Request: "enable live clipping. make it fully functional ... when running show c
 **Open issues**
 - The owner's Windows app is still 0.3.2. It can freeze when its hidden-at-login window is opened again; installing 0.3.3 or later by hand avoids that, and after that updates install themselves.
 - The live view shows work done by the running app only. Commands run in a terminal (`fetch`, `render`) don't appear there.
+
+## 2026-11-17: Live chat never connected on Mac: certificate check (0.4.1)
+
+Report from the owner's friend (Mac, 0.3.4): "Live chat never connects", log: `could not open the chat connection: [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: unable to get local issuer certificate`. They also sent the fix.
+
+**Cause:** the installed Mac app's Python has no system list of trusted certificates. httpx uses certifi's list (which the build already ships), so every other Twitch call worked. The EventSub WebSocket (`websockets`) used Python's default check, which on that Mac had nothing to check against. On Windows, Python reads Windows' own certificate store, so it never showed there. GitHub's Mac build machine probably has the certificate files the default looks for, so the checks there passed.
+
+**What changed**
+- `eventsub.ssl_context()`: a default (verifying) context with certifi's list. `_default_connect` passes it to `websockets`; the friend's fix, with the context in its own function so the selftest can use it.
+- `selftest` gained "Secure connections": live chat's context must load at least 50 trusted certificates. It runs on every packaged build, Mac included.
+- New test: the chat connection gets a verifying context with certifi's certificates.
+- Released as 0.4.1, not the 0.3.5 the friend suggested: 0.4.0 was already out, and a lower number wouldn't reach anyone as an update.
+
+**Verified**
+- `pytest -q` and ruff clean.
+- From this PC with the new code: a real connection to `wss://eventsub.wss.twitch.tv/ws` opened and Twitch's welcome (session id) arrived.
+- selftest here: "Secure connections: 118 trusted certificates for live chat".
+- Not verified on a real Mac: the friend's next start of 0.4.1 is the check (Home's "Right now" shows a streamer as live with a moving chat meter).
