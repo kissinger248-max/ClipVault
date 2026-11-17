@@ -140,6 +140,7 @@ def start(
         refresh(icon)
         threading.Thread(target=keep_fresh, name="tray-refresh", daemon=True).start()
 
+    icon._clipvault_open = open_panel
     if on_main_thread:
         # macOS draws menu-bar icons only from the main thread: the caller runs it
         # with ``run_on_main_thread`` instead of waiting on its own loop.
@@ -161,4 +162,31 @@ def needs_main_thread() -> bool:
 
 def run_on_main_thread(icon: Any) -> None:
     """Show the icon and block until it is stopped (Quit, or ``icon.stop()``)."""
+    if sys.platform == "darwin":
+        _answer_reopen(icon._clipvault_open)
     icon.run(setup=icon._clipvault_begin)
+
+
+_reopen_delegate: Any = None  # AppKit keeps only a weak reference to its delegate
+
+
+def _answer_reopen(open_panel: Callable[[], None]) -> None:
+    """macOS: opening ClipVault while it runs (Finder, Launchpad, Spotlight) opens its window.
+
+    macOS doesn't start a second copy then; it sends the running one a "reopen" message,
+    which arrives here on the main thread. The window is opened on another thread so the
+    main thread (and the menu-bar icon) never waits.
+    """
+    global _reopen_delegate
+    try:
+        import AppKit
+
+        class ReopenDelegate(AppKit.NSObject):
+            def applicationShouldHandleReopen_hasVisibleWindows_(self, app, has_windows):
+                threading.Thread(target=open_panel, name="reopen", daemon=True).start()
+                return False
+
+        _reopen_delegate = ReopenDelegate.alloc().init()
+        AppKit.NSApplication.sharedApplication().setDelegate_(_reopen_delegate)
+    except Exception as exc:  # the icon still works without it
+        log.warning("can't answer 'open ClipVault' while running: %s", exc, extra=ctx(job="tray"))

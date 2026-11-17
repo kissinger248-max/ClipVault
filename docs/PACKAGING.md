@@ -20,13 +20,28 @@ with their licences, and refuses an FFmpeg without the `subtitles` filter.
 ## How the installed app behaves
 
 - **Start:** `clipvault/desktop.py`. With no arguments it runs `clipvault run`:
-  scheduler, panel, tray icon (menu bar on Mac), and the panel opens in the browser.
-  Opening it again while it runs just opens the panel.
-- **App window** (`clipvault/window.py`): the panel opens in ClipVault's own window
-  (pywebview: WebView2 on Windows, WebKit on macOS), which signs itself in with a token
-  held only in the running app. Closing the window hides it, and opening ClipVault again
-  brings it forward (`/app/show`). It falls back to the browser if the window can't
-  start. From source, `run --window`.
+  scheduler, panel, tray icon (menu bar on Mac), and the panel opens in ClipVault's
+  window. Opening it again while it runs opens the window (or brings it forward).
+- **App window** (`clipvault/window.py`, since 0.3.3): a **separate process**
+  (`ClipVault window`, pywebview: WebView2 on Windows, WebKit on macOS) that the running
+  app starts when ClipVault is opened. It signs itself in with a token the app passes in
+  its environment, and checks in twice a second (`/app/window/poll`) to come forward
+  when asked and to close itself when the app is gone. Closing the window ends that
+  process; the app keeps running from the tray / menu bar.
+  - Why a separate process: in 0.3.2 the window lived inside the app, and bringing it
+    forward changed a window setting from a background thread. On Windows that
+    deadlocks the whole Python process (pythonnet holds the interpreter lock during a
+    .NET property change while the GUI thread waits for it); the app froze and Windows
+    closed it. On macOS the window and the menu-bar icon competed for the main thread.
+  - Opening ClipVault again: on Windows a second copy asks the running one
+    (`/app/show`, after `AllowSetForegroundWindow` so the window may come to the
+    front). On macOS no second copy starts; the running app gets a "reopen" message
+    (`tray._answer_reopen`).
+  - Falls back to the browser only if the window can't start (no WebView2). From
+    source, `run --window`.
+  - Checked on every build: the smoke test opens the window, asks for it again and
+    checks the app still answers; on macOS `packaging/mac_open_check.py` opens the
+    built app with `open` twice, as a person does.
 - **No console window.** Output goes to the log files. On Windows the tools it starts
   get no window either. `ClipVault-console.exe` (Windows) runs the other commands,
   for example `ClipVault-console doctor`.

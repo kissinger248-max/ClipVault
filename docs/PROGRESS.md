@@ -667,3 +667,49 @@ Request: "it just opens a webpage … it cant be its own app?"
 **Open issues**
 - On macOS, ClipVault stays a menu-bar app (no Dock icon): the window opens from the menu-bar icon. Not tried on a real Mac.
 - The owner's installed 0.3.1 updates itself to 0.3.2. Its next check is within 6 hours; it then installs in the quiet hours (from 23:00), or at once via Settings › Updates › Check Now, then Update Now.
+
+## 2026-11-16: The app window froze ClipVault; it now runs as its own process (0.3.3)
+
+Report from the owner: "the app opened and immediately freezes then opens the webpage ... on mac 'you cannot open the application ClipVault because it is not responding'".
+
+**What was wrong (Windows, confirmed)**
+- The owner's log showed it twice (2026-11-14 03:27 and 2026-11-17 04:47 UTC): ClipVault started at login with its window hidden; opening it again asked the running copy to show the window (`/app/show`); that request never answered (the second copy gave up after 5 s and opened the browser), and the running copy wrote nothing more, not even its 2-minute worker lines.
+- Windows' event log has "ClipVault.exe stopped interacting with Windows and was closed" (Application Hang) 24-45 s after each of those requests.
+- Cause, reproduced here: `window.show()` set `on_top` to raise the window, which makes pywebview set a .NET window property (`TopMost`) from the panel's thread. pythonnet keeps the Python interpreter lock during a .NET property change; when Windows then needs the GUI thread to run a Python event handler (activation, resize), each waits for the other. A test that changes a window property from a background thread froze the whole process, its watchdog thread included, until it was killed. So the window, the panel and the clip work all froze, and closing the frozen window killed everything.
+- The browser page that opened had nothing behind it, because the app it pointed at had frozen.
+
+**Mac (not reproducible here)**
+- 0.3.2 ran the window and the menu-bar icon in one process. Both need the main thread on macOS, and when the window couldn't run, the main thread fell back to a plain wait that answers no macOS events. That is exactly when Finder says "not responding". No Mac log was available.
+
+**What changed**
+- `clipvault/window.py`: the window is a separate process (`clipvault window --url ...`), started by the running app (`WindowManager`) when ClipVault is opened.
+  - It signs in with a token passed in its environment (removed from the environment once read).
+  - It checks in at `/app/window/poll` twice a second, to come forward when asked and to close itself once the app hasn't answered for 8 s.
+  - Closing the window ends its process; the app keeps running from the tray or menu bar.
+  - The running app never loads a GUI toolkit.
+  - Bringing the window forward on Windows uses Win32 calls from the window process (restore if minimised, `SetForegroundWindow`), never pywebview property changes. The program the user clicked first calls `AllowSetForegroundWindow` so the window may take the front.
+- `run`: at login (`--no-browser`) no window process starts. A normal start opens one. On macOS the menu-bar icon is back on the main thread (as in 0.3.1), with a "reopen" handler (`tray._answer_reopen`): macOS sends the running app a message instead of starting a second copy.
+- The window manager is set up before the panel answers, so an early "open" isn't answered with "no window".
+- New panel routes: `/app/window/poll` (token required) and `/app/window/status` (for the checks); both answer local requests only.
+- Build checks:
+  - the smoke test opens the window, asks for it again, checks the app still answers and that the window closes itself when the app stops;
+  - `packaging/mac_open_check.py` (CI, macOS) opens the built app with `open`, closes the window, opens it again while it runs, and once more with the window open, as a person does.
+
+**Verified, and how**
+- `pytest -q`: 408 passed; ruff clean.
+- From source (test home, test port, test keychain service):
+  - started without a window as at login, opened, asked again (one window, raised);
+  - minimised, then opened again: the window came back;
+  - closed with ✕: the app kept answering, and opening again started a new window;
+  - app killed: the window closed itself.
+- Packaged Windows build (`build.py --smoke`): selftest and every smoke check passed, including the new window checks.
+- Packaged app, the owner's exact case: started as at login, then launched again like a double-click.
+  - The second launch finished in 1.2 s (0.3.2: 5 s, then a freeze).
+  - The window appeared in about 3 s; minimise and raise worked.
+  - A second double-click reused the same window.
+  - The 2-minute worker kept logging throughout.
+- Not verified here: macOS (no Mac). The CI Mac job runs the smoke test and `mac_open_check.py` before any release is published.
+
+**Open issues**
+- The owner's 0.3.2 can freeze again the next time its hidden-at-login window is opened. Installing 0.3.3 by hand from the release page is the quickest way off it; the automatic update also works because the updater doesn't use the window.
+- A Mac stuck on 0.3.2 may not be able to quit cleanly for its automatic update; install 0.3.3 from the .dmg by hand.

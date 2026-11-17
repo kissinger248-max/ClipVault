@@ -99,6 +99,8 @@ def build_parser() -> argparse.ArgumentParser:
         help="show the panel in ClipVault's own window (default for the installed app)",
     )
     shown.add_argument("--no-window", action="store_true", help="use the web browser instead")
+    win = sub.add_parser("window", help="(started by 'run') ClipVault's own window for the panel")
+    win.add_argument("--url", help="the running panel's address (default: from config.yaml)")
     twitch_cmd = sub.add_parser("twitch", help="your Twitch login (needed to read live chat)")
     twitch_sub = twitch_cmd.add_subparsers(dest="action", required=True)
     twitch_sub.add_parser("login", help="log in with a code at twitch.tv/activate")
@@ -144,6 +146,7 @@ def main(argv: list[str] | None = None) -> int:
         "streamers": _cmd_streamers,
         "secrets": _cmd_secrets,
         "run": _cmd_run,
+        "window": _cmd_window,
         "panel": _cmd_panel,
         "twitch": _cmd_twitch,
         "live": _cmd_live,
@@ -601,6 +604,16 @@ def _cmd_run(args: argparse.Namespace) -> int:
     try:
         with app.single_instance(cfg.home_dir()):
             panel = None if args.no_panel else app.PanelServer(config)
+            from clipvault import window
+
+            # The panel opens in ClipVault's own window, which runs as a separate process
+            # (window.py): nothing the window does can freeze the clip work in this one.
+            # Set up before the panel answers, so an early "open ClipVault" finds it.
+            wanted = (cfg.is_packaged() or args.window) and not args.no_window
+            windows = None
+            if panel is not None and wanted and window.available():
+                windows = window.WindowManager(panel.local_url, cfg.home_dir())
+                window.set_manager(windows)
             if panel is not None and not panel.start():
                 print(
                     f"The control panel could not start on port {config.panel.port} "
@@ -610,28 +623,28 @@ def _cmd_run(args: argparse.Namespace) -> int:
             runner = app.App(config)
             runner.start()
             quit_event = threading.Event()
-            from clipvault import window
-
-            wanted = (cfg.is_packaged() or args.window) and not args.no_window
-            use_window = panel is not None and wanted and window.available()
             icon = None
             main_thread_icon = False
 
+            def open_panel() -> bool:
+                if windows is not None and windows.open():
+                    return True
+                webbrowser.open(panel.local_url)
+                return True
+
             def stop_everything() -> None:
                 quit_event.set()
-                if use_window:
-                    window.close()  # ends window.run on the main thread
                 if icon is not None and main_thread_icon:
                     icon.stop()  # ends run_on_main_thread on macOS
 
             if panel is not None and not args.no_tray:
                 from clipvault import tray
 
-                # With the app window, the window system owns the main thread and the
-                # tray icon joins it; without it, macOS needs the icon on the main thread.
-                main_thread_icon = tray.needs_main_thread() and not use_window
+                # macOS draws menu-bar icons from the main thread only; the window has
+                # a process (and a main thread) of its own, so nothing competes for it.
+                main_thread_icon = tray.needs_main_thread()
                 icon = tray.start(panel.local_url, cfg.db_path(), stop_everything,
-                                  on_main_thread=main_thread_icon, on_open=window.show)  # fmt: skip
+                                  on_main_thread=main_thread_icon, on_open=open_panel)  # fmt: skip
 
             lifecycle.mark_started()
             lifecycle.stopping.clear()
@@ -646,30 +659,19 @@ def _cmd_run(args: argparse.Namespace) -> int:
                 _say("  Phone notifications are off; set them up in the panel's Settings.")
             _say(f"  What it does is written to {cfg.logs_dir()}")
             try:
-                if use_window:
-                    try:
-                        window.run(panel.local_url, cfg.home_dir() / "webview",
-                                   visible=not args.no_browser)  # fmt: skip
-                    except Exception as exc:  # no window system: fall back to the browser
-                        logging.getLogger("clipvault.cli").warning(
-                            "app window unavailable, using the browser: %s", exc,
-                            extra=ctx(job="window"))  # fmt: skip
-                        use_window = False
-                        if not args.no_browser:
-                            webbrowser.open(panel.local_url)
-                        while not quit_event.wait(1):
-                            pass
+                if panel is not None and not args.no_browser:
+                    open_panel()
+                if icon is not None and main_thread_icon:
+                    tray.run_on_main_thread(icon)  # returns after Quit
                 else:
-                    if panel is not None and not args.no_browser:
-                        webbrowser.open(panel.local_url)
-                    if icon is not None and main_thread_icon:
-                        tray.run_on_main_thread(icon)  # returns after Quit
-                    else:
-                        while not quit_event.wait(1):
-                            pass
+                    while not quit_event.wait(1):
+                        pass
             except KeyboardInterrupt:
                 pass
             _say("Stopping; finishing the step that is running (this can take a minute)...")
+            if windows is not None:
+                windows.close()
+                window.set_manager(None)
             if icon is not None:
                 icon.stop()
             runner.stop()
@@ -689,11 +691,37 @@ def _cmd_run(args: argparse.Namespace) -> int:
     return 0
 
 
+def _cmd_window(args: argparse.Namespace) -> int:
+    """The window process: started by a running ClipVault, which passes its sign-in token."""
+    import os
+    import webbrowser
+
+    from clipvault import window
+
+    url = (args.url or f"http://127.0.0.1:{cfg.load_config().panel.port}").rstrip("/")
+    # Read the token and drop it, so the browser engine's own processes don't inherit it.
+    token = os.environ.pop(window.TOKEN_ENV, "")
+    if not token:
+        print("This opens the window of a running ClipVault; start ClipVault with 'run' instead.")
+        return 1
+    try:
+        return window.run_window(url, token, cfg.home_dir() / "webview")
+    except Exception as exc:  # no usable window system (e.g. WebView2 missing): the browser
+        logging.getLogger("clipvault.cli").warning(
+            "app window unavailable, opening the browser: %s", exc, extra=ctx(job="window"),
+            exc_info=True)  # fmt: skip
+        webbrowser.open(url)
+        return 1
+
+
 def _show_running_window(port: int) -> bool:
-    """Ask the ClipVault that is already running to bring its window forward."""
+    """Ask the ClipVault that is already running to open its window or bring it forward."""
     import json
     import urllib.request
 
+    from clipvault import window
+
+    window.allow_foreground()  # this launch was the user's click: the window may come to front
     try:
         with urllib.request.urlopen(f"http://127.0.0.1:{port}/app/show", timeout=5) as reply:
             return bool(json.load(reply).get("shown"))

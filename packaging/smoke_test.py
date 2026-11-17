@@ -6,8 +6,10 @@ Isolated from any real copy: a temporary home folder, its own keychain entries
 (``CLIPVAULT_KEYRING_SERVICE``), its own port, and paused so it downloads nothing.
 It checks that the panel comes up, the first password can be chosen, the setup
 pages render, a caption preview is drawn (bundled FFmpeg + libass + fonts), the
-panel's fonts are served, and, when the build has the built-in Twitch app, that
-Twitch hands out a sign-in code for it. Live network: Twitch's sign-in endpoint only.
+panel's fonts are served, when the build has the built-in Twitch app, that Twitch
+hands out a sign-in code for it, and that the app window (its own process) opens, can
+be asked for again without freezing the app, and closes when the app stops. Live
+network: Twitch's sign-in endpoint only.
 """
 
 from __future__ import annotations
@@ -59,8 +61,10 @@ def main() -> int:
             log = open(home / "run-output.txt", "w", encoding="utf-8")  # noqa: SIM115
             app = subprocess.Popen([program, "run", "--no-tray", "--no-browser"], env=env,
                                    stdout=log, stderr=subprocess.STDOUT)  # fmt: skip
+            window_pid = None
             try:
                 exercise(f"http://127.0.0.1:{port}")
+                window_pid = exercise_window(f"http://127.0.0.1:{port}")
             finally:
                 app.terminate()
                 try:
@@ -68,6 +72,8 @@ def main() -> int:
                 except subprocess.TimeoutExpired:
                     app.kill()
                 log.close()
+            if window_pid is not None:
+                check(gone_within(window_pid, 45), "the window closes itself when the app stops")
             problems = [line for path in (home / "logs").glob("*.jsonl")
                         for line in path.read_text(encoding="utf-8").splitlines()
                         if "Traceback" in line]  # fmt: skip
@@ -119,6 +125,73 @@ def exercise(base: str) -> None:
                   "Twitch gives a sign-in code for the built-in app")  # fmt: skip
         else:
             print("  (no built-in Twitch app in this build; sign-in not checked)")
+
+
+def exercise_window(base: str) -> int | None:
+    """Open ClipVault's window (its own process), ask for it again, check the app still answers.
+
+    0.3.2 froze the whole app when its window was asked to come forward; this is the
+    check that would have caught it. Returns the window process's id.
+    """
+    if not webview2_installed():
+        print("  (no WebView2 runtime on this machine; the app window is not checked)")
+        return None
+    with httpx.Client(base_url=base, timeout=15) as http:
+        check(http.get("/app/show").json() == {"shown": True}, "opening ClipVault opens its window")
+        status = wait_for_window(http)
+        check(status is not None, "the window process starts and checks in with the app")
+        pid = status["pid"]
+        check(http.get("/app/show").json() == {"shown": True}, "opening it again is answered")
+        time.sleep(3)
+        again = http.get("/app/window/status").json()
+        check(again["pid"] == pid and again["running"], "it reuses the open window (no second one)")
+        check(http.get("/healthz").status_code == 200, "the app still answers with its window open")
+    return pid
+
+
+def wait_for_window(http: httpx.Client, seconds: float = 120) -> dict | None:
+    deadline = time.monotonic() + seconds
+    while time.monotonic() < deadline:
+        status = http.get("/app/window/status").json()
+        if status["running"] and status["polled_s_ago"] is not None:
+            return status
+        time.sleep(1)
+    return None
+
+
+def gone_within(pid: int, seconds: float) -> bool:
+    import psutil
+
+    deadline = time.monotonic() + seconds
+    while time.monotonic() < deadline:
+        try:
+            if psutil.Process(pid).status() == psutil.STATUS_ZOMBIE:
+                return True
+        except psutil.NoSuchProcess:
+            return True
+        time.sleep(0.5)
+    return False
+
+
+def webview2_installed() -> bool:
+    """Windows needs Microsoft's WebView2 runtime for the window (Windows 10/11 ship it)."""
+    if sys.platform != "win32":
+        return True
+    import winreg
+
+    client = r"Microsoft\EdgeUpdate\Clients\{F3017226-FE2A-4295-8BDF-00C3A9A7E4C5}"
+    places = [(winreg.HKEY_LOCAL_MACHINE, rf"SOFTWARE\WOW6432Node\{client}"),
+              (winreg.HKEY_LOCAL_MACHINE, rf"SOFTWARE\{client}"),
+              (winreg.HKEY_CURRENT_USER, rf"Software\{client}")]  # fmt: skip
+    for root, path in places:
+        try:
+            with winreg.OpenKey(root, path) as key:
+                version, _kind = winreg.QueryValueEx(key, "pv")
+        except OSError:
+            continue
+        if version and version != "0.0.0.0":
+            return True
+    return False
 
 
 def forget_secrets(service: str) -> None:

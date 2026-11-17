@@ -86,6 +86,7 @@ python -m venv .venv && source .venv/bin/activate   # Windows: .venv\Scripts\act
 pip install -e ".[dev]"
 python -m clipvault doctor        # checks ffmpeg, yt-dlp, TwitchDownloaderCLI, config, keyring
 python -m clipvault run [--no-panel] [--no-tray] [--no-browser] [--window | --no-window]   # scheduler + control panel (127.0.0.1:8765) + tray icon; the installed app shows the panel in its own window
+python -m clipvault window [--url URL]   # the app window; started by a running `run` (separate process), not by hand
 python -m clipvault panel reset-password   # forget the panel password (choose a new one on next open)
 python -m clipvault twitch login | logout | status   # user login for reading live chat (device code at twitch.tv/activate)
 python -m clipvault live          # watch live chat in the foreground (run does this too)
@@ -104,6 +105,7 @@ python -m clipvault render [CLIP_ID] [--layout letterbox|split|native] [--headli
 python scripts/twitch_live_check.py LOGIN...  # manual live check of the Twitch API (needs real keys)
 python -m clipvault selftest       # offline check that a build has every tool, model, font and file
 python packaging/build.py [--smoke] # installed app + installer for this OS (needs .[build]); see docs/PACKAGING.md
+python packaging/mac_open_check.py packaging/build/dist/ClipVault.app   # macOS build machine: open the app twice like a person
 python packaging/update_site.py [--macos-min V] [--site-url URL]   # fill the download page from the latest release
 pytest -q
 ruff check . && ruff format --check .

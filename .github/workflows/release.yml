@@ -62,6 +62,10 @@ jobs:
       - name: Build, selftest, smoke test and installer
         run: python packaging/build.py --smoke
 
+      - name: Open the Mac app like a person does (start, open again while running)
+        if: runner.os == 'macOS'
+        run: python packaging/mac_open_check.py packaging/build/dist/ClipVault.app
+
       - name: Oldest macOS the app runs on (for the download page)
         if: runner.os == 'macOS'
         run: |

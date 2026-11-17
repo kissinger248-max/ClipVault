@@ -185,12 +185,35 @@ def create_app(home: Path | None = None) -> FastAPI:
 
     @app.get("/app/show")
     def app_show(request: Request) -> dict:
-        """Opening ClipVault again brings the running window forward."""
+        """Opening ClipVault again opens its window, or brings the open one forward."""
         from clipvault import window
 
         if not _is_local(request):
             return {"shown": False}
         return {"shown": window.show()}
+
+    @app.get("/app/window/poll")
+    def app_window_poll(request: Request):
+        """The window process checking in (it holds the token the app gave it)."""
+        from clipvault import window
+
+        manager = window.manager()
+        count = None
+        if manager is not None and _is_local(request):
+            count = manager.poll(request.headers.get(window.TOKEN_HEADER))
+        if count is None:
+            return Response(status_code=403)
+        return {"raise": count}
+
+    @app.get("/app/window/status")
+    def app_window_status(request: Request) -> dict:
+        """Whether a window process is running and checking in (used by the build checks)."""
+        from clipvault import window
+
+        manager = window.manager()
+        if manager is None or not _is_local(request):
+            return {"running": False, "pid": None, "polled_s_ago": None}
+        return manager.status()
 
     @app.get("/setup-password", response_class=HTMLResponse)
     def setup_password_form(request: Request):
