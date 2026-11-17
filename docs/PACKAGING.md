@@ -105,8 +105,20 @@ Then it makes the installer:
   - adds Start menu and desktop shortcuts (the desktop one can be unticked);
   - starts ClipVault at the end, including after a silent update;
   - uninstalling keeps clips and settings.
-- **Mac:** a `.dmg` with ClipVault.app and an Applications shortcut. The app is
-  ad-hoc signed, not notarised, so the first open needs Privacy & Security, Open Anyway.
+- **Mac:** a `.dmg` with ClipVault.app and an Applications shortcut. It isn't notarised,
+  so the first open needs Privacy & Security, Open Anyway.
+  - **Keychain questions after updates:** macOS ties a keychain entry to the exact build
+    that may read it, unless the app is signed with a paid Apple team ID. So after every
+    update macOS asks ("ClipVault wants to use your confidential information stored in
+    'clipvault' in your keychain") once for each saved key; Always Allow answers it for
+    that version.
+  - 0.3.3 froze on start ("not responding") while such a question waited, because its
+    main thread read a key. Since 0.3.4 keys are read once, on a background thread, at
+    start: the app stays responsive and the questions come right away.
+  - Tried and dropped (2026-11-17): a fixed self-made signing identity. A changed copy
+    signed with it still had to ask, because without a team ID macOS goes by the build.
+  - Ending the questions needs a paid Apple Developer ID (also ends the Gatekeeper
+    warning), or keeping the Mac's keys outside the keychain (a hard-rule change).
 
 ## Releasing
 

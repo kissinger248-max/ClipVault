@@ -13,15 +13,13 @@ keychain and /Applications, as a real install does, and starts through Launch Se
 2. **Upgrade with saved keys.** The latest release is installed in /Applications and
    saves a panel password and a phone topic in the keychain; this build replaces it and
    is opened twice. It must still answer and open its window. (0.3.3 froze here: its
-   main thread waited for macOS's permission to read a key the older version saved.)
-3. **The next update reads the keys without asking** (signed builds only). Keys saved by
-   this build are read by a changed copy signed with the same identity, as the next
-   version would be. An ad-hoc signature would make macOS ask (and wait) every time.
+   main thread waited for macOS's permission to read a key the older version saved.
+   macOS keeps asking after every update: without a paid Apple team ID a keychain entry
+   belongs to one exact build; a self-made signing identity was tried and didn't help.)
 """
 
 from __future__ import annotations
 
-import os
 import shutil
 import subprocess
 import sys
@@ -38,7 +36,6 @@ LATEST_DMG = f"{RELEASES}/latest/download/ClipVault-macOS.dmg"
 KEY_NAMES = ("twitch_client_id", "twitch_client_secret", "groq_api_key", "llm_api_key",
              "uploadpost_api_key", "twitch_app_token", "ntfy_topic", "panel_password_hash",
              "panel_session_key", "twitch_user_token")  # fmt: skip
-SIGN_ENV = "CLIPVAULT_MAC_SIGN_IDENTITY"
 
 
 def check(condition: bool, what: str) -> None:
@@ -107,16 +104,6 @@ def install(dmg_or_app: Path) -> None:
         subprocess.run(["ditto", str(dmg_or_app), str(INSTALLED)], check=True)
 
 
-def reads_key_quickly(program: Path, seconds: float = 30) -> bool:
-    """Run ``notify status`` (reads the phone topic from the keychain); False if it waits."""
-    try:
-        subprocess.run([str(program), "notify", "status"], capture_output=True, timeout=seconds)
-    except subprocess.TimeoutExpired:
-        subprocess.run(["pkill", "-9", "-f", str(program)], check=False)
-        return False
-    return True
-
-
 # --- 1. open it twice -------------------------------------------------------------------
 
 
@@ -178,41 +165,12 @@ def upgrade_with_saved_keys(app: Path, work: Path) -> None:
     stop_all()
 
 
-# --- 3. the next update reads the keys without asking -------------------------------------
-
-
-def next_update_keeps_keys(app: Path, work: Path) -> None:
-    identity = os.environ.get(SIGN_ENV)
-    if not identity:
-        print("3. (not signed with an identity: skipped)")
-        return
-    print("3. the next update reads saved keys without asking")
-    forget_keys()
-    install(app)
-    subprocess.run([str(binary(INSTALLED)), "notify", "setup"], capture_output=True,
-                   timeout=120, check=True)  # fmt: skip
-    check(reads_key_quickly(binary(INSTALLED)), "this version reads the key it saved")
-    for label, sign_with in (("same identity", identity), ("ad-hoc", "-")):
-        copy = work / label.replace(" ", "-") / "ClipVault.app"
-        subprocess.run(["ditto", str(app), str(copy)], check=True)
-        (copy / "Contents" / "Resources" / "next-version.txt").write_text(label)
-        subprocess.run(["codesign", "--force", "--sign", sign_with, str(copy)], check=True,
-                       capture_output=True)  # fmt: skip
-        quick = reads_key_quickly(binary(copy))
-        if label == "same identity":
-            check(quick, "a changed copy signed with the same identity reads it without asking")
-        else:
-            print(f"  (control: an ad-hoc copy {'read it' if quick else 'had to wait for macOS'})")
-    forget_keys()
-
-
 def main() -> int:
     app = Path(sys.argv[1]).resolve()
     work = Path(tempfile.mkdtemp(prefix="clipvault-open-check-"))
     try:
         open_twice(app)
         upgrade_with_saved_keys(app, work)
-        next_update_keeps_keys(app, work)
     finally:
         stop_all()
         shutil.rmtree(work, ignore_errors=True)

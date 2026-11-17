@@ -713,3 +713,32 @@ Report from the owner: "the app opened and immediately freezes then opens the we
 **Open issues**
 - The owner's 0.3.2 can freeze again the next time its hidden-at-login window is opened. Installing 0.3.3 by hand from the release page is the quickest way off it; the automatic update also works because the updater doesn't use the window.
 - A Mac stuck on 0.3.2 may not be able to quit cleanly for its automatic update; install 0.3.3 from the .dmg by hand.
+
+## 2026-11-17: Mac "not responding" after upgrading: the keychain made the main thread wait (0.3.4)
+
+Report: after installing 0.3.3, the owner's Mac mini still said "You can't open the application ClipVault because it is not responding". The website and download were current (checked: the live page shows 0.3.3 and the Mac link redirects to the v0.3.3 file).
+
+**Found with the released installers on GitHub's Mac** (`.github/workflows/mac-diagnose.yml`, manual)
+- A fresh 0.3.3 install, opened three times within two seconds and again 20 s later: every open answered; one window.
+- The owner's path: 0.3.2 installed, a panel password and phone topic saved, then replaced by 0.3.3 and opened. 0.3.3 logged "scheduler started" and "live chat watcher started", then nothing; no window; a later `open` failed.
+  - `sample` showed the main thread in `SecItemCopyMatching`, waiting on securityd.
+  - The cause: `run` read the phone topic (`ntfy.get_topic()`) on the main thread before the menu-bar loop started. macOS made that read wait for the user's permission, because the key was saved by another build.
+  - Every ad-hoc signed build is a different program to the keychain. A waiting main thread can't answer macOS, hence "not responding".
+- Workaround given to the owner: a Terminal line that stops ClipVault and deletes its keychain entries. A fresh start then has nothing to wait for. The panel password, Twitch sign-in and phone topic are set again; clips and settings are untouched.
+
+**What changed**
+- `run` reads every key once on a background thread (`_read_keys_once`). macOS's questions come right at start, and the main thread never waits on the keychain. New test: `run` must not touch the keychain from the main thread (it fails on the 0.3.3 code).
+- `packaging/mac_open_check.py` gained the upgrade scenario: the latest release saves a password and a phone topic, this build replaces it and is opened twice. It must answer and open its window.
+
+**Tried and dropped: a fixed signing identity**
+- The idea: sign Mac builds with a self-made certificate, so each version is the same program to the keychain and stops asking after updates.
+- Tested on GitHub's Mac: a changed copy signed with the same identity still had to wait for macOS. Without a paid Apple team ID, macOS ties keychain entries to the exact build (its cdhash).
+- The signing code was removed. The secrets were never stored: the tool refused to change the GitHub account's settings, and the key made locally was deleted.
+
+**Verified**
+- `pytest -q`: 409 passed; ruff clean.
+- On GitHub's Mac (test build), every scenario passed, including the upgrade from 0.3.3 with saved keys: the new version started, answered an `open` one second later and another later on, and opened its window.
+
+**Open issues**
+- After every update the Mac asks once per saved key ("ClipVault wants to use your confidential information…"; type the Mac password, Always Allow). The app keeps working meanwhile. Until answered, the panel can't check its password, so pages wait, and Twitch sign-in waits too.
+- Ending that needs a paid Apple Developer ID (also ends the Gatekeeper warning), or keeping the Mac's keys outside the keychain, which changes hard rule 6. Both are the owner's decision.
