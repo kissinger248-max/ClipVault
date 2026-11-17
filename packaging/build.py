@@ -41,6 +41,28 @@ def version() -> str:
     return clipvault.__version__
 
 
+SIGN_ENV = "CLIPVAULT_MAC_SIGN_IDENTITY"
+
+
+def mac_sign(app: Path) -> None:
+    """Sign ClipVault.app with ClipVault's own (free, self-made) identity.
+
+    macOS remembers which program may read a keychain entry by its signature. PyInstaller's
+    ad-hoc signatures change with every build, so after every update macOS asked again
+    for each saved key, and 0.3.3 froze while it waited. One fixed identity keeps every
+    version the same program to the keychain. (Gatekeeper still sees an unidentified
+    developer: that needs a paid Apple certificate.) The identity is the SHA-1 of the
+    certificate in ``CLIPVAULT_MAC_SIGN_IDENTITY``; the release workflow imports it.
+    """
+    identity = os.environ.get(SIGN_ENV)
+    if not identity:
+        print("(no signing identity: ad-hoc signature; macOS asks for keys after updates)")
+        return
+    run("codesign", "--force", "--sign", identity, app)
+    run("codesign", "--verify", "--deep", "--strict", "--verbose=2", app)
+    run("codesign", "--display", "--requirements", "-", app)
+
+
 def app_program() -> Path:
     """The built program that runs commands (``selftest``, ``run``)."""
     if sys.platform == "win32":
@@ -100,6 +122,8 @@ def main() -> int:
         run(sys.executable, HERE / "fetch_tools.py")
     run(sys.executable, "-m", "PyInstaller", "--noconfirm", "--clean",
         "--distpath", DIST, "--workpath", BUILD / "work", HERE / "clipvault.spec")  # fmt: skip
+    if sys.platform == "darwin":
+        mac_sign(DIST / "ClipVault.app")
     with tempfile.TemporaryDirectory() as scratch:  # keep the check out of real app data
         env = {
             **os.environ,

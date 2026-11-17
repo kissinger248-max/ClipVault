@@ -589,7 +589,6 @@ def _cmd_run(args: argparse.Namespace) -> int:
 
     from clipvault import app
     from clipvault.alerts import is_paused
-    from clipvault.notify import ntfy
 
     config = cfg.load_config()
     from clipvault import desktop, lifecycle, updates
@@ -655,9 +654,13 @@ def _cmd_run(args: argparse.Namespace) -> int:
             _say(f"  New clips are looked for every {config.discover_interval_min} minutes.")
             if paused:
                 _say("  It is PAUSED: nothing is downloaded until you resume (panel or command).")
-            if ntfy.get_topic() is None:
-                _say("  Phone notifications are off; set them up in the panel's Settings.")
             _say(f"  What it does is written to {cfg.logs_dir()}")
+            # Never read the keychain on this (main) thread. macOS can make a keychain read
+            # wait for the user's permission (it asks when a new version reads what an older
+            # one saved), and a waiting main thread can't answer macOS: "ClipVault is not
+            # responding" (0.3.3). Reading every key once here also brings any such
+            # question up right at start, instead of in the middle of the night.
+            threading.Thread(target=_read_keys_once, name="keychain", daemon=True).start()
             try:
                 if panel is not None and not args.no_browser:
                     open_panel()
@@ -689,6 +692,22 @@ def _cmd_run(args: argparse.Namespace) -> int:
         return 1
     _say("Stopped.")
     return 0
+
+
+def _read_keys_once() -> None:
+    """Read every stored key once, off the main thread (see ``_cmd_run``)."""
+    from clipvault.notify import ntfy
+
+    log = logging.getLogger("clipvault.cli")
+    for name in cfg.SECRET_NAMES:
+        try:
+            cfg.get_secret(name)
+        except Exception as exc:  # a locked or missing keychain: the steps report it later
+            log.warning("could not read %s from the keychain: %s", name, exc,
+                        extra=ctx(job="keychain"))  # fmt: skip
+            return
+    if ntfy.get_topic() is None:
+        _say("  Phone notifications are off; set them up in the panel's Settings.")
 
 
 def _cmd_window(args: argparse.Namespace) -> int:

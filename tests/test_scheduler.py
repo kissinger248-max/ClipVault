@@ -206,6 +206,52 @@ def test_cli_pause_resume_and_refusing_a_second_copy(conn, home, capsys) -> None
     assert "already running" in capsys.readouterr().out
 
 
+def test_run_never_reads_the_keychain_on_the_main_thread(monkeypatch, home) -> None:
+    """macOS can make a keychain read wait for the user's permission (a new version reading
+    what an older one saved). On the main thread that froze 0.3.3 ("not responding")."""
+    import threading
+
+    from clipvault import lifecycle, window
+    from clipvault.__main__ import main
+
+    readers: list[str] = []
+    real_get_secret = cfg.get_secret
+
+    def recording(name: str):
+        readers.append(threading.current_thread().name)
+        return real_get_secret(name)
+
+    class FakePanel:
+        local_url = "http://127.0.0.1:1"
+
+        def __init__(self, config) -> None:
+            pass
+
+        def start(self) -> bool:
+            return True
+
+        def stop(self) -> None:
+            pass
+
+    class FakeApp:
+        def __init__(self, config, watch_live: bool = True) -> None:
+            pass
+
+        def start(self) -> None:
+            threading.Timer(1.0, lifecycle.request_quit).start()  # like Quit in the tray
+
+        def stop(self) -> None:
+            pass
+
+    monkeypatch.setattr(cfg, "get_secret", recording)
+    monkeypatch.setattr(app, "PanelServer", FakePanel)
+    monkeypatch.setattr(app, "App", FakeApp)
+    monkeypatch.setattr(window, "available", lambda: False)
+    assert main(["run", "--no-tray", "--no-browser"]) == 0
+    assert "MainThread" not in readers
+    assert readers.count("keychain") >= len(cfg.SECRET_NAMES)  # every key read once, early
+
+
 def test_cli_notify_setup_shows_the_topic(capsys) -> None:
     from clipvault.__main__ import main
 
