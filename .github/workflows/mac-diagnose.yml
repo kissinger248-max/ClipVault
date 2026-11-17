@@ -1,0 +1,107 @@
+# Replays real Mac use with the published installers, to find why a Mac says
+# "You can't open the application ClipVault because it is not responding".
+# Run by hand (Actions tab, "Run workflow"). Nothing is published.
+#
+# A. Fresh install of the release, opened twice in quick succession (an impatient
+#    double-click while it is still starting).
+# B. The owner's path: an older release installed, a panel password and phone topic
+#    saved (keychain entries made by the old program), the old app replaced by the
+#    release, then opened twice.
+# When the app stops answering, `sample` records where every thread of every ClipVault
+# process is, and the logs are printed.
+
+name: Mac diagnose
+
+on:
+  workflow_dispatch:
+    inputs:
+      old:
+        description: "Older release installed first (scenario B)"
+        default: "v0.3.2"
+      new:
+        description: "Release under test"
+        default: "v0.3.3"
+
+permissions:
+  contents: read
+
+jobs:
+  diagnose:
+    runs-on: macos-latest
+    timeout-minutes: 40
+    env:
+      OLD: ${{ inputs.old }}
+      NEW: ${{ inputs.new }}
+    steps:
+      - name: Download the installers
+        run: |
+          base=https://github.com/kissinger248-max/ClipVault/releases/download
+          curl -sSfL -o old.dmg "$base/$OLD/ClipVault-macOS.dmg"
+          curl -sSfL -o new.dmg "$base/$NEW/ClipVault-macOS.dmg"
+          sw_vers; uname -m
+
+      - name: Helpers
+        run: |
+          cat > helpers.sh <<'EOF'
+          APP=/Applications/ClipVault.app
+          BIN="$APP/Contents/MacOS/ClipVault"
+          DATA="$HOME/Library/Application Support/ClipVault"
+          install_dmg() {
+            m=$(mktemp -d); hdiutil attach -nobrowse -noautoopen -mountpoint "$m" "$1" >/dev/null
+            rm -rf "$APP"; ditto "$m/ClipVault.app" "$APP"; hdiutil detach "$m" -quiet
+            /usr/libexec/PlistBuddy -c "Print :CFBundleShortVersionString" "$APP/Contents/Info.plist"
+          }
+          open_app() {  # prints how `open` ended
+            out=$(open "$APP" 2>&1); code=$?
+            echo "open -> exit $code ${out}"
+            return 0
+          }
+          snapshot() {  # where every ClipVault thread is right now
+            echo "--- processes"; pgrep -fl "ClipVault.app/Contents/MacOS/ClipVault" || true
+            for pid in $(pgrep -f "ClipVault.app/Contents/MacOS/ClipVault"); do
+              echo "=== sample of $pid: $(ps -o command= -p $pid)"
+              sample "$pid" 2 -mayDie 2>/dev/null | sed -n '/Call graph:/,/Total number in stack/p' | head -120
+            done
+            echo "--- panel"; curl -s -m 5 http://127.0.0.1:8765/healthz; echo
+            curl -s -m 5 http://127.0.0.1:8765/app/window/status; echo
+          }
+          stop_all() {
+            pkill -9 -f "ClipVault.app/Contents/MacOS/ClipVault" || true; sleep 2
+          }
+          forget() {
+            stop_all; rm -rf "$DATA" "$HOME/Library/LaunchAgents/app.clipvault.desktop.plist"
+            for name in panel_password_hash panel_session_key ntfy_topic twitch_user_token twitch_app_token; do
+              security delete-generic-password -s clipvault -a "$name" >/dev/null 2>&1 || true
+            done
+          }
+          logs() { echo "--- logs"; cat "$DATA"/logs/*.jsonl 2>/dev/null | cut -c1-400 | tail -60; }
+          EOF
+
+      - name: "A: fresh install, opened twice quickly"
+        run: |
+          source helpers.sh; forget
+          install_dmg new.dmg
+          open_app; sleep 1; open_app; sleep 1; open_app
+          sleep 20; open_app
+          snapshot; logs; stop_all
+
+      - name: "B: older version with saved passwords, replaced, opened twice"
+        if: always()
+        run: |
+          source helpers.sh; forget
+          echo "== install $OLD"; install_dmg old.dmg
+          "$BIN" pause                      # nothing downloads during the check
+          open_app
+          for i in $(seq 1 60); do curl -s -m 2 http://127.0.0.1:8765/healthz >/dev/null && break; sleep 1; done
+          curl -s -o /dev/null -w "password set by $OLD: %{http_code}\n" -X POST \
+            -d "password=diagnose-1234&again=diagnose-1234" http://127.0.0.1:8765/setup-password
+          "$BIN" notify setup >/dev/null 2>&1 || true
+          security find-generic-password -s clipvault -a panel_password_hash >/dev/null 2>&1 \
+            && echo "keychain has the old version's entries"
+          stop_all
+          echo "== replace with $NEW"; install_dmg new.dmg
+          open_app; sleep 1; open_app
+          sleep 25; echo "== 25 s later"; open_app
+          snapshot; logs
+          sleep 30; echo "== 55 s later"; open_app; snapshot
+          stop_all
