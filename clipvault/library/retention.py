@@ -29,6 +29,8 @@ POSTED_KEEP = timedelta(days=30)
 MASS_MISSING_MIN = 10
 MASS_MISSING_SHARE = 0.2
 _PATH_COLUMNS = ("file_path", "sidecar_path", "transcript_path", "portrait_path")
+# Clips judged by their view count; moments found from chat have none.
+_BY_VIEWS = "source IN ('viewer', 'auto')"
 
 log = logging.getLogger(__name__)
 
@@ -86,12 +88,14 @@ def plan_retention(
 ) -> list[Removal]:
     """List clips whose files retention would delete right now (nothing is changed).
 
-    A clip goes when it is older than ``keep_days_below_median`` days AND has
-    fewer views than the median of everything ever saved for that streamer.
-    The median covers clips already removed too, so the bar doesn't creep up
-    and eat the whole archive run after run. Kept regardless: starred clips,
-    files moved to ``Favorites/``, and sources of posts that are queued or were
-    posted in the last 30 days.
+    A viewer clip goes when it is older than ``keep_days_below_median`` days AND
+    has fewer views than the median of every viewer clip ever saved for that
+    streamer. The median covers clips already removed too, so the bar doesn't
+    creep up and eat the whole archive run after run. Kept regardless: moments
+    found from chat (live or finished streams have no view count, so this rule
+    can't judge them; there are a few per stream), starred clips, files moved
+    to ``Favorites/``, and sources of posts that are queued or were posted in the
+    last 30 days.
     """
     if not library.available:
         return []
@@ -102,7 +106,7 @@ def plan_retention(
     medians: dict[int, float] = {}
     views_by_streamer: dict[int, list[int]] = {}
     for row in conn.execute(
-        "SELECT streamer_id, view_count FROM clips WHERE fetched_at IS NOT NULL"
+        f"SELECT streamer_id, view_count FROM clips WHERE fetched_at IS NOT NULL AND {_BY_VIEWS}"
     ):
         views_by_streamer.setdefault(row["streamer_id"], []).append(row["view_count"] or 0)
     for streamer_id, views in views_by_streamer.items():
@@ -112,7 +116,7 @@ def plan_retention(
         "SELECT c.id, c.streamer_id, c.file_path, c.view_count, c.file_size, s.login "
         "FROM clips c JOIN streamers s ON s.id = c.streamer_id "
         "WHERE c.file_path IS NOT NULL AND c.removed_at IS NULL AND c.starred = 0 "
-        "AND c.created_at < ? "
+        f"AND c.{_BY_VIEWS} AND c.created_at < ? "
         "AND NOT EXISTS (SELECT 1 FROM posts p JOIN renders r ON r.id = p.render_id "
         "  WHERE r.clip_id = c.id AND (p.status IN ('queued', 'approved') "
         "  OR (p.status = 'posted' AND p.posted_at > ?))) "

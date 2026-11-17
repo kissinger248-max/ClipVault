@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "clipvault"
-version = "0.3.4"
+version = "0.4.0"
 description = "Watches Twitch streamers, saves their best clips, and posts vertical versions for permissioned streamers."
 readme = "README.md"
 requires-python = ">=3.12"

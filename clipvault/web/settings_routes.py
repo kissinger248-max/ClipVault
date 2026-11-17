@@ -121,11 +121,18 @@ def register(
         keys = {name: bool(cfg.get_secret(name)) for name in cfg.USER_SECRET_NAMES}
         estimate = estimate_gb_per_month(streamer_rows(), current.quality)
         from clipvault import autostart
+        from clipvault.live import LIVE_MAX_PER_STREAM, LIVE_MIN_SURGE, LIVE_SETTING
         from clipvault.twitch import user_auth
 
         token = user_auth.stored()
         starts_at_login = autostart.is_enabled() if autostart.supported() else None
+        c = conn()
+        try:
+            live_on = alerts.get_setting(c, LIVE_SETTING) != "0"
+        finally:
+            c.close()
         return page(request, "settings.html", tab="settings", config=current, keys=keys,
+                    live_on=live_on, live_surge=LIVE_MIN_SURGE, live_max=LIVE_MAX_PER_STREAM,
                     starts_at_login=starts_at_login,
                     estimate=estimate, twitch_user=(token.login or "your account") if token else "",
                     twitch_login=app.state.panel.twitch_login, sign_in_mode=sign_in_mode(),
@@ -177,7 +184,12 @@ def register(
             "transcription.enabled": bool(transcripts),
             "timezone": timezone.strip(),
         }
-        return save(updates, "/settings", "Saved. A running ClipVault picks this up on restart.")
+        return save(
+            updates,
+            "/settings",
+            "Saved. It counts from the next round; a new check "
+            "interval starts after ClipVault restarts.",
+        )
 
     @app.post("/settings/notifications")
     def save_notifications(

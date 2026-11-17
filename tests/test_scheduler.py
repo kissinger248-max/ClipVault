@@ -93,10 +93,15 @@ def test_heartbeat_notices_sleep_and_runs_due_daily_steps_once_per_retry_window(
 
 def test_worker_waits_with_transcription_on_battery(conn, home, monkeypatch) -> None:
     calls: list[str] = []
+    cuts_allowed: list[bool] = []
     monkeypatch.setattr("clipvault.fetch.ytdlp.update_if_due", lambda conn, now: False)
-    monkeypatch.setattr(
-        jobs, "run_fetch", lambda *a, **k: calls.append("fetch") or jobs.FetchSummary()
-    )
+
+    def fetch(*args, **kwargs):
+        calls.append("fetch")
+        cuts_allowed.append(kwargs["allow_vod_cuts"])
+        return jobs.FetchSummary()
+
+    monkeypatch.setattr(jobs, "run_fetch", fetch)
     monkeypatch.setattr(
         jobs,
         "run_transcribe",
@@ -106,6 +111,7 @@ def test_worker_waits_with_transcription_on_battery(conn, home, monkeypatch) -> 
     config = make_config(home)
     note = scheduler.step_worker(conn, config, NOW)
     assert calls == ["fetch"] and "mains power" in note
+    assert cuts_allowed == [True]  # cutting a moment is a short download: fine on battery
     monkeypatch.setattr(power, "on_battery", lambda: False)
     scheduler.step_worker(conn, config, NOW)
     assert calls == ["fetch", "fetch", "transcribe"]

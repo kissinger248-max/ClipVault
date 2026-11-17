@@ -15,7 +15,7 @@ from datetime import datetime, timedelta
 from pathlib import Path
 from zoneinfo import ZoneInfo
 
-from clipvault import db, lifecycle
+from clipvault import activity, db, lifecycle
 from clipvault.alerts import get_setting, raise_alert, resolve_alerts, set_setting
 from clipvault.config import Config
 from clipvault.fetch import ytdlp
@@ -55,6 +55,9 @@ _FAILURE_STREAK_SETTING = "fetch.consecutive_failures"
 SILENT_LUFS = -50.0  # quieter than this is treated as muted
 # Moments cut from a stream recording rather than downloaded as a Twitch clip.
 CUT_SOURCES = ("vod_spike", "live_spike")
+# Queue order for downloads and subtitles: moments caught live first (someone may be
+# watching them arrive), then the most viewed.
+LIVE_FIRST = " ORDER BY (c.source = 'live_spike') DESC, c.view_count DESC, c.id"
 DOWNLOADER_ALERT = "Clip downloads keep failing; the downloader (yt-dlp) may need an update."
 
 FETCH_JOB = "fetch"
@@ -196,7 +199,7 @@ def run_fetch(
     if login:
         query += " AND s.login = ?"
         params.append(login)
-    pending = conn.execute(query + " ORDER BY c.view_count DESC, c.id", params).fetchall()
+    pending = conn.execute(query + LIVE_FIRST, params).fetchall()
     due = [c for c in pending if not c["retry_at"] or parse_rfc3339(c["retry_at"]) <= now]
     if not allow_vod_cuts:
         due = [c for c in due if c["source"] not in CUT_SOURCES]
@@ -230,13 +233,17 @@ def run_fetch(
 
         path = storage.resolve(library, relpath)
         try:
-            if path is None and clip["source"] in CUT_SOURCES:
-                start = clip["vod_offset"] or 0
-                end = start + (clip["duration"] or 0)
-                path = cut(clip["url"], library.write_base / relpath, config.quality, start, end)
-                summary.downloaded += 1
-            elif path is None:
-                path = download(clip["url"], library.write_base / relpath, config.quality)
+            if path is None:
+                is_cut = clip["source"] in CUT_SOURCES
+                with activity.working(clip["id"], "cutting" if is_cut else "downloading",
+                                      clip["login"]):  # fmt: skip
+                    if is_cut:
+                        start = clip["vod_offset"] or 0
+                        end = start + (clip["duration"] or 0)
+                        path = cut(clip["url"], library.write_base / relpath, config.quality,
+                                   start, end)  # fmt: skip
+                    else:
+                        path = download(clip["url"], library.write_base / relpath, config.quality)
                 summary.downloaded += 1
             else:
                 summary.already_there += 1
@@ -380,7 +387,7 @@ def run_transcribe(
     if login:
         query += " AND s.login = ?"
         params.append(login)
-    pending = conn.execute(query + " ORDER BY c.view_count DESC, c.id", params).fetchall()
+    pending = conn.execute(query + LIVE_FIRST, params).fetchall()
     due = [c for c in pending if not c["retry_at"] or parse_rfc3339(c["retry_at"]) <= now]
     summary.waiting = len(pending) - len(due)
     todo = due[:limit] if limit else due
@@ -401,7 +408,8 @@ def run_transcribe(
             if result is not None:
                 summary.already_there += 1
             else:
-                result = _transcribe_video(video, providers, config.transcription.language)
+                with activity.working(clip["id"], "subtitles", clip["login"]):
+                    result = _transcribe_video(video, providers, config.transcription.language)
                 storage.write_text_atomic(words_file, result.to_json())
                 summary.done += 1
         except transcribe.TranscribeError as exc:
@@ -660,8 +668,10 @@ def run_render(
         if lifecycle.stopping.is_set():
             break  # quitting: the rest waits for the next run
         try:
-            render(conn, config, clip_id)
+            with activity.working(clip_id, "editing"):
+                render(conn, config, clip_id)
             summary.rendered += 1
+            activity.event("edited", "Phone version ready", clip_id=clip_id)
         except (RenderError, OSError) as exc:
             summary.failed += 1
             summary.errors.append(f"{clip_id}: {exc}")

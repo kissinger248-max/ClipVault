@@ -250,8 +250,8 @@ def _add_moment(
         title += f" - {vod['title']}"
     conn.execute(
         "INSERT INTO clips (id, streamer_id, source, title, created_at, view_count, duration, "
-        "vod_id, vod_offset, url, state, score) VALUES (?, ?, 'vod_spike', ?, ?, NULL, ?, ?, ?, "
-        "?, 'found', ?) ON CONFLICT(id) DO NOTHING",
+        "vod_id, vod_offset, url, state, score, surge) VALUES (?, ?, 'vod_spike', ?, ?, NULL, ?, "
+        "?, ?, ?, 'found', ?, ?) ON CONFLICT(id) DO NOTHING",
         (
             f"vod:{vod['id']}:{moment.start}",
             vod["streamer_id"],
@@ -262,6 +262,7 @@ def _add_moment(
             moment.start,
             vod["url"],
             moment.score,
+            round(moment.surge, 2),
         ),
     )
 

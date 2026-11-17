@@ -93,18 +93,21 @@ Removing a streamer who has saved clips only switches saving off, so their clips
 
 ## 6. Live moments (during a stream)
 
-**What it does:** while one of your streamers is live, ClipVault reads their chat as it happens, using the same "chat went wild" rules as above. When a moment is over, it waits 3 minutes (so Twitch's recording has caught up) and then cuts those 40 seconds out of the recording while the stream is still going.
+**What it does:** while one of your streamers is live, ClipVault reads their chat as it happens, using the same "chat went wild" rules as above. A moment is saved when chat gets at least **4 times busier than its usual level** (the last 10 minutes), and at most **10 per stream**. Big chats spike every few minutes; the bar keeps the real moments (one 9.5-hour stream had 67 spikes, 14 of them this strong). When a moment is over, ClipVault waits 3 minutes (so Twitch's recording has caught up) and then cuts those 40 seconds out of the recording right away, while the stream is still going. Cutting is a short download, so it happens on battery too. Moments caught live go first in the queue for downloading and subtitles.
+
+**On or off:** Settings, Twitch, "Live moments" (on unless you switch it off). Each live moment shows how much busier chat was ("chat 5.1×").
 
 **When:** all the time while ClipVault runs. Every 2 minutes it checks who is live and starts or stops reading their chat.
 
-**What it needs:** your own Twitch login, done once (Settings, "Live chat", or the `twitch login` command). You type a short code at twitch.tv/activate. The login is used only to read chat; ClipVault never writes in chat. The login renews itself; if Twitch ever stops accepting it, an alert asks you to log in again.
+**What it needs:** your Twitch sign-in, done once (Settings, Twitch, or the `twitch login` command). You type a short code at twitch.tv/activate. The login is used only to read chat; ClipVault never writes in chat. The login renews itself; if Twitch ever stops accepting it, an alert asks you to log in again.
 
 **How it connects:**
 
 - It uses one connection to Twitch's chat service for all live streamers, and closes it when nobody is live.
 - Its moments go into the same download step as everything else.
 - When the stream ends and the finished-stream finder (section 5) reads its chat later, the moments already caught live count as "already clipped", so nothing is saved twice.
-- If a streamer has recordings switched off, the moment is noticed but nothing can be cut; it is only written in the log.
+- If a streamer has recordings switched off, the moment is noticed but nothing can be cut; Home says so.
+- The Home screen shows each live streamer with a chat meter (section 14).
 - Pausing ClipVault also stops reading live chat.
 
 ---
@@ -200,7 +203,7 @@ Removing a streamer who has saved clips only switches saving off, so their clips
 
 1. **Moves** clips from the temporary folder into the library if the library drive was away.
 2. **Notices files you deleted by hand:** those clips are marked and never downloaded again. Files that come back are un-marked. If a large share of the library disappears at once, nothing is marked and an alert asks whether the folder was moved.
-3. **Retention:** removes clips older than 60 days whose views are below that streamer's usual (median) views, together with all their files: the video, the information file, subtitles, word timings and phone version. Starred clips and anything in `Favorites` are never removed. Only files ClipVault itself made and recorded are ever deleted, and never anything outside the library folder.
+3. **Retention:** removes viewer clips older than 60 days (Settings, Storage) whose views are below that streamer's usual (median) views, together with all their files: the video, the information file, subtitles, word timings and phone version. Moments found from chat (live or after the stream) have no view count, so this rule leaves them alone. Starred clips and anything in `Favorites` are never removed. Only files ClipVault itself made and recorded are ever deleted, and never anything outside the library folder.
 4. **Disk check:** pauses downloads below 15% free space.
 5. **Database backup:** copies the database into the library folder (`.clipvault-backups`), one copy per weekday, so there are always seven days of backups and old ones are simply overwritten.
 
@@ -225,7 +228,9 @@ When you start ClipVault (`run`), a scheduler inside it does everything on its o
 
 **Catching up after sleep:** if the computer was asleep, the heartbeat notices the gap on waking and starts finding and downloading straight away. Daily tasks that were missed run as soon as possible.
 
-**Battery:** on a laptop running on battery, downloads continue but the heavy work (subtitles, phone versions, cutting moments from recordings) waits for the charger. A setting allows it on battery too.
+**Battery:** on a laptop running on battery, downloads and cuts continue but the heavy work (subtitles, phone versions) waits for the charger. A setting allows it on battery too; Home offers it as a button when clips are waiting for the charger.
+
+**Changing settings:** most settings count from the next round; only how often to look for clips needs a restart.
 
 **Pause:** the Pause button (Home screen, tray icon, or the `pause` command) stops finding, downloading, editing and live chat. Notifications and the daily summary still go out. Resume carries on where it stopped.
 
@@ -265,9 +270,17 @@ A website that runs inside ClipVault at http://127.0.0.1:8765. It opens in your 
 
 **Setup** (first visit, six steps): what ClipVault should do, connect to Twitch (the app keys), which streamers, where to keep clips (with a monthly space estimate), the look of the phone videos, and your phone (notifications and opening the panel on the phone).
 
-**Home:** a status card (green running, yellow paused, red something needs you; tap it to see the problems), today's numbers, how many clips are still being edited, the newest edited clips, and Pause / Resume.
+**Home:** a status card (green running, yellow paused, red something needs you; tap it to see the problems), "Right now", today's numbers, the newest edited clips, and Pause / Resume.
 
-**Clips:** the edited phone versions as tall cards, newest first. Filter by streamer, by kind (viewer clips, or chat and live moments), by order (newest, most viewed, oldest), by minimum views, or starred only. Search finds clips by what was said, with the matching words highlighted. A line says how many more clips are still being edited.
+**Right now** (Home) shows ClipVault working, updated every few seconds:
+
+- what it is doing ("Making the phone version of xQc's clip", "Looking for new clips…", "All caught up · next look in 12 min");
+- each streamer who is live, with a chat meter: the last five minutes of chat in 10-second bars, a line for its usual level and a red line for the "4× busier" bar a moment needs, and how many moments were caught;
+- a short list of what just happened (clips found, a live moment caught, chat spiking, a phone version ready).
+
+**Clips on their way** appear as loading cards at the front of Newest clips (and on the Clips screen): a dark tile with a moving shine, its stage (downloading, cutting, writing subtitles, making the phone version, waiting for the stream to catch up with a countdown, waiting for the charger) and a four-part bar (found, saved, subtitles, phone version). When the phone version is ready, the card turns into the finished clip. The numbers on Home count up as it happens.
+
+**Clips:** the edited phone versions as tall cards, newest first. Filter by streamer, by kind (viewer clips, or chat and live moments), by order (newest, most viewed, oldest), by minimum views, or starred only. Search finds clips by what was said, with the matching words highlighted. Clips on their way show as loading cards at the top.
 
 **A clip's page:** the phone version plays first. Buttons: **Save video** (downloads the phone version), **See original** (the raw Twitch video, with its own download), and **Star** (starred clips are never deleted). Under "More": make the phone version again in another layout, open it on Twitch, or delete it (deleted clips are never downloaded again). The transcript is under "What was said".
 
@@ -365,4 +378,4 @@ Everything important can be done from the control panel. For completeness, these
 - **AI headlines** need an AI key (section 10).
 - **Posting** to TikTok and YouTube, campaigns, view statistics and weekly compilations: not built, by your choice.
 - **Installer, start at login, server version:** not built yet; ClipVault is started with `run` from a terminal.
-- **Checks only you can do:** watching phone versions on your phone, setting up ntfy, the first live moment during a real stream, and judging whether the chat moments are worth keeping.
+- **Checks only you can do:** watching phone versions on your phone, setting up ntfy, and judging whether the chat moments are worth keeping.

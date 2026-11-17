@@ -7,6 +7,9 @@
   (``panel_session_key``). Changing the password changes the key, which logs
   every device out.
 - Every form carries a CSRF token derived from the session, checked on POST.
+- The two keychain entries are kept in memory for ``CACHE_S`` seconds: every request
+  checks them (the dashboard asks every few seconds), and on a Mac a keychain read can
+  mean a question to the user.
 """
 
 from __future__ import annotations
@@ -15,6 +18,7 @@ import base64
 import hashlib
 import hmac
 import secrets
+import threading
 import time
 
 from clipvault import config as cfg
@@ -23,6 +27,34 @@ COOKIE = "clipvault_session"
 SESSION_DAYS = 30
 MIN_PASSWORD = 8
 _SCRYPT = {"n": 2**14, "r": 8, "p": 1}
+CACHE_S = 30.0
+_cache: dict[str, tuple[float, str | None]] = {}
+_cache_lock = threading.Lock()
+
+
+def _secret(name: str) -> str | None:
+    """A keychain entry, remembered for ``CACHE_S`` seconds."""
+    now = time.monotonic()
+    with _cache_lock:
+        hit = _cache.get(name)
+        if hit is not None and now - hit[0] < CACHE_S:
+            return hit[1]
+    value = cfg.get_secret(name)
+    with _cache_lock:
+        _cache[name] = (now, value)
+    return value
+
+
+def _store(name: str, value: str) -> None:
+    cfg.set_secret(name, value)
+    with _cache_lock:
+        _cache[name] = (time.monotonic(), value)
+
+
+def forget_cache() -> None:
+    """Read the keychain again next time (after a change made elsewhere, and in tests)."""
+    with _cache_lock:
+        _cache.clear()
 
 
 def _b64(data: bytes) -> str:
@@ -51,27 +83,27 @@ def verify_password(password: str, stored: str) -> bool:
 
 
 def has_password() -> bool:
-    return bool(cfg.get_secret("panel_password_hash"))
+    return bool(_secret("panel_password_hash"))
 
 
 def set_password(password: str) -> None:
     """Store a new password and a new session key (logging every device out)."""
     if len(password) < MIN_PASSWORD:
         raise ValueError(f"the password needs at least {MIN_PASSWORD} characters")
-    cfg.set_secret("panel_password_hash", hash_password(password))
-    cfg.set_secret("panel_session_key", secrets.token_urlsafe(32))
+    _store("panel_password_hash", hash_password(password))
+    _store("panel_session_key", secrets.token_urlsafe(32))
 
 
 def check_password(password: str) -> bool:
-    stored = cfg.get_secret("panel_password_hash")
+    stored = _secret("panel_password_hash")
     return bool(stored) and verify_password(password, stored)
 
 
 def _key() -> bytes:
-    key = cfg.get_secret("panel_session_key")
+    key = _secret("panel_session_key")
     if not key:
         key = secrets.token_urlsafe(32)
-        cfg.set_secret("panel_session_key", key)
+        _store("panel_session_key", key)
     return key.encode()
 
 

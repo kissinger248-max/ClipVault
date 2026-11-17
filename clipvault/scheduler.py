@@ -24,7 +24,7 @@ from datetime import datetime, time, timedelta
 from pathlib import Path
 from zoneinfo import ZoneInfo
 
-from clipvault import alerts, db, jobs, power, runs
+from clipvault import activity, alerts, db, jobs, power, runs
 from clipvault import config as cfg
 from clipvault.logging_setup import ctx
 from clipvault.notify import ntfy
@@ -96,6 +96,7 @@ def run_step(
         if alerts.is_paused(conn) and not info.runs_while_paused:
             return None
         runs.mark_started(conn, job)
+        activity.step_started(name)
         try:
             note = step(conn, config, now or utc_now())
         except Exception as exc:  # one failed round must never stop the scheduler
@@ -105,6 +106,8 @@ def run_step(
             if streak >= BROKEN_AFTER:
                 alerts.raise_alert(conn, "broken", broken_message(name))
             return None
+        finally:
+            activity.step_finished(name)
         runs.record_step_success(conn, job)
         alerts.resolve_alert(conn, "broken", broken_message(name))
         level = logging.INFO if note else logging.DEBUG
@@ -156,18 +159,27 @@ def step_discover(conn: sqlite3.Connection, config: cfg.Config, now: datetime) -
     # A login Twitch doesn't know is the user's to fix, not a failing step.
     failed = [r for r in results if r.error and "no user with this login" not in r.error]
     new = sum(len(r.new_clips) for r in results)
+    for result in results:
+        if result.new_clips:
+            count = len(result.new_clips)
+            activity.event("found", f"{count} new clip{'s' if count != 1 else ''} found",
+                           login=result.login)  # fmt: skip
     if failed and len(failed) == len(results):
         raise StepFailed(f"discovery failed for every streamer: {failed[0].error}")
     return f"{new} new clip(s) from {len(results)} streamer(s), {len(failed)} failed"
 
 
 def step_worker(conn: sqlite3.Connection, config: cfg.Config, now: datetime) -> str:
-    """Download waiting clips, then transcribe a few (transcription only on mains power)."""
+    """Download and cut waiting clips, then subtitle and edit a few (those on mains power).
+
+    Cutting a moment from a stream recording is a short download, so it runs on battery
+    too: live moments are saved while the stream is still on.
+    """
     from clipvault.fetch import ytdlp
 
     ytdlp.update_if_due(conn, now=now)
     heavy = power.heavy_allowed(config)
-    fetched = jobs.run_fetch(conn, config, limit=FETCH_BATCH, now=now, allow_vod_cuts=heavy)
+    fetched = jobs.run_fetch(conn, config, limit=FETCH_BATCH, now=now, allow_vod_cuts=True)
     if fetched.stopped_on_failures:
         raise StepFailed("downloads failed several times in a row")
     notes = []
@@ -176,7 +188,7 @@ def step_worker(conn: sqlite3.Connection, config: cfg.Config, now: datetime) -> 
         notes.append(f"saved {saved}, {fetched.failed} failed, {fetched.remaining} waiting")
     if config.transcription.enabled:
         if not heavy:
-            notes.append("transcription, editing and VOD cuts wait for mains power")
+            notes.append("subtitles and editing wait for mains power")
         else:
             done = jobs.run_transcribe(conn, config, limit=TRANSCRIBE_BATCH, now=now)
             if done.stopped_on_failures:
@@ -217,6 +229,9 @@ def step_vods(conn: sqlite3.Connection, config: cfg.Config, now: datetime) -> st
         done = vods.process_vods(conn, config, tool, client=client, limit=VODS_PER_ROUND, now=now)
     finally:
         client.close()
+    if done.moments:
+        activity.event("found", f"{done.moments} chat moment{'s' if done.moments != 1 else ''} "
+                       "found in finished streams")  # fmt: skip
     if not (found or done.processed or done.skipped or done.failed):
         return ""
     return (

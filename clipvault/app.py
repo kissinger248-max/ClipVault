@@ -196,9 +196,36 @@ class App:
         if not lock.acquire(blocking=False):
             return  # already running
         try:
-            scheduler.run_step(name, scheduler.STEP_FUNCTIONS[name], self.config)
+            scheduler.run_step(name, scheduler.STEP_FUNCTIONS[name], self._current_config())
         finally:
             lock.release()
+            self._note_next(name)
+
+    def _current_config(self) -> cfg.Config:
+        """Settings as saved now, so a change in the panel counts from the next round.
+
+        (How often each step runs is fixed when the app starts.)
+        """
+        try:
+            return cfg.load_config()
+        except cfg.ConfigError as exc:
+            log.warning("config.yaml can't be read; using the settings from start: %s", exc,
+                        extra=ctx(job="app"))  # fmt: skip
+            return self.config
+
+    def _note_next(self, name: str) -> None:
+        from clipvault import activity
+
+        job = self.scheduler.get_job(name)
+        when = job.next_run_time if job is not None else None
+        activity.next_run(name, when.timestamp() if when else None)
+
+    def _cut_when_due(self, due: datetime) -> None:
+        """A live moment can be cut at ``due``: run the download step then, not up to
+        two minutes later."""
+        self.scheduler.add_job(self._run, "date", run_date=due + timedelta(seconds=5),
+                               args=["worker"], id=f"cut:{due.timestamp():.0f}",
+                               replace_existing=True)  # fmt: skip
 
     def _run_now(self, name: str) -> None:
         """Start a step in the background as soon as possible."""
@@ -229,12 +256,13 @@ class App:
               next_run_time=now + timedelta(seconds=10),
               seconds=TICK_EVERY.total_seconds())  # fmt: skip
         self.scheduler.start()
+        self._note_next("discover")
         log.info("scheduler started", extra=ctx(job="app", pid=os.getpid()))
         if self.watch_live:
             from clipvault.live import LiveWatcher
 
             self._live_stop = threading.Event()
-            watcher = LiveWatcher(self.config)
+            watcher = LiveWatcher(self.config, on_moment=self._cut_when_due)
             self._live_thread = threading.Thread(
                 target=watcher.run, args=(self._live_stop,), name="live-chat", daemon=True
             )

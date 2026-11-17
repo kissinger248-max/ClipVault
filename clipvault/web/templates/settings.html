@@ -123,6 +123,14 @@
         <form method="post" action="/settings/twitch-login" class="inline"><input type="hidden" name="csrf" value="{{ csrf }}"><button class="btn small primary">{{ 'Sign In with Twitch' if sign_in_mode else 'Log In to Twitch' }}</button></form>
         {% endif %}
       </div>
+      <form method="post" action="/settings/live" data-autosubmit class="contents" id="live">
+        <input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="next" value="/settings#live">
+        <label class="row">
+          <div class="grow"><div>Live moments</div><div class="hint">While a streamer is live, ClipVault reads their chat and saves the moment when it gets {{ live_surge|int }}× busier than usual, at most {{ live_max }} per stream.{% if not twitch_user %} Needs the Twitch sign-in above.{% endif %}</div></div>
+          <input type="checkbox" class="switch" role="switch" name="on" value="1" {{ 'checked' if live_on }}>
+        </label>
+        <noscript><div class="row"><button class="btn small">Save</button></div></noscript>
+      </form>
     </div>
   </section>
 

@@ -45,6 +45,30 @@ def test_old_clips_below_the_median_are_planned(conn: sqlite3.Connection, home: 
     assert [(p.clip_id, p.median_views) for p in plan] == [("old-low", 100)]
 
 
+def test_chat_and_live_moments_are_not_judged_by_views(
+    conn: sqlite3.Connection, home: Path
+) -> None:
+    """They have no view count; counting them as 0 deleted every one after the keep time."""
+    config, library = saved_library(
+        conn,
+        home,
+        {
+            "old-low": {"created_at": OLD, "view_count": 10},
+            "old-high": {"created_at": OLD, "view_count": 1000},
+        },
+    )
+    for clip_id, source in (("live:v1:100", "live_spike"), ("vod:v2:300", "vod_spike")):
+        relpath = f"alpha/2026-08/{storage.safe_id(clip_id)}.mp4"
+        (library.root / relpath).parent.mkdir(parents=True, exist_ok=True)
+        (library.root / relpath).write_bytes(b"cut")
+        add_clip(conn, clip_id, source=source, view_count=None, created_at=OLD, state="fetched",
+                 file_path=relpath, fetched_at=OLD)  # fmt: skip
+    plan = retention.plan_retention(conn, config, library, NOW)
+    # Only the viewer clip below the viewer clips' median (505) goes; the moments stay
+    # and don't pull the median down.
+    assert [(p.clip_id, p.median_views) for p in plan] == [("old-low", 505)]
+
+
 def test_retention_deletes_files_and_keeps_the_record(conn: sqlite3.Connection, home: Path) -> None:
     config, library = saved_library(
         conn,

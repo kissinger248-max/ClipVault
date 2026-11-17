@@ -65,22 +65,38 @@
 </section>
 {% endif %}
 
+{% if live %}
+<section class="section" aria-labelledby="now-title">
+  <div class="section-head"><h2 id="now-title" class="section-title">Right now</h2><span class="muted small" data-next></span></div>
+  <div class="card now-card" data-activity-now data-csrf="{{ csrf }}" aria-live="polite">
+    <div class="now-head">
+      <span class="now-orb" data-orb aria-hidden="true"><i></i></span>
+      <div class="now-text"><div class="now-title" data-now-title>{% if paused %}Paused{% else %}Running{% endif %}</div><div class="muted" data-now-sub></div></div>
+      <div class="now-action" data-now-action></div>
+    </div>
+    <div class="live-rows" data-live-rows></div>
+    <ul class="feed" data-feed aria-label="What just happened"></ul>
+  </div>
+</section>
+{% endif %}
+
 <section class="section" aria-labelledby="today">
   <h2 id="today" class="section-title desk-only">Today</h2>
   <div class="stats">
-    <div class="card stat"><div class="number">{{ counts.saved }}</div><div class="what"><span class="desk-only">Clips saved</span><span class="phone-only">Saved today</span></div></div>
-    <div class="card stat"><div class="number">{{ editing }}</div><div class="what"><span class="desk-only">Still being edited</span><span class="phone-only">Being edited</span></div></div>
-    <div class="card stat"><div class="number">{{ counts.live }}</div><div class="what">Live moments</div></div>
+    <div class="card stat"><div class="number" data-count="saved">{{ counts.saved }}</div><div class="what"><span class="desk-only">Clips saved</span><span class="phone-only">Saved today</span></div></div>
+    <div class="card stat"><div class="number" data-count="editing">{{ editing }}</div><div class="what"><span class="desk-only">Still being edited</span><span class="phone-only">Being edited</span></div></div>
+    <div class="card stat"><div class="number" data-count="live">{{ counts.live }}</div><div class="what">Live moments</div></div>
     <div class="card stat"><div class="number">{{ counts.free|gigabytes if counts.free is not none else '–' }}</div><div class="what">Free in library</div></div>
   </div>
 </section>
 
 <section class="section" aria-labelledby="newest">
   <div class="section-head"><h2 id="newest" class="section-title">Newest clips</h2>{% if newest %}<a href="/clips"><span class="desk-only">Show All</span><span class="phone-only">See All</span></a>{% endif %}</div>
-  {% if newest %}
-  <div class="clip-grid home-strip">{% for clip in newest[:5] %}{{ clip_card(clip) }}{% endfor %}</div>
-  {% else %}
-  <p class="empty">No edited clips yet. While ClipVault runs, it finds the newest clips and makes a phone version of each one (with the charger plugged in on a laptop).</p>
+  <div class="clip-grid home-strip" data-activity-grid data-limit="5" data-loading="3"
+       data-after="{{ live.after if live else '' }}">{% for clip in newest[:5] %}{{ clip_card(clip) }}{% endfor %}</div>
+  {% if not newest %}
+  <p class="empty" data-empty>No edited clips yet. While ClipVault runs, it finds the newest clips and makes a phone version of each one (with the charger plugged in on a laptop).</p>
   {% endif %}
 </section>
+{% if live %}<script type="application/json" id="activity-initial">{{ live|tojson }}</script>{% endif %}
 {% endblock %}

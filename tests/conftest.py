@@ -39,6 +39,19 @@ class MemoryKeyring(KeyringBackend):
 
 
 @pytest.fixture(autouse=True)
+def fresh_process_state():
+    """In-memory state of the running app (panel key cache, live view) starts empty."""
+    from clipvault import activity
+    from clipvault.web import auth
+
+    auth.forget_cache()
+    activity.reset()
+    yield
+    auth.forget_cache()
+    activity.reset()
+
+
+@pytest.fixture(autouse=True)
 def memory_keyring() -> MemoryKeyring:
     previous = keyring.get_keyring()
     backend = MemoryKeyring()

@@ -360,3 +360,60 @@ def test_the_connection_is_closed_when_nobody_is_live(watcher) -> None:
     watcher.clock_state["now"] += 200
     watcher.step(receive_timeout=0)
     assert watcher.session.session_id == "s1" and len(watcher.subscribed) == 2
+
+
+# --- which spikes become live moments, and what the panel sees ----------------------------
+
+
+def test_a_modest_spike_is_shown_but_not_saved(watcher, conn) -> None:
+    from clipvault import activity
+
+    watcher.step(receive_timeout=0)
+    feed(watcher, 600, 10)  # steady chat: 10 messages per 10 s
+    feed(watcher, 20, 30)  # three times busier: a spike, but under the live bar
+    feed(watcher, 60, 10)
+    assert watcher.channels["100"].spikes == 1
+    assert conn.execute("SELECT count(*) FROM clips").fetchone()[0] == 0
+    events = activity.snapshot()["events"]
+    assert [e["kind"] for e in events] == ["spike"] and events[0]["surge"] == 3.0
+
+
+def test_a_saved_moment_keeps_its_surge_and_is_cut_on_time(watcher, conn) -> None:
+    from clipvault import activity
+
+    due: list[datetime] = []
+    watcher.on_moment = due.append
+    watcher.step(receive_timeout=0)
+    feed(watcher, 600, 4)
+    feed(watcher, 20, 30, "LUL")
+    feed(watcher, 60, 4)
+    row = conn.execute("SELECT * FROM clips").fetchone()
+    assert row["surge"] > 4
+    assert len(due) == 1 and to_rfc3339(due[0]) == row["retry_at"]
+    moment = [e for e in activity.snapshot()["events"] if e["kind"] == "moment"][0]
+    assert moment["clip_id"] == row["id"] and moment["cut_at"] == due[0].timestamp()
+    channel = activity.snapshot()["live"]["channels"][0]
+    assert channel["login"] == "alpha" and channel["recording"] and channel["moments"] == 1
+    assert len(channel["windows"]) <= activity.METER_WINDOWS and channel["baseline"] > 0
+
+
+def test_at_most_ten_live_moments_per_stream(watcher, conn) -> None:
+    from clipvault.discover.live_spikes import LiveSpike
+    from clipvault.live import LIVE_MAX_PER_STREAM
+
+    watcher.step(receive_timeout=0)
+    channel = watcher.channels["100"]
+    saved = [watcher.save_moment(channel, LiveSpike(T0 + 120 * i, 99, 5)) for i in range(12)]
+    assert saved == [True] * LIVE_MAX_PER_STREAM + [False, False]
+
+
+def test_live_moments_can_be_switched_off(watcher, conn) -> None:
+    from clipvault import activity
+    from clipvault.live import LIVE_SETTING
+
+    watcher.step(receive_timeout=0)
+    assert "100" in watcher.channels
+    alerts.set_setting(conn, LIVE_SETTING, "0")
+    watcher.clock_state["now"] += 200
+    watcher.step(receive_timeout=0)
+    assert watcher.channels == {} and activity.snapshot()["live"]["status"] == "off"

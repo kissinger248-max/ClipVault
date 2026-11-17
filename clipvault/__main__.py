@@ -814,8 +814,11 @@ def _cmd_live(args: argparse.Namespace) -> int:
 
 
 def _cmd_panel(args: argparse.Namespace) -> int:
+    from clipvault.web import auth
+
     for name in ("panel_password_hash", "panel_session_key"):
         cfg.delete_secret(name)
+    auth.forget_cache()  # a running app notices within auth.CACHE_S seconds
     print("Panel password forgotten and every device logged out.")
     print("Open the panel on this computer to choose a new one.")
     return 0

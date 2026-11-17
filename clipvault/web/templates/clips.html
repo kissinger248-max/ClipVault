@@ -46,16 +46,18 @@
   </div>
 </form>
 
-<div class="editing">
+<div class="editing" {{ 'data-activity-summary' if live }} data-total="{{ total }}">
   {% if editing %}<span class="spinner cv-spin" aria-hidden="true"></span><span>{{ editing }} more clip{{ 's are' if editing != 1 else ' is' }} still being edited<span class="desk-only">&nbsp;and will appear here</span>.</span>
   {% else %}{{ '{:,}'.format(total) }} clip{{ 's' if total != 1 }}{% if filters.q %} saying “{{ filters.q }}”{% endif %}.{% endif %}
 </div>
 
-{% if clips %}
-<div class="clip-grid">{% for clip in clips %}{{ clip_card(clip, snippets.get(clip.id, '')) }}{% endfor %}</div>
-{% else %}
-<p class="empty">{% if filters.q %}No edited clip says “{{ filters.q }}”.{% else %}No clips match these filters yet.{% endif %}</p>
+{% if clips or live %}
+<div class="clip-grid" {% if live %}data-activity-grid data-loading="5" data-after="{{ live.after }}"{% endif %}>{% for clip in clips %}{{ clip_card(clip, snippets.get(clip.id, '')) }}{% endfor %}</div>
 {% endif %}
+{% if not clips %}
+<p class="empty" data-empty>{% if filters.q %}No edited clip says “{{ filters.q }}”.{% else %}No clips match these filters yet.{% endif %}</p>
+{% endif %}
+{% if live %}<script type="application/json" id="activity-initial">{{ live|tojson }}</script>{% endif %}
 
 {% if pages > 1 %}
 <nav class="pager" aria-label="Pages">

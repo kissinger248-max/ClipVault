@@ -7,9 +7,14 @@ The watcher runs on its own thread inside ``run``:
    the stream runs; checked live 2026-11-13).
 2. It keeps one EventSub chat connection and subscribes to each live channel.
 3. Every chat message goes into that channel's rolling detector (the M4 rules).
-4. A spike becomes a clip ``live:<vod_id>:<offset>`` (source ``live_spike``,
-   state ``found``) that the download step cuts from the recording, waiting
-   3 minutes first so the recording has caught up past the moment.
+4. A spike strong enough (chat at least ``LIVE_MIN_SURGE`` times its usual level,
+   at most ``LIVE_MAX_PER_STREAM`` per stream) becomes a clip
+   ``live:<vod_id>:<offset>`` (source ``live_spike``, state ``found``) that the
+   download step cuts from the recording 3 minutes later, once the recording has
+   caught up past the moment. The app runs the download step right then.
+5. Everything it sees goes to :mod:`clipvault.activity` for the panel's live view.
+
+Live moments can be switched off in the panel (``live_moments`` setting).
 
 Archive only (hard rule 3): cuts use yt-dlp. Streamers who switch recordings off
 yield no footage; their spikes are only logged. Clipping through Twitch's own
@@ -29,7 +34,7 @@ from typing import Any
 
 import httpx
 
-from clipvault import alerts, db
+from clipvault import activity, alerts, db
 from clipvault import config as cfg
 from clipvault.discover import live_spikes, vod_spikes
 from clipvault.logging_setup import ctx
@@ -43,6 +48,12 @@ RETRY_LOGIN_S = 300
 LOGIN_POLL_S = 60
 RECONNECT_BACKOFF_S = (5, 15, 60, 300)
 RELOGIN_ALERT = "Log in to Twitch again so ClipVault can read live chat (Settings, Twitch login)."
+# A live moment needs chat this many times busier than its usual level. The detector's own
+# rule (above mean + 3 sd and at least 2x) fires every few minutes in a big chat: one
+# 9.5-hour xQc stream gave 67 spikes (median 3.3x), 14 of them at 4x or more.
+LIVE_MIN_SURGE = 4.0
+LIVE_MAX_PER_STREAM = 10
+LIVE_SETTING = "live_moments"  # "0" = don't catch moments from live chat
 
 log = logging.getLogger(__name__)
 
@@ -77,6 +88,7 @@ class LiveWatcher:
         http: httpx.Client | None = None,
         session: eventsub.Session | None = None,
         clock: Callable[[], float] = time.time,
+        on_moment: Callable[[datetime], None] | None = None,
     ) -> None:
         self.config = config
         self.db_path = db_path or cfg.db_path()
@@ -86,6 +98,7 @@ class LiveWatcher:
         self.clock = clock
         self.channels: dict[str, Channel] = {}
         self.tokens = user_auth.UserTokenProvider(self.http)
+        self.on_moment = on_moment  # told when a saved moment can be cut
         self._last_check = 0.0
         self._failures = 0
 
@@ -99,6 +112,7 @@ class LiveWatcher:
                 # Not logged in (yet): nothing to do and nothing to complain about.
                 self.tokens = user_auth.UserTokenProvider(self.http)
                 if not self.tokens.logged_in:
+                    activity.live_status("no_login")
                     stop.wait(LOGIN_POLL_S)
                     continue
             try:
@@ -139,17 +153,36 @@ class LiveWatcher:
             if channel is not None:
                 self._handle(channel, channel.detector.add(message.when, message.text))
         now = self.clock()
-        for channel in self.channels.values():
+        for channel in list(self.channels.values()):
             self._handle(channel, channel.detector.advance(now))
+            self._publish(channel)
+
+    def _publish(self, channel: Channel) -> None:
+        """Show this channel's chat activity in the panel's live view."""
+        history = list(channel.detector.history)
+        activity.live_channel(activity.LiveChannel(
+            user_id=channel.user_id,
+            login=channel.login,
+            stream_started=channel.recording_started,
+            recording=channel.vod_id is not None,
+            windows=history[-activity.METER_WINDOWS:],
+            current=channel.detector.window_score,
+            baseline=sum(history) / len(history) if history else 0.0,
+            spikes=channel.spikes,
+            moments=channel.moments,
+        ))  # fmt: skip
 
     # --- who is live ---------------------------------------------------------------------
 
     def refresh_live(self) -> None:
         conn = db.open_db(self.db_path)
         try:
-            if alerts.is_paused(conn):
+            paused = alerts.is_paused(conn)
+            switched_off = alerts.get_setting(conn, LIVE_SETTING) == "0"
+            if paused or switched_off:
                 for channel in list(self.channels.values()):
                     self._ended(channel)
+                activity.live_status("paused" if paused else "off")
                 return
             streamers = conn.execute(
                 "SELECT id, login, twitch_user_id FROM streamers WHERE save_enabled = 1 "
@@ -184,6 +217,8 @@ class LiveWatcher:
                     self._find_recording(client, current)
         finally:
             client.close()
+        if not self.channels:
+            activity.live_status("idle")
         self._subscribe_new()
 
     def _client(self) -> Any:
@@ -236,6 +271,7 @@ class LiveWatcher:
             except user_auth.LoginNeeded:
                 pass
         self.channels.pop(channel.user_id, None)
+        activity.live_ended(channel.user_id)
         if not self.channels:
             # Twitch closes a connection without subscriptions ("connection unused");
             # close it ourselves and open a fresh one when someone goes live again.
@@ -255,9 +291,17 @@ class LiveWatcher:
     def _handle(self, channel: Channel, spikes: list[live_spikes.LiveSpike]) -> None:
         for spike in spikes:
             channel.spikes += 1
+            surge = f"{spike.surge:.1f}×"
+            if spike.surge < LIVE_MIN_SURGE:
+                activity.event("spike", f"Chat jumped to {surge} its usual level",
+                               login=channel.login, surge=round(spike.surge, 1))  # fmt: skip
+                continue
             if channel.vod_id is None or channel.recording_started is None:
                 log.info("chat spike, but the stream has no recording to cut from",
                          extra=ctx(streamer=channel.login, job=JOB, score=spike.score))  # fmt: skip
+                activity.event("spike", f"Chat went wild ({surge}), but this stream isn't "
+                               "recorded, so there's nothing to cut", login=channel.login,
+                               surge=round(spike.surge, 1))  # fmt: skip
                 continue
             if self.save_moment(channel, spike):
                 channel.moments += 1
@@ -276,14 +320,23 @@ class LiveWatcher:
             ).fetchone()
             if covered:
                 return False
+            saved = conn.execute(
+                "SELECT count(*) FROM clips WHERE source = 'live_spike' AND vod_id = ?",
+                (channel.vod_id,),
+            ).fetchone()[0]
+            if saved >= LIVE_MAX_PER_STREAM:
+                activity.event("spike", f"Chat went wild ({spike.surge:.1f}×); this stream "
+                               f"already has {saved} live moments", login=channel.login,
+                               surge=round(spike.surge, 1))  # fmt: skip
+                return False
             title = f"Live chat moment at {vod_spikes.clock(cut.start + vod_spikes.BEFORE_PEAK_S)}"
             if channel.vod_title:
                 title += f" - {channel.vod_title}"
             peak = datetime.fromtimestamp(spike.peak, UTC)
             cursor = conn.execute(
                 "INSERT INTO clips (id, streamer_id, source, title, created_at, view_count, "
-                "duration, vod_id, vod_offset, url, state, score, retry_at) VALUES "
-                "(?, ?, 'live_spike', ?, ?, NULL, ?, ?, ?, ?, 'found', ?, ?) "
+                "duration, vod_id, vod_offset, url, state, score, surge, retry_at) VALUES "
+                "(?, ?, 'live_spike', ?, ?, NULL, ?, ?, ?, ?, 'found', ?, ?, ?) "
                 "ON CONFLICT(id) DO NOTHING",
                 (
                     f"live:{channel.vod_id}:{cut.start}",
@@ -295,15 +348,22 @@ class LiveWatcher:
                     cut.start,
                     channel.vod_url,
                     spike.score,
+                    round(spike.surge, 2),
                     to_rfc3339(peak + CUT_DELAY),
                 ),
             )
         finally:
             conn.close()
         if cursor.rowcount:
+            clip_id = f"live:{channel.vod_id}:{cut.start}"
             log.info("live chat moment saved for cutting", extra=ctx(
-                streamer=channel.login, job=JOB, vod=channel.vod_id, offset=cut.start,
-                score=spike.score, surge=round(spike.surge, 1)))  # fmt: skip
+                clip=clip_id, streamer=channel.login, job=JOB, vod=channel.vod_id,
+                offset=cut.start, score=spike.score, surge=round(spike.surge, 1)))  # fmt: skip
+            activity.event("moment", f"Live moment caught: chat {spike.surge:.1f}× busier",
+                           login=channel.login, clip_id=clip_id, surge=round(spike.surge, 1),
+                           cut_at=(peak + CUT_DELAY).timestamp())  # fmt: skip
+            if self.on_moment is not None:
+                self.on_moment(peak + CUT_DELAY)
         return bool(cursor.rowcount)
 
     # --- alerts ------------------------------------------------------------------------------

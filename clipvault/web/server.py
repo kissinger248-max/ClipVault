@@ -31,6 +31,7 @@ from clipvault import __version__, alerts, db
 from clipvault import config as cfg
 from clipvault.library import storage
 from clipvault.logging_setup import ctx
+from clipvault.timeutil import to_rfc3339, utc_now
 from clipvault.web import auth
 
 HERE = Path(__file__).parent
@@ -294,11 +295,12 @@ def create_app(home: Path | None = None) -> FastAPI:
             last = c.execute(
                 "SELECT max(last_success) FROM runs WHERE job LIKE 'step:%'"
             ).fetchone()[0]
+            live = live_view(c)
         status = "red" if open_alerts else ("yellow" if paused else "green")
         return page(request, "home.html", tab="home", status=status, alerts=open_alerts,
                     problems=len(open_alerts),
                     paused=paused, counts=counts, newest=newest, last_run=last,
-                    editing=editing)  # fmt: skip
+                    editing=editing, live=live)  # fmt: skip
 
     @app.post("/pause")
     def pause():
@@ -361,11 +363,14 @@ def create_app(home: Path | None = None) -> FastAPI:
                               (page_no - 1) * PAGE_SIZE)  # fmt: skip
             logins = [r[0] for r in c.execute("SELECT login FROM streamers ORDER BY login")]
             editing = _editing_count(c, config())
+            # Loading cards for clips on their way: on the first page of the plain list only.
+            plain = page_no == 1 and not any(filters.values())
+            live = live_view(c) if plain else None
         pages = max((total + PAGE_SIZE - 1) // PAGE_SIZE, 1)
         query = {k: v for k, v in filters.items() if v}
         return page(request, "clips.html", tab="clips", clips=rows, filters=filters, total=total,
                     page_no=page_no, pages=pages, logins=logins, snippets=snippets,
-                    query=urlencode(query), editing=editing)  # fmt: skip
+                    query=urlencode(query), editing=editing, live=live)  # fmt: skip
 
     @app.get("/clips/{clip_id}", response_class=HTMLResponse)
     def clip_page(request: Request, clip_id: str, view: str = ""):
@@ -588,9 +593,19 @@ def create_app(home: Path | None = None) -> FastAPI:
 
     # --- settings and setup live in their own module --------------------------------------
 
-    from clipvault.web import settings_routes
+    from clipvault.web import activity_routes, settings_routes
 
     settings_routes.register(app, page=page, back=back, conn=conn, config=config, home=home)
+    clip_card = templates.env.get_template("_macros.html").module.clip_card
+    activity_routes.register(app, back=back, conn=conn, config=config, card=clip_card,
+                             clip_rows=_clip_rows, local_midnight=_local_midnight_utc)  # fmt: skip
+
+    def live_view(c: sqlite3.Connection) -> dict[str, Any]:
+        """The live view's first answer, written into the page so it shows at once."""
+        current = config()
+        return activity_routes.payload(
+            c, current, since=0, after=to_rfc3339(utc_now()), card=clip_card,
+            clip_rows=_clip_rows, today=_local_midnight_utc(current))  # fmt: skip
 
     @app.get("/manifest.webmanifest")
     def manifest():

@@ -742,3 +742,61 @@ Report: after installing 0.3.3, the owner's Mac mini still said "You can't open 
 **Open issues**
 - After every update the Mac asks once per saved key ("ClipVault wants to use your confidential information…"; type the Mac password, Always Allow). The app keeps working meanwhile. Until answered, the panel can't check its password, so pages wait, and Twitch sign-in waits too.
 - Ending that needs a paid Apple Developer ID (also ends the Gatekeeper warning), or keeping the Mac's keys outside the keychain, which changes hard rule 6. Both are the owner's decision.
+
+## 2026-11-17: Live clipping finished, and a live view of what ClipVault is doing (0.4.0)
+
+Request: "enable live clipping. make it fully functional ... when running show clips being found, like visualize something happening not just nothing then boom clips ... skeleton of clips with loading in them".
+
+**Where live clipping stood (owner's install, read from a copy of its database and logs)**
+- It worked: one xQc stream (2026-11-14/15, 9.5 h) produced 67 chat spikes, all saved as live moments; 84 live moments in total, all cut, subtitled and given phone versions. M14 "Done when" passed.
+- The problems:
+  - **Volume.** Every spike became a moment. The median was only 3.3× normal chat; 14 of the 67 reached 4×. That came to about 4 GB from one stream.
+  - **Battery.** Cuts waited for mains power, and the laptop was often on battery, so during a stream nothing visible happened.
+  - **Retention.** The owner's retention is 7 days, and chat and live moments have no view count. Retention counted them as 0 views, so every one would have been deleted a week after it was caught. This was finding 1 of the review.
+  - **Nothing on screen** showed any of this happening.
+
+**What changed: live clipping**
+- A live moment needs chat at least 4× its usual level (`LIVE_MIN_SURGE`), at most 10 per stream (`LIVE_MAX_PER_STREAM`, counted in the database, so a restart mid-stream doesn't reset it). Weaker spikes are shown in the panel's feed but not saved.
+- Cuts run on battery: a 40 s section download is light. Subtitles and phone versions still wait for the charger unless "Heavy work on battery" is on; Home offers that as a button when clips are waiting.
+- A live moment is cut exactly when due: the watcher tells the app, which schedules the download step 3 minutes after the moment, instead of up to 2 minutes later.
+- Live moments go first in the download and subtitle queues.
+- Migration `0009_surge`: `clips.surge` (how much busier chat was), saved for live and finished-stream moments and shown on their cards.
+- Settings, Twitch, "Live moments": an on/off switch, stored in the database (`live_moments`), so it takes effect within 2 minutes without a restart.
+- Retention judges viewer clips only. Moments found from chat are kept, and they no longer pull the median down (new test).
+- The scheduler reads config.yaml at every round, so most settings apply from the next round. Only the discovery interval needs a restart; the Settings message says so.
+
+**What changed: the live view**
+- `clipvault/activity.py`: an in-memory record of what the running app is doing:
+  - the clip being downloaded, cut, subtitled or edited, with how long that usually takes (learned from the last few);
+  - the scheduled steps running;
+  - each live channel's last 5 minutes of chat in 10 s windows with its usual level;
+  - a short feed of events.
+  - Jobs, the scheduler and the live watcher report to it.
+- `GET /api/activity` (`web/activity_routes.py`, login required) joins that with the database:
+  - clips on their way, with their stage and what they wait for (the stream's recording, with a countdown; the charger; a retry; their turn);
+  - phone versions finished since the page last asked, as the same card HTML the pages use;
+  - live channels with names and avatars;
+  - Home's numbers.
+- `static/activity.js`: Home and Clips start from an answer written into the page, then ask every 2.5 s (15 s in the background). Home gets a "Right now" card:
+  - what's happening;
+  - a chat meter per live streamer, with lines for the usual level and the 4× bar;
+  - the feed.
+- Loading cards sit at the front of Newest clips and of the Clips grid. Each is a dark tile with a moving shine, a blurred peek of the original once it is saved, the stage with an icon, and a four-part progress bar; the active part fills over the usual time. When the phone version is ready, the card turns into the finished clip with a short highlight. Home stays one row; the tiles count up.
+- Animations use motion.css, so Reduce Motion stops them. Colours come from the tokens (light and dark).
+- The panel keeps its two keychain entries in memory for 30 s (`auth.CACHE_S`). Every poll checks the login, and on a Mac a keychain read can mean a question to the user.
+
+**Verified, and how**
+- `pytest -q`: 427 passed (new: tests/test_activity.py, live-moment rules in test_live.py, retention of moments, cuts on battery). ruff clean.
+- In the browser, against a copy of the owner's database, with a script feeding pretend work and a pretend live chat (a test password under a separate keychain service, removed afterwards):
+  - "Right now" followed the work;
+  - the chat meter moved;
+  - loading cards changed stage, counted down and turned into the finished clip;
+  - checked on desktop dark, phone light, and the Clips page.
+- Fixed from what I saw:
+  - the card class `now` clashed with the meter's `.bar.now` and the clip page's highlighted transcript line (renamed `now-card`);
+  - hidden cards still showed because `.clip-card` sets `display`;
+  - "phone version ready" didn't say whose clip it was.
+
+**Open issues**
+- The owner's Windows app is still 0.3.2. It can freeze when its hidden-at-login window is opened again; installing 0.3.3 or later by hand avoids that, and after that updates install themselves.
+- The live view shows work done by the running app only. Commands run in a terminal (`fetch`, `render`) don't appear there.

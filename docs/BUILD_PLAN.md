@@ -216,5 +216,6 @@ Requested by the user on 2026-11-12 (no longer optional). Needs M3 (the app must
 - [x] Live spike detection on a rolling window, reusing the M4 detector
 - [x] Archive-only streamers: cut the moment from the stream's in-progress recording a few minutes later (`yt-dlp --download-sections`), saved as `live_spike`
 - [ ] Permissioned streamers: Create Clip From VOD with padding (SPEC §5.3). Not built: the user chose no posting (2026-11-13) and no streamer has permission recorded
+- [x] Live view in the panel (requested 2026-11-17): what is being worked on, chat meters for live channels, loading cards that turn into the finished clip; live moments on/off; 4× bar and 10 per stream
 
-**Done when:** during one live stream, at least one live-spike clip is created and saved.
+**Done when:** during one live stream, at least one live-spike clip is created and saved. **Passed** on the owner's install: one xQc stream on 2026-11-14/15 saved 67 live moments, all cut, subtitled and edited (see PROGRESS 2026-11-17).

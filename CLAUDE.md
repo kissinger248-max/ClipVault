@@ -61,6 +61,8 @@ clipvault/
   scheduler.py       # scheduled steps (discover, worker, cleanup, summary, notify) + bookkeeping
   power.py           # on battery? heavy steps wait for mains power
   live.py            # live chat watcher: EventSub chat -> rolling spikes -> live_spike clips
+  activity.py        # what the running app is doing right now (the panel's live view)
+  window.py          # the app window (its own process) and its manager
   tray.py            # tray icon
   alerts.py          # alerts table + settings table helpers
   runs.py            # job cursors and last-run bookkeeping (runs table)
