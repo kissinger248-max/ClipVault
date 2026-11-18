@@ -471,6 +471,42 @@ def create_app(home: Path | None = None) -> FastAPI:
         return back("/clips", "Clip deleted; it won't be downloaded again." if removed
                     else "Nothing to delete.")  # fmt: skip
 
+    @app.post("/clips/{clip_id}/save-to-photos")
+    def save_to_photos(clip_id: str):
+        """Import the phone version into the Mac's Photos app (macOS only)."""
+        import subprocess
+        import sys
+
+        dest = f"/clips/{quote(clip_id, safe='')}"
+        if sys.platform != "darwin":
+            # Not a Mac: keep the old behaviour and download the file.
+            return RedirectResponse(f"/media/{quote(clip_id, safe='')}?kind=vertical&download=1", 303)
+        with _db(conn) as c:
+            library = storage.open_library(c, config())
+            row = c.execute(
+                "SELECT path FROM renders WHERE clip_id = ? AND path IS NOT NULL "
+                "ORDER BY created_at DESC, id DESC LIMIT 1",
+                (clip_id,),
+            ).fetchone()
+        path = storage.resolve(library, row[0]) if row and row[0] else None
+        if path is None or not storage.is_inside_library(library, path):
+            return back(dest, "The video file wasn't found.")
+        script = (
+            "on run argv\n"
+            "set f to POSIX file (item 1 of argv)\n"
+            'tell application "Photos" to import {f} skip check duplicates true\n'
+            "end run"
+        )
+        try:
+            r = subprocess.run(["osascript", "-e", script, str(path)],
+                               capture_output=True, text=True, timeout=120)  # fmt: skip
+        except (OSError, subprocess.TimeoutExpired):
+            return back(dest, "Couldn't reach Photos. Try again.")
+        if r.returncode != 0:
+            return back(dest, "Photos didn't accept it. In System Settings > Privacy & Security > "
+                        "Automation, allow ClipVault to control Photos, then try again.")  # fmt: skip
+        return back(dest, "Saved to Photos.")
+
     @app.post("/clips/{clip_id}/vertical")
     def make_vertical(clip_id: str, layout: str = Form("")):
         state: PanelState = app.state.panel

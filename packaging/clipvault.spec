@@ -93,5 +93,6 @@ if sys.platform == "darwin":
             "CFBundleShortVersionString": __import__("clipvault").__version__,
             "LSUIElement": True,  # lives in the menu bar, no Dock icon
             "NSHighResolutionCapable": True,
+            "NSAppleEventsUsageDescription": "ClipVault saves your clips into Photos.",
         },
     )
