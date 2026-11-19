@@ -131,7 +131,9 @@ def register(
             live_on = alerts.get_setting(c, LIVE_SETTING) != "0"
         finally:
             c.close()
+        ai_key = bool(cfg.get_secret("llm_api_key") or cfg.get_secret("groq_api_key"))
         return page(request, "settings.html", tab="settings", config=current, keys=keys,
+                    ai_key=ai_key,
                     live_on=live_on, live_surge=LIVE_MIN_SURGE, live_max=LIVE_MAX_PER_STREAM,
                     starts_at_login=starts_at_login,
                     estimate=estimate, twitch_user=(token.login or "your account") if token else "",
@@ -311,6 +313,39 @@ def register(
             return back("/settings#twitch-login", message)
         return back("/settings#twitch-login", "Logged out of Twitch. Live chat is no longer read.")
 
+    # --- headlines ----------------------------------------------------------------------------
+
+    @app.post("/settings/ai-key")
+    def save_ai_key(key: str = Form("")):
+        from clipvault.process import headlines
+        from clipvault.secret_prompt import clean_secret
+
+        cleaned = clean_secret(key)
+        if not cleaned:
+            return back("/settings#headlines", "Nothing pasted; nothing changed.")
+        verdict = _check_ai_key(cleaned)
+        if verdict == "refused":
+            return back("/settings#headlines", "Groq refused that key; check it and try again.")
+        cfg.set_secret("llm_api_key", cleaned)
+        c = conn()
+        try:
+            headlines.ai_key_added(c)  # headlines get written again, by the AI this time
+        finally:
+            c.close()
+        if verdict == "unreachable":
+            return back("/settings#headlines", "Key saved. Groq couldn't be reached to check it; "
+                        "headlines use it as soon as it can be.")  # fmt: skip
+        return back(
+            "/settings#headlines",
+            "AI key saved and working. New clips get AI "
+            "headlines; older phone versions are re-made with them in the background.",
+        )
+
+    @app.post("/settings/ai-key/remove")
+    def remove_ai_key():
+        cfg.delete_secret("llm_api_key")
+        return back("/settings#headlines", "AI key removed; the built-in writer writes headlines.")
+
     # --- look editor ----------------------------------------------------------------------
 
     @app.get("/look/preview/{layout}.jpg")
@@ -454,6 +489,22 @@ def register(
         finally:
             c.close()
         return back("/", "All set. ClipVault looks for clips on its own while it runs.")
+
+
+def _check_ai_key(key: str) -> str:
+    """Ask Groq whether it accepts a key: "ok", "refused" or "unreachable"."""
+    import httpx
+
+    from clipvault.process import write
+
+    try:
+        reply = httpx.get(f"{write.GROQ_URL}/models", headers={"Authorization": f"Bearer {key}"},
+                          timeout=10.0)  # fmt: skip
+    except httpx.HTTPError:
+        return "unreachable"
+    if reply.status_code in (401, 403):
+        return "refused"
+    return "ok" if reply.status_code == 200 else "unreachable"
 
 
 def sign_in_mode() -> bool:

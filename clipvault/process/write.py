@@ -6,7 +6,9 @@ OpenAI-style chat endpoint works (Groq is the default; docs checked 2026-11-13:
 ``response_format`` with a strict ``json_schema`` on ``openai/gpt-oss-20b``).
 
 Every rule in the prompt is also checked in code; an answer that breaks one is
-asked for again (3 tries). The headline must also fit the on-screen box.
+asked for again (3 tries). The headline must also fit the on-screen box. The headline
+system (``process/headlines.py``) uses this when a key is stored and falls back to its
+built-in writer otherwise.
 """
 
 from __future__ import annotations
@@ -44,10 +46,11 @@ SCHEMA = {
     "type": "object",
     "properties": {
         "headline": {"type": "string"},
+        "key_word": {"type": "string"},
         "post_caption": {"type": "string"},
         "hashtags": {"type": "array", "items": {"type": "string"}},
     },
-    "required": ["headline", "post_caption", "hashtags"],
+    "required": ["headline", "key_word", "post_caption", "hashtags"],
     "additionalProperties": False,
 }
 
@@ -144,6 +147,8 @@ class ClipFacts:
     transcript: list[tuple[float, str]] = field(default_factory=list)  # (seconds, words)
     chat_words: list[str] = field(default_factory=list)
     disclosure: str | None = None  # campaign clips: required first line of the caption
+    notes: tuple[str, ...] = ()  # what else is known ("chat got 6x busier", views)
+    recent: tuple[str, ...] = ()  # the streamer's latest headlines, not to be repeated
 
     @property
     def credit(self) -> str:
@@ -159,20 +164,34 @@ class Copy:
     post_caption: str
     hashtags: tuple[str, ...]
     provider: str = ""
+    key_word: str | None = None  # the headline word shown in the accent colour
 
     def hashtags_json(self) -> str:
         return json.dumps(list(self.hashtags))
 
 
-SYSTEM_PROMPT = f"""You write the on-screen hook headline and the post text for a short vertical
-clip from a Twitch stream. Answer with JSON only:
-{{"headline": "...", "post_caption": "...", "hashtags": ["...", "..."]}}
+SYSTEM_PROMPT = f"""You write the hook headline shown on top of a short vertical clip from a
+Twitch stream, and the post text. Answer with JSON only:
+{{"headline": "...", "key_word": "...", "post_caption": "...", "hashtags": ["...", "..."]}}
 
-Rules:
-- headline: at most {MAX_HEADLINE_WORDS} words. Describe only what happens in the transcript or
-  the clip title. Make people curious, but never invent events, quotes or outcomes.
-- No claims about real people beyond what the clip shows. No fake-news framing such as
-  BREAKING, LEAKED, BANNED or EXPOSED unless the streamer says that word in the clip.
+The headline is what makes someone stop scrolling and watch:
+- At most {MAX_HEADLINE_WORDS} words, and it must make sense to someone who has never seen this
+  streamer. Plain words; no hashtags, no emoji.
+- Hype it up. Exaggerate how shocking, funny, scary, hype or emotional the moment is, and open
+  a curiosity gap. Write the single strongest word in CAPS and give that word as key_word.
+- Good examples: "Kai was NOT ready for this", "Chat could NOT handle this",
+  "Ray's last goodbye HURTS", "xQc LOSES IT over a ladder", "Nobody saw this COMING".
+- Ground it in the clip: what is said, the clip title, the game, how hard chat reacted.
+  Exaggerate reactions and feelings; never invent events, outcomes, quotes, crimes, bans,
+  relationships or health claims about real people.
+- If the transcript sounds like a video the streamer is watching (a narrator, the news, a
+  documentary), the clip is about the streamer's reaction to it: do not present what the
+  video says as something the streamer said or did, or as fact.
+- No fake-news framing such as BREAKING, LEAKED, BANNED or EXPOSED unless that word is said
+  in the clip. No slurs or insults about appearance.
+- Don't reuse the wording of the streamer's recent headlines if you are given them.
+
+The post text:
 - No slurs, insults about appearance, or emoji anywhere.
 - post_caption: one or two short sentences, then the credit given to you, exactly.
   If a disclosure line is given, the caption starts with it.
@@ -198,6 +217,10 @@ def build_messages(facts: ClipFacts, problems: list[str] | None = None) -> list[
     ]
     if facts.chat_words:
         user.append("Words chat repeated at this moment: " + ", ".join(facts.chat_words[:10]))
+    user += list(facts.notes)
+    if facts.recent:
+        user.append("Recent headlines for this streamer (don't repeat them): "
+                    + " | ".join(facts.recent))  # fmt: skip
     if facts.disclosure:
         user.append(f"Disclosure line (must start the caption): {facts.disclosure}")
     user.append("Transcript:\n" + ("\n".join(lines) if lines else "(no speech)"))
@@ -282,9 +305,16 @@ def check_copy(
     if not 3 <= len(cleaned_tags) <= 5:
         problems.append(f"{len(cleaned_tags)} usable hashtags (need 3 to 5, lowercase, no spaces)")
 
+    key = data.get("key_word")
+    key_word = None
+    if isinstance(key, str) and key.strip():
+        wanted = key.strip().strip("\"'.,!?").lower()
+        key_word = next((w.strip("\"'.,!?") for w in headline.split()
+                         if w.strip("\"'.,!?").lower() == wanted), None)  # fmt: skip
+
     if problems:
         return None, problems
-    return Copy(headline, caption, tuple(cleaned_tags)), []
+    return Copy(headline, caption, tuple(cleaned_tags), key_word=key_word), []
 
 
 def write_copy(
@@ -310,7 +340,8 @@ def write_copy(
             continue
         copy, problems = check_copy(data, facts, blocked=blocked, fits=fits)
         if copy is not None:
-            return Copy(copy.headline, copy.post_caption, copy.hashtags, provider.name), []
+            return Copy(copy.headline, copy.post_caption, copy.hashtags, provider.name,
+                        copy.key_word), []  # fmt: skip
         log.info("headline attempt %d rejected: %s", attempt, "; ".join(problems),
                  extra=ctx(streamer=facts.login, job="write"))  # fmt: skip
     return None, problems

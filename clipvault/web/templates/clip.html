@@ -72,6 +72,21 @@
       </details>
     </div>
 
+    {% set made_by = (clip.headline_source or '').split('|')[0] %}
+    {% set headline_from = {'ai': 'written by AI', 'title': "the viewer's title", 'reaction': 'from the reaction', 'moment': 'from how hard chat reacted', 'views': 'from the views', 'game': 'from the game', 'hook': 'a hook', 'custom': 'written by you'} %}
+    <details class="card headline-card" id="headline" {{ 'open' if headline_open }}>
+      <summary>Headline{% if made_by %} <span class="muted small" style="font-weight: 400">· {{ headline_from.get(made_by, made_by) }}</span>{% endif %}</summary>
+      <form method="post" action="/clips/{{ clip.id|urlpart }}/headline" class="inside headline-form">
+        <input type="hidden" name="csrf" value="{{ csrf }}">
+        <input type="text" name="text" value="{{ clip.headline or '' }}" maxlength="80" aria-label="Headline" placeholder="Write a headline" autocomplete="off">
+        <div class="actions">
+          <button class="btn small primary" name="action" value="save" {{ 'disabled' if rendering }}>Save and Re-make</button>
+          <button class="btn small" name="action" value="another" {{ 'disabled' if rendering }}>Try Another</button>
+        </div>
+        <p class="muted small">Write the word to highlight in CAPS. A headline has to fit on two lines whole; nothing is ever cut off.</p>
+      </form>
+    </details>
+
     {% if lines or transcript %}
     <details class="card" open>
       <summary>What was said</summary>

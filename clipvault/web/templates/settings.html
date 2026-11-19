@@ -52,6 +52,28 @@
     {% include "_look.html" %}
   </section>
 
+  <section class="group" id="headlines" aria-labelledby="g-headlines">
+    <h2 id="g-headlines">Headlines</h2>
+    <div class="card list">
+      <div class="row">
+        <div class="grow"><div>Writer: {{ 'AI, with the built-in writer as backup' if ai_key else 'built-in' }}</div>
+          <div class="hint">{% if ai_key %}The AI reads what was said and writes a hook for each clip. If it can’t be reached, the built-in writer takes over.{% else %}Hooks from the streamer’s reaction, how hard chat went, the viewer’s title and the views. Add a free AI key for headlines written about each clip.{% endif %} Headlines are never cut to fit; change one on a clip’s page.</div></div>
+        {% if ai_key %}<form method="post" action="/settings/ai-key/remove" class="inline"><input type="hidden" name="csrf" value="{{ csrf }}"><button class="btn small">Remove Key</button></form>{% endif %}
+      </div>
+      {% if not ai_key %}
+      <form method="post" action="/settings/ai-key" class="contents">
+        <input type="hidden" name="csrf" value="{{ csrf }}">
+        <div class="row">
+          <div class="grow"><div>AI key (free)</div>
+            <div class="hint">Sign in at <a href="https://console.groq.com/keys" target="_blank" rel="noopener">console.groq.com/keys</a>, choose Create API Key and paste it here. It’s kept in this computer’s keychain.</div>
+            <input type="password" name="key" autocomplete="off" spellcheck="false" placeholder="gsk_…" aria-label="AI key" class="key-field"></div>
+          <button class="btn small primary">Save and Check</button>
+        </div>
+      </form>
+      {% endif %}
+    </div>
+  </section>
+
   <section class="group" id="schedule" aria-labelledby="g-schedule">
     <h2 id="g-schedule">Schedule</h2>
     <form method="post" action="/settings/schedule" class="card list" data-autosubmit>

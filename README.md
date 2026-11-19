@@ -246,7 +246,7 @@ python -m clipvault cleanup [--dry-run]            # retention, disk check, hand
 python -m clipvault transcribe [--streamer LOGIN] [--limit N]   # subtitles for saved clips
 python -m clipvault search WORDS...                # find clips by what was said
 python -m clipvault render [CLIP_ID] [--streamer LOGIN] [--limit N]   # phone-ready vertical copies
-python -m clipvault headlines [--limit 20]         # AI hook headlines for the best clips
+python -m clipvault headlines [--limit 20]         # hook headlines for the newest clips
 python scripts/twitch_live_check.py LOGIN...       # manual check against the real Twitch API
 pytest -q                                          # run the tests
 ruff check . && ruff format --check .
