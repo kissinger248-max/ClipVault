@@ -1051,3 +1051,16 @@ The owner chose route (b) of `docs/MUSE_POSTING_PLAN.md`: keep the 0.6.0 officia
 - Two tests (the cap test fails on the old queue code). Full suite 600 passed; ruff 515 (below the 519 baseline: some long lines rewrapped).
 
 **Still the owner's:** creating the TikTok and Google apps, connecting accounts, and confirming the first public post of each account (hard rule 11).
+
+## Release: ClipVault 0.8.0 (2026-11-19)
+
+Pushed on the owner's "push and release": main went from 0.7.0 (cb71816) to e4d91cd, nine commits, and tag `v0.8.0` was pushed. Before tagging: GitHub had nothing newer than 0.7.0, no v0.8 tag existed, the full suite passed (600) and ruff was at its 515 baseline.
+
+**In the app:** streamer pages with live clips arriving, and the Edited clips folders. Shared render fixes: the caption safe-box margin, a loudness correction pass, and one face detector per thread. Posting through the official APIs: TikTok drafts capped at 5 a day, YouTube notes from Google's current docs. Also in the repository but not in the app: `clipvault_web/` (the website, W1–W4, not deployed) and the Muse/posting plan.
+
+**Verified:**
+- Release workflow run 44637471993: Windows build, macOS build and publish all succeeded.
+- The release (Latest) has `ClipVault-Setup-Windows.exe`, `ClipVault-macOS.dmg` and `SHA256SUMS.txt`.
+- `python packaging/update_site.py --macos-min 15` filled `site/index.html`. The macOS minimum comes from the build's `macos-build-facts` (15.0, arm64), and the page's checksums match SHA256SUMS.txt.
+
+**For the owner:** `site/privacy.html` and `site/terms.html` now carry a "ClipVault Web" section whose placeholders ([WEB ADDRESS], [LEGAL EMAIL], [HOSTING PROVIDER], [STORAGE PROVIDER], [TRANSCRIPTION PROVIDER]) went live with this push, like the pages' existing placeholders. The website itself isn't online yet.
