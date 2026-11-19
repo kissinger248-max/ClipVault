@@ -79,7 +79,8 @@ docs/
   SPEC.md
   BUILD_PLAN.md
   PROGRESS.md
-  WEB_VERSION_PLAN.md   # the browser version (plan only, not built)
+  WEB_VERSION_PLAN.md   # the browser version (W1-W4 built locally)
+  MUSE_POSTING_PLAN.md  # Muse, posting and CapCut (plan only, not built)
 assets/fonts/        # Montserrat (OFL) and any other bundled fonts
 ```
 

@@ -1019,3 +1019,16 @@ Read today in the browser (the pages need JavaScript):
 - Confirmed the two fixes from W3/W4 are in and tested: the shared face detector (one per thread; the regression test fails on the old code) and "N more moments" counting distinct moments.
 - Default address is now `http://localhost:8800` (Twitch accepts plain-http redirect URLs only for localhost, per its developer forums; the docs page doesn't say), so the redirect to register is `http://localhost:8800/auth/twitch/callback`. Sign-in opened from another address (127.0.0.1) first moves to the public one, so its cookie comes back with it (test added).
 - `scripts/web_twitch_live_check.py`: once the owner's Twitch app exists, checks the keys, search and the clips each channel/clip/VOD would give (official API only, no downloads) and prints the exact redirect URL. Steps to create the app: `docs/WEB_VERSION_PLAN.md`, end of section 12.
+
+## Plan: Muse, posting and CapCut (2026-11-19, no code)
+
+`docs/MUSE_POSTING_PLAN.md`, written for the owner to review. Findings:
+- Muse = Meta Muse AI; it posts through connectors (Upload-Post, Postiz, ...) that use the platforms' official APIs, or could drive its built-in browser.
+- Browser log-in and upload breaks hard rule 2 and TikTok's and YouTube's terms.
+- The real blocker for public posts is the platforms' audits (unaudited TikTok and YouTube apps post privately), which an audited posting service avoids.
+- CapCut has no official editing API and forbids automated scripts.
+
+Recommended:
+- an Upload-Post adapter behind the existing queue (paid: needs the owner's OK);
+- an opt-in, approve-and-pause-only ClipVault connector for Muse (posting always through ClipVault's permission gate);
+- CapCut-style effects built into the renderer, plus a manual "Send to CapCut" package.
