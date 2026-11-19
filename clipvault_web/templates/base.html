@@ -16,14 +16,14 @@
 <body>
 <header class="top">
   <a class="brand" href="/" aria-label="ClipVault home"><img src="/static/icon.svg" alt="" width="28" height="28"><span>ClipVault</span></a>
-  <a class="pill ghost" href="{{ settings.app_download_url }}">Get the free app</a>
+  <a class="pill ghost" href="/go/app?from=header">Get the free app</a>
 </header>
 <main class="{% block mainclass %}{% endblock %}">
 {% block content %}{% endblock %}
 </main>
 <footer class="foot">
   <p>Uploads and clips are deleted after {{ settings.keep_hours }} hours. Only upload videos you have the right to use.</p>
-  <p><a href="https://clipvault-site-six.vercel.app/privacy.html">Privacy</a> · <a href="https://clipvault-site-six.vercel.app/terms.html">Terms</a> · <a href="{{ settings.app_download_url }}">The ClipVault app</a></p>
+  <p><a href="https://clipvault-site-six.vercel.app/privacy.html">Privacy</a> · <a href="https://clipvault-site-six.vercel.app/terms.html">Terms</a> · <a href="/go/app?from=footer">The ClipVault app</a></p>
 </footer>
 {% block scripts %}{% endblock %}
 </body>

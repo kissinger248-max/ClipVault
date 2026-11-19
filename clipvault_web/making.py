@@ -30,8 +30,8 @@ from clipvault.render.layouts import Rect
 from clipvault.render.template import Look, load_look
 from clipvault.timeutil import to_rfc3339, utc_now
 
+from . import events, store
 from . import moments as finder
-from . import store
 from .settings import WebSettings
 
 WATERMARK = "Made with ClipVault"
@@ -217,10 +217,12 @@ def make_run(
                  run_id),
             )  # fmt: skip
         source.unlink(missing_ok=True)  # the upload is only needed while making the clips
+        events.count(conn, "run_finished", status)
         log.info("run finished", extra={**log_ctx, "status": status, "clips": made})
         return status
     except RunFailed as exc:
         _fail(conn, run_id, str(exc))
+        events.count(conn, "run_finished", "failed")
         return "failed"
     finally:
         conn.close()
@@ -311,7 +313,10 @@ def render_clip(
     ).fetchone()
     run = store.get_run(conn, run_id)
     folder = store.run_dir(settings, run_id)
-    conn.execute("UPDATE run_clips SET status = 'making' WHERE run_id = ? AND n = ?", (run_id, n))
+    conn.execute(
+        "UPDATE run_clips SET status = 'making', started_at = ? WHERE run_id = ? AND n = ?",
+        (time.time(), run_id, n),
+    )
     started = time.monotonic()
     try:
         cam = Rect.from_json(run["cam_rect"])

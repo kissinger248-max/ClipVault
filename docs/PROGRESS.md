@@ -960,3 +960,10 @@ Not pushed or tagged: the owner asked to hold everything until they say so.
 - Built-in headlines are often generic ("Wait for the ENDING"); AI headlines would help.
 - Full test suite not re-run after the last two small fixes (lifespan hook, hyphen join).
 - W2 (nudges, nicer loading cards) next; nothing deployed, no paid service used.
+
+## Session: Web version W2, progress cards and nudges (2026-11-19, local only)
+
+- Run page: each clip is a loading card with its step (found, saved, subtitles, phone version) and a bar that fills in the usual time; it turns into the playable clip when made.
+- One nudge toward the app per screen: a line under the upload form; a "While you wait" card while clips are made; after, a "+N more moments" card (or "Want this for every stream?").
+- Cookie-free counting (`events` table, one counter per day, nothing about the visitor): page views, runs started/finished, downloads, nudges shown (from the page) and clicked (every app link goes through `/go/app?from=...`). `python -m clipvault_web stats`.
+- Verified: tests (at most one nudge per screen; every event of a test run arrives); a real 4-minute upload in the browser.

@@ -99,6 +99,36 @@ main { flex: 1; width: 100%; max-width: 1120px; margin: 0 auto; padding: 24px 16
 .clip .meta { display: flex; align-items: center; justify-content: space-between; gap: 8px; color: var(--label2); font-size: 13px; }
 .clip .pill { height: 34px; padding: 0 14px; font-size: 14px; }
 .clip.failed .wait { color: var(--red); }
+.clip.arrive { animation: arrive 600ms var(--ease) both; }
+@keyframes arrive { from { opacity: 0; transform: scale(0.96); } to { opacity: 1; transform: none; } }
+
+/* loading cards: a dark tile with a moving shine, what is happening, and four steps */
+.frame.sk { background: linear-gradient(180deg, #19191D, #121215); }
+.sk-center { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 12px; padding: 18px; text-align: center; }
+.sk-icon { width: 54px; height: 54px; border-radius: 27px; display: grid; place-items: center; background: rgba(124, 58, 237, 0.16); color: var(--accent-text); }
+.sk-icon svg { width: 26px; height: 26px; }
+.frame.sk[data-state="fetching"] .sk-icon svg, .frame.sk[data-state="listening"] .sk-icon svg,
+.frame.sk[data-state="making"] .sk-icon svg, .frame.sk[data-state="finding"] .sk-icon svg { animation: breathe 1.6s ease-in-out infinite; }
+@keyframes breathe { 50% { transform: scale(1.15); opacity: 0.7; } }
+.frame.sk[data-state="waiting"] .sk-icon, .frame.sk[data-state="ready"] .sk-icon { background: var(--fill); color: var(--label2); }
+.frame.sk[data-state="failed"] .sk-icon { background: rgba(248, 113, 113, 0.14); color: var(--red); }
+.sk-label { color: var(--label2); font-size: 14px; font-weight: 500; line-height: 1.35; max-width: 180px; }
+.sk-steps { position: absolute; left: 14px; right: 14px; bottom: 14px; display: grid; grid-template-columns: repeat(4, 1fr); gap: 5px; list-style: none; margin: 0; padding: 0; }
+.sk-steps li { height: 4px; border-radius: 2px; background: rgba(255, 255, 255, 0.1); overflow: hidden; }
+.sk-steps li i { display: block; height: 100%; width: 0; background: var(--accent-hi); border-radius: 2px; transition: width 900ms linear; }
+.sk-steps li.done i { width: 100%; background: var(--accent); }
+.sk-steps li.next { background: rgba(167, 139, 250, 0.22); }
+
+/* the one nudge toward the app on the run page */
+.nudge-frame { background: radial-gradient(120% 80% at 50% 0%, rgba(124, 58, 237, 0.32), transparent 70%), var(--card); border-color: rgba(167, 139, 250, 0.35); }
+.nudge-body { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 10px; padding: 20px; text-align: center; }
+.nudge-body b { font-family: var(--display); font-size: 24px; line-height: 1.1; letter-spacing: -0.02em; }
+.nudge-body p { margin: 0; color: var(--label2); font-size: 14px; line-height: 1.45; }
+.nudge-body .pill { margin-top: 6px; }
+.nudge-icon { width: 48px; height: 48px; border-radius: 14px; display: grid; place-items: center; background: var(--accent); color: #fff; }
+.nudge-icon svg { width: 26px; height: 26px; }
+.nudge-line { max-width: 640px; margin: 18px auto 0; text-align: center; color: var(--label2); font-size: 14px; }
+
 .note { color: var(--label2); font-size: 14px; text-align: center; margin: 28px 0 0; }
 .note + .note { margin-top: 6px; }
 .gone .hero { margin-top: 64px; }

@@ -260,7 +260,7 @@ Upload, moment finder for videos without chat, render 5, results page, 24 h expi
 Done when: a 20-minute upload gives 5 clips that pass QA in under 5 minutes on the
 server; files are gone after 24 h; tests use fixtures only.
 
-**W2. Live progress and nudges.**
+**W2. Live progress and nudges.** ✅ built 2026-11-19 (local only)
 Loading cards, the working-screen card, the "+N more moments" card, the daily-limit screen,
 analytics events.
 Done when: every screen shows at most one nudge, and events arrive for a test run.

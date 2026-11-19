@@ -303,3 +303,55 @@ def test_settings_come_from_the_environment(monkeypatch, tmp_path: Path) -> None
     assert settings.data == (tmp_path / "d").resolve() and settings.clips_per_run == 4
     assert settings.groq_api_key == "test-key" and "test-key" not in repr(settings)
     assert json.dumps({"ok": True})  # the module imports cleanly without a server
+
+
+# --- W2: nudges and counting --------------------------------------------------------------------
+
+
+def nudges_in(html: str) -> int:
+    return html.count("data-nudge=")
+
+
+def test_each_screen_shows_at_most_one_nudge(client, settings, fake_render) -> None:
+    assert nudges_in(client.get("/").text) == 1
+    run_id = upload(client)["id"]
+    waiting = client.get(f"/api/runs/{run_id}").json()
+    assert waiting["nudge"] == "working"
+    making.make_run(settings, run_id, transcribers=[], find=find(fake_moments(2)))
+    done = client.get(f"/api/runs/{run_id}").json()
+    assert done["nudge"] == "more" and done["more_found"] == 7
+    assert nudges_in(client.get(f"/r/{run_id}").text) == 0  # the page script adds just one card
+    assert [c["steps"] for c in done["clips"]] == [4, 4]
+
+
+def test_events_are_counted_for_a_test_run(client, settings, fake_render) -> None:
+    from clipvault_web import events
+
+    client.get("/")
+    run_id = upload(client)["id"]
+    client.get(f"/r/{run_id}")
+    making.make_run(settings, run_id, transcribers=[], find=find(fake_moments(2)))
+    state = client.get(f"/api/runs/{run_id}").json()
+    client.get(state["clips"][0]["download"])
+    client.get(state["zip"])
+    client.post("/api/event", json={"name": "nudge_shown", "detail": "more"})
+    client.post("/api/event", json={"name": "run_started", "detail": "fake"})  # not from pages
+    client.post("/api/event", content=b"not json")
+    reply = client.get("/go/app?from=more", follow_redirects=False)
+    assert reply.status_code == 303 and reply.headers["location"] == settings.app_download_url
+    client.get("/go/app?from=somewhere-else", follow_redirects=False)
+
+    conn = store.open_store(settings)
+    counted = {(name, detail): total for name, detail, total in events.summary(conn)}
+    conn.close()
+    assert counted == {
+        ("clip_downloaded", ""): 1,
+        ("nudge_clicked", "more"): 1,
+        ("nudge_clicked", "other"): 1,
+        ("nudge_shown", "more"): 1,
+        ("page_view", "home"): 1,
+        ("page_view", "run"): 1,
+        ("run_finished", "done"): 1,
+        ("run_started", "upload"): 1,
+        ("zip_downloaded", ""): 1,
+    }

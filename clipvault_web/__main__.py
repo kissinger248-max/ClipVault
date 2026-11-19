@@ -30,6 +30,8 @@ def build_parser() -> argparse.ArgumentParser:
     make.add_argument("--name", help="who is in the video (used in headlines)")
 
     sub.add_parser("cleanup", help="delete expired clips and abandoned uploads now")
+    stats = sub.add_parser("stats", help="what happened on the website (counted, no visitor data)")
+    stats.add_argument("--days", type=int, default=7)
     return parser
 
 
@@ -46,6 +48,19 @@ def main(argv: list[str] | None = None) -> int:
 
         print(f"ClipVault Web on http://{args.host}:{args.port} (data: {settings.data})")
         uvicorn.run(create_app(settings), host=args.host, port=args.port, log_level="warning")
+        return 0
+
+    if args.command == "stats":
+        from . import events
+
+        conn = store.open_store(settings)
+        try:
+            rows = events.summary(conn, args.days)
+        finally:
+            conn.close()
+        print(f"Last {args.days} day(s):" if rows else "Nothing counted yet.")
+        for name, detail, total in rows:
+            print(f"  {name:16s} {detail or '-':12s} {total:>8,}")
         return 0
 
     if args.command == "cleanup":

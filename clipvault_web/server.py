@@ -11,14 +11,15 @@ import hashlib
 import os
 import re
 import secrets
+import time
 import zipfile
 from contextlib import asynccontextmanager
 from pathlib import Path
 from typing import Any
 from urllib.parse import quote, unquote
 
-from fastapi import FastAPI, Request
-from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, Response
+from fastapi import FastAPI, Query, Request
+from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, RedirectResponse, Response
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from starlette.concurrency import run_in_threadpool
@@ -26,7 +27,7 @@ from starlette.concurrency import run_in_threadpool
 from clipvault.render import ffmpeg
 from clipvault.render.ffmpeg import RenderError
 
-from . import store
+from . import events, store
 from .settings import WebSettings
 from .worker import Worker
 
@@ -80,8 +81,16 @@ def create_app(settings: WebSettings, *, start_worker: bool = True) -> FastAPI:
 
     # --- pages --------------------------------------------------------------------------
 
+    def counted(name: str, detail: str = "") -> None:
+        conn = store.open_store(settings)
+        try:
+            events.count(conn, name, detail)
+        finally:
+            conn.close()
+
     @app.get("/", response_class=HTMLResponse)
     def home(request: Request):
+        counted("page_view", "home")
         return page(request, "try.html", max_mb=settings.max_upload_mb,
                     max_minutes=settings.max_minutes)  # fmt: skip
 
@@ -98,9 +107,31 @@ def create_app(settings: WebSettings, *, start_worker: bool = True) -> FastAPI:
                             text=f"Clips are kept for {settings.keep_hours} hours. "
                                  "Upload the video again to make them again.")  # fmt: skip
             state = run_state(conn, run)
+            events.count(conn, "page_view", "run")
         finally:
             conn.close()
         return page(request, "run.html", run=state)
+
+    # --- the way to the app, and what pages report -----------------------------------------
+
+    @app.get("/go/app")
+    def go_app(source: str = Query("", alias="from")):
+        """Every "get the app" link: counted (which nudge), then on to the download page."""
+        where = source if source in events.LINKS else "other"
+        counted("nudge_clicked", where)
+        return RedirectResponse(settings.app_download_url, status_code=303)
+
+    @app.post("/api/event")
+    async def page_event(request: Request):
+        """A page says it showed a nudge (navigator.sendBeacon). Only known names count."""
+        try:
+            body = await request.json()
+        except ValueError:
+            return Response(status_code=204)
+        name, detail = str(body.get("name", "")), str(body.get("detail", ""))
+        if name in events.FROM_PAGES and detail in events.NUDGES:
+            await run_in_threadpool(counted, name, detail)
+        return Response(status_code=204)
 
     @app.get("/healthz")
     def health() -> dict[str, str]:
@@ -174,6 +205,7 @@ def create_app(settings: WebSettings, *, start_worker: bool = True) -> FastAPI:
         finally:
             conn.close()
         worker.wake()
+        await run_in_threadpool(counted, "run_started", "upload")
         return {"id": run_id, "url": f"/r/{run_id}"}
 
     # --- a run --------------------------------------------------------------------------
@@ -209,6 +241,7 @@ def create_app(settings: WebSettings, *, start_worker: bool = True) -> FastAPI:
         if path is None:
             return Response("Not found", 404)
         if download:
+            counted("clip_downloaded")
             return FileResponse(path, media_type="video/mp4",
                                 filename=download_name(n, row["headline"]))  # fmt: skip
         return FileResponse(path, media_type="video/mp4")
@@ -239,6 +272,7 @@ def create_app(settings: WebSettings, *, start_worker: bool = True) -> FastAPI:
                 for row, path in made:
                     archive.write(path, download_name(row["n"], row["headline"]))
             os.replace(partial, target)
+        counted("zip_downloaded")
         return FileResponse(target, media_type="application/zip", filename="ClipVault clips.zip")
 
     return app
@@ -258,6 +292,13 @@ def download_name(n: int, headline: str | None) -> str:
     return f"ClipVault {n}" + (f" - {words}" if words else "") + ".mp4"
 
 
+# Expected seconds for each clip step (the cards' progress bars fill in about this time).
+EXPECTED_S = {"fetching": 15, "listening": 12, "making": 35}
+# The steps a card shows: found, saved, subtitles, phone version.
+STEPS_DONE = {"waiting": 3, "fetching": 1, "listening": 2, "ready": 3, "making": 3,
+              "done": 4, "failed": 0}  # fmt: skip
+
+
 def run_state(conn, run) -> dict[str, Any]:
     """Everything the run page shows, as plain data (also the polling answer)."""
     rows = store.clips(conn, run["id"])
@@ -265,9 +306,13 @@ def run_state(conn, run) -> dict[str, Any]:
     clips = []
     for row in rows:
         made = row["status"] == "done" and row["path"]
+        status = row["status"]
         clips.append({
             "n": row["n"],
-            "status": row["status"],
+            "status": status,
+            "steps": STEPS_DONE.get(status, 0),
+            "started": row["started_at"],
+            "expected": EXPECTED_S.get(status),
             "headline": row["headline"],
             "seconds": round(row["end"] - row["start"]),
             "at": round(row["start"]),
@@ -275,8 +320,10 @@ def run_state(conn, run) -> dict[str, Any]:
             "thumb": f"{base}/clip/{row['n']}.jpg" if made and row["thumb_path"] else None,
             "download": f"{base}/clip/{row['n']}.mp4?download=1" if made else None,
         })  # fmt: skip
+    finished = run["status"] in ("done", "failed")
     return {
         "id": run["id"],
+        "now": time.time(),
         "status": run["status"],
         "source": run["source_name"],
         "step": run["step"],
@@ -288,4 +335,6 @@ def run_state(conn, run) -> dict[str, Any]:
         "expires": store.expires_in_words(run),
         "clips": clips,
         "zip": f"{base}/clips.zip" if run["status"] == "done" else None,
+        # One nudge toward the app per screen: while waiting, then after the clips are made.
+        "nudge": None if run["status"] == "failed" else ("more" if finished else "working"),
     }
