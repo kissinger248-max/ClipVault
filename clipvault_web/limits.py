@@ -94,3 +94,38 @@ def human(settings: WebSettings, request: Request, http: httpx.Client | None = N
     finally:
         if http is None:
             client.close()
+
+
+class RateLimiter:
+    """At most ``per_minute`` calls a minute per visitor (streamer search: Twitch's quota is
+    shared by everyone using the website). In memory; resets on restart."""
+
+    def __init__(self, per_minute: int = 30) -> None:
+        import threading
+
+        self.per_minute = per_minute
+        self._hits: dict[str, list[float]] = {}
+        self._lock = threading.Lock()
+
+    def allow(self, visitor: str, now: float | None = None) -> bool:
+        import time
+
+        now = time.monotonic() if now is None else now
+        with self._lock:
+            recent = [t for t in self._hits.get(visitor, []) if now - t < 60]
+            if len(recent) >= self.per_minute:
+                self._hits[visitor] = recent
+                return False
+            recent.append(now)
+            self._hits[visitor] = recent
+            if len(self._hits) > 10_000:  # forget idle visitors
+                self._hits = {k: v for k, v in self._hits.items() if v and now - v[-1] < 60}
+            return True
+
+
+def busy(conn: sqlite3.Connection, settings: WebSettings) -> bool:
+    """Is the queue full? (The home page says so before anyone tries.)"""
+    waiting = conn.execute(
+        f"SELECT count(*) FROM runs WHERE status IN {WORKING} AND embed_only = 0"
+    ).fetchone()[0]
+    return waiting >= settings.max_queue

@@ -71,6 +71,7 @@ clipvault/
   doctor.py          # the doctor checks
   logging_setup.py   # JSON-lines logging
   timeutil.py        # UTC timestamps (one stored format), durations
+clipvault_web/        # the browser version (docs/WEB_VERSION_PLAN.md): server, moments, twitch_*, limits; never shipped in the app
 tests/
   fixtures/
 scripts/             # manual live checks
@@ -107,6 +108,7 @@ python -m clipvault headlines [--streamer LOGIN] [--limit 20]   # hook headlines
 python -m clipvault render [CLIP_ID] [--layout letterbox|split|native] [--headline TEXT] [--streamer LOGIN] [--limit N]   # vertical 9:16 copy + QA
 python scripts/twitch_live_check.py LOGIN...  # manual live check of the Twitch API (needs real keys)
 python -m clipvault selftest       # offline check that a build has every tool, model, font and file
+python scripts/web_load_test.py [--runs 50] [--workers 2] [--real VIDEO]   # the website under load
 python packaging/build.py [--smoke] # installed app + installer for this OS (needs .[build]); see docs/PACKAGING.md
 python packaging/mac_open_check.py packaging/build/dist/ClipVault.app   # macOS build machine: open the app twice like a person
 python packaging/update_site.py [--macos-min V] [--site-url URL]   # fill the download page from the latest release

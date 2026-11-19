@@ -183,8 +183,9 @@ New code lives in a separate `web/` service folder, so the desktop app never shi
 fixes to the pipeline reach both automatically.
 
 ### 7.2 Hosting
-- **Front end:** the existing static site on Vercel (`site/`) gets a `/try` page. It stays
-  plain HTML with a little JavaScript, like the panel, with no front-end build.
+- **Front end:** as built, the website serves its own pages (`clipvault_web/templates`), plain
+  HTML with a little JavaScript, no front-end build; the download site only needs a link to it.
+  One address for pages and uploads means no cross-site requests to secure.
 - **API and workers:** Vercel can't run FFmpeg jobs that take minutes, so these go on one
   small Linux server using the Docker image the project already has. Start with a single
   8-core machine that runs the API, queue and 2 workers; add workers when it's busy.
@@ -280,7 +281,7 @@ Done when:
   nothing is downloaded (tests check all three);
 - no request ever uses the desktop app's keys.
 
-**W4. Hardening and launch.**
+**W4. Hardening and launch.** ✅ built 2026-11-19 (local only; not deployed: hosting and budget are still the owner's call)
 CAPTCHA, limits, queue cap, takedown link, privacy and terms text, load test, a
 "busy" page.
 Done when: a 50-run load test finishes without errors, and limits and the busy page work.
@@ -304,3 +305,39 @@ Done when: a 50-run load test finishes without errors, and limits and the busy p
   app-only.
 - **Abuse:** uploads of content the user doesn't own. The rights checkbox, takedown link,
   24 h deletion and per-IP limits handle it.
+
+## 12. Running it (as built, 2026-11-19)
+
+```
+pip install -e ".[web]"
+python -m clipvault_web serve --host 0.0.0.0 --port 8800      # pages + worker
+python -m clipvault_web make VIDEO [--name NAME]                # the pipeline on a file, timed
+python -m clipvault_web stats [--days 7]                        # counted events
+python -m clipvault_web downloads on|off|status                 # the switch (OFF by default)
+python -m clipvault_web reports [--all] [--done ID --outcome TEXT]
+python -m clipvault_web remove RUN_ID | optout LOGIN [--id ID] | block RUN_ID
+python -m clipvault_web cleanup                                 # expiry now (also every 10 min)
+python scripts/web_load_test.py [--runs 50] [--workers 2] [--real VIDEO]
+```
+
+Settings are environment variables (secrets from the host's secret store, never a file):
+
+| Variable | Default | What |
+|---|---|---|
+| `CLIPVAULT_WEB_DATA` | `./web-data` | runs, database, logs |
+| `CLIPVAULT_WEB_PUBLIC_URL` | `http://127.0.0.1:8800` | the address people use (Twitch sign-in comes back here) |
+| `CLIPVAULT_WEB_TWITCH_CLIENT_ID` / `_SECRET` | none | the website's OWN Twitch app; without it only uploads work |
+| `CLIPVAULT_WEB_TWITCH_DOWNLOADS` | off | the switch's starting position (`on` to start on) |
+| `CLIPVAULT_WEB_GROQ_API_KEY` | none | faster captions; without it the local model is used |
+| `CLIPVAULT_WEB_TURNSTILE_SITE_KEY` / `_SECRET` | none | the CAPTCHA; without them there is no check |
+| `CLIPVAULT_WEB_CONTACT` | none | takedown email shown on the report and opt-out pages |
+| `CLIPVAULT_WEB_SALT` | made and kept | the secret in visitor hashes |
+| `CLIPVAULT_WEB_CLIPS_PER_RUN`, `_MAX_UPLOAD_MB`, `_MAX_MINUTES`, `_KEEP_HOURS` | 5, 2048, 60, 24 | sizes and expiry |
+| `CLIPVAULT_WEB_RUNS_PER_DAY`, `_RUNS_PER_DAY_SIGNED_IN`, `_MAX_QUEUE`, `_ONE_AT_A_TIME` | 3, 5, 30, on | limits |
+| `CLIPVAULT_WEB_WORKERS`, `_RENDER_THREADS` | 1, 5 | runs at once, phone versions at once |
+| `CLIPVAULT_WEB_APP_URL` | the download page | where "Get the app" goes |
+
+Before going public: the owner's OK for each paid service (section 8), the website's own
+Twitch app (redirect URL `<PUBLIC_URL>/auth/twitch/callback`), the placeholders in
+`site/privacy.html` and `site/terms.html`, and the download-switch decision (PROGRESS.md, W3
+rules check).

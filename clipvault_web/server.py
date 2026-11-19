@@ -26,11 +26,28 @@ from starlette.concurrency import run_in_threadpool
 from clipvault.render import ffmpeg
 from clipvault.render.ffmpeg import RenderError
 
-from . import events, store
+from . import events, limits, store
 from .settings import WebSettings
 from .worker import Worker
 
 HERE = Path(__file__).parent
+# Where the pages may load things from (W4): ourselves, Google Fonts, Twitch's players and
+# avatars, and Cloudflare's check. No inline scripts or styles.
+CSP = "; ".join(
+    [
+        "default-src 'self'",
+        "script-src 'self' https://challenges.cloudflare.com",
+        "style-src 'self' https://fonts.googleapis.com",
+        "font-src https://fonts.gstatic.com",
+        "img-src 'self' data: https://static-cdn.jtvnw.net",
+        "media-src 'self'",
+        "connect-src 'self'",
+        "frame-src https://clips.twitch.tv https://player.twitch.tv https://challenges.cloudflare.com",
+        "frame-ancestors 'none'",
+        "base-uri 'none'",
+        "form-action 'self'",
+    ]
+)
 VIDEO_TYPES = (".mp4", ".mov", ".mkv", ".webm", ".m4v")
 MIN_SECONDS = 15
 CHUNK = 1024 * 1024
@@ -76,6 +93,8 @@ def create_app(
         response = await call_next(request)
         response.headers.setdefault("X-Content-Type-Options", "nosniff")
         response.headers.setdefault("Referrer-Policy", "no-referrer")  # run links are private
+        response.headers.setdefault("Content-Security-Policy", CSP)
+        response.headers.setdefault("X-Frame-Options", "DENY")
         if request.url.path.startswith("/r/"):
             response.headers.setdefault("X-Robots-Tag", "noindex, nofollow")
         return response
@@ -102,7 +121,12 @@ def create_app(
     @app.get("/", response_class=HTMLResponse)
     def home(request: Request):
         counted("page_view", "home")
-        return page(request, "try.html", max_mb=settings.max_upload_mb,
+        conn = store.open_store(settings)
+        try:
+            full = limits.busy(conn, settings)
+        finally:
+            conn.close()
+        return page(request, "try.html", max_mb=settings.max_upload_mb, busy=full,
                     max_minutes=settings.max_minutes)  # fmt: skip
 
     @app.get("/r/{run_id}", response_class=HTMLResponse)
@@ -297,7 +321,7 @@ def create_app(
         counted("zip_downloaded")
         return FileResponse(target, media_type="application/zip", filename="ClipVault clips.zip")
 
-    from . import limits, twitch_routes
+    from . import twitch_routes
 
     def guard(request: Request, conn) -> limits.Refusal | None:
         return limits.refusal(conn, settings, request, visitor(request), http=http)

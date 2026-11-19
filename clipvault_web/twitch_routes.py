@@ -15,7 +15,7 @@ from starlette.concurrency import run_in_threadpool
 from clipvault.timeutil import to_rfc3339, utc_now
 from clipvault.twitch.api import TwitchAPIError, TwitchClient
 
-from . import accounts, events, store, twitch_making, twitch_web
+from . import accounts, events, limits, store, twitch_making, twitch_web
 from .settings import WebSettings
 from .twitch_web import LinkProblem
 
@@ -41,6 +41,7 @@ def add(
 ) -> None:
     """Add the Twitch routes. ``twitch`` and ``http`` stand in for Twitch in tests."""
     state: dict[str, Any] = {"client": twitch, "http": http, "search": {}}
+    searches = limits.RateLimiter(per_minute=30)
     lock = threading.Lock()
 
     def client() -> TwitchClient:
@@ -132,9 +133,9 @@ def add(
     # --- streamer search -------------------------------------------------------------------
 
     @app.get("/api/search")
-    def search_streamers(q: str = Query("", max_length=60)):
+    def search_streamers(request: Request, q: str = Query("", max_length=60)):
         query = q.strip().lower()
-        if len(query) < 2:
+        if len(query) < 2 or not searches.allow(visitor_of(request)):
             return {"results": []}
         cached = state["search"].get(query)
         now = utc_now().timestamp()

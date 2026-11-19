@@ -991,3 +991,25 @@ Read today in the browser (the pages need JavaScript):
 - Real pipeline without Twitch: 4 saved xQc clips standing in for downloads, real captions, headlines, cam check and renders: 4 clips in 96 s; one flagged by QA for a frozen stretch in the source clip itself.
 - In the browser with the fake Twitch: suggestions, the embed page (one nudge), opt-out, report and "My channel" pages.
 - Not verified: real Twitch calls (the website needs its own Twitch app, which the owner creates), a real sign-in, a real yt-dlp download from the server.
+
+## Session: Web version W4, hardening (2026-11-19, local only, nothing deployed)
+
+**What changed**
+- Limits on every way to start a run (`clipvault_web/limits.py`): blocked visitors; Cloudflare Turnstile when its keys are set (checked server-side, single-use token); a queue cap (503 "very busy", and a banner on the home page while full); one run at a time per visitor; 3 runs a day (5 signed in), shown with the "limit" nudge toward the app. Search is limited to 30 a minute per visitor. Visitor hashes use a salt kept in the database, so limits survive a restart.
+- Safety headers on every page: a Content-Security-Policy (only ourselves, Google Fonts, Twitch's players and avatars, Cloudflare's check; no inline scripts or styles), X-Frame-Options DENY, nosniff, no referrer, noindex on run pages.
+- Privacy upkeep: runs forget their visitor hash after 7 days; ended sign-ins are deleted; sign-in tokens are dropped when they expire.
+- `site/privacy.html` and `site/terms.html` gained a ClipVault Web section (placeholders like [WEB ADDRESS], [LEGAL EMAIL], [HOSTING PROVIDER] for the owner to fill), and the copyright section points to the report page.
+- `scripts/web_load_test.py`: N uploads at once through HTTP, then every run followed to the end.
+- Fixed in the shared renderer: OpenCV's face detector was shared between threads; two renders at once crashed ("buf.shape() == m.shape()"). Now one detector per thread (the app could hit this too: a panel "make again" during a worker render). The website also treats any face-cam failure as "no cam".
+- `docs/WEB_VERSION_PLAN.md` section 12: how to run it, every setting, what's needed before going public.
+
+**Verified**
+- `tests/test_web_limits.py` (8 tests): one at a time, the daily limit, the queue cap and banner, blocked visitors, Turnstile passing/failing/missing, search rate limit, headers, salt kept across restarts, privacy upkeep. New render test: detection from 5 threads at once (fails on the old code). Full suite 597 passed; ruff: no new findings (519 old ones).
+- Load test, 50 runs at once with stand-ins for FFmpeg: 50/50 uploads in 4.5 s, 50 done, 0 errors, 652 status pages served, 44 s, 2 workers. Real pipeline, 3 runs of a 4-minute video at once: all done in 276 s (this run found the face-detector bug; one run crashed and was retried by the worker).
+- In the browser under the security policy: home page, search, Twitch embeds and the run page load with no console errors.
+
+**Open issues (owner's decisions)**
+- Nothing is deployed and no paid service is used: hosting, storage and Groq need the owner's OK (plan section 8).
+- The website needs its own Twitch app (redirect `<PUBLIC_URL>/auth/twitch/callback`); real Twitch calls, a real sign-in and server yt-dlp downloads are untested until then.
+- The download switch stays OFF unless turned on on purpose (W3 rules check).
+- Built-in headlines are often generic for uploads; an AI headline key would help.

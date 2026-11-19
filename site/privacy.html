@@ -92,6 +92,19 @@
   </section>
 
   <section>
+    <h2>4a. ClipVault Web (the browser version)</h2>
+    <p>ClipVault Web makes clips on our server from a video you upload or a Twitch link you paste. What it keeps:</p>
+    <ul>
+      <li><strong>Your video and your clips:</strong> an upload is deleted as soon as its clips are made; the clips are deleted after 24 hours. Only someone with the private link can see them.</li>
+      <li><strong>Limits:</strong> to apply the free limits, each run stores a salted hash of your IP address (not the address itself). It is removed from the run after 7 days.</li>
+      <li><strong>Counting:</strong> we count events per day (for example how many clips were downloaded). Nothing in these counts identifies you, and no cookies or trackers are used for them.</li>
+      <li><strong>Sign in with Twitch (only if you choose to):</strong> we learn your Twitch channel's id and name. To make clips of your own channel, Twitch gives us a short-lived key that is deleted when your clips are made; to opt your channel out, the key is cancelled right away. A sign-in cookie keeps you signed in for up to 30 days.</li>
+      <li><strong>Reports:</strong> what you write in a report, and a contact address if you give one, kept until the report is handled.</li>
+    </ul>
+    <p>Services ClipVault Web uses: Twitch (to find clips and, for your own channel, download them), [HOSTING PROVIDER] (our server), [STORAGE PROVIDER, if used], [TRANSCRIPTION PROVIDER, e.g. Groq] (the sound of each moment, to write captions) and, if enabled, Cloudflare Turnstile (a quick check that you're a person).</p>
+  </section>
+
+  <section>
     <h2>5. Using the panel on your phone</h2>
     <p>If you allow phones on your Wi-Fi, the control panel is reachable from devices on your local network and is protected by your panel password. It isn’t made reachable from the internet by ClipVault.</p>
   </section>

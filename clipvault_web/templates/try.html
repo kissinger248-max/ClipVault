@@ -7,6 +7,7 @@
   <p class="lede">Paste a Twitch link, search for a streamer, or upload any video. In a few minutes you get vertical clips with a hook headline and word-by-word captions, ready for TikTok, Shorts and Reels. Free, no sign-up.</p>
 </section>
 
+{% if busy %}<p class="limit busy-note" role="status">We're very busy right now, so new clips may have to wait a few minutes. The free app makes clips on your own computer, with no queue.</p>{% endif %}
 <div class="card upload" id="start" data-max-bytes="{{ max_mb * 1024 * 1024 }}" data-max-mb="{{ max_mb }}">
   {% if twitch_on %}
   <form class="twitch" id="twitch" novalidate autocomplete="off">

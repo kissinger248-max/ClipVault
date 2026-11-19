@@ -550,3 +550,31 @@ def test_the_credit_line_is_off_unless_switched_on() -> None:
     shown = ass.build_overlay(look=CREDITED, layout="letterbox", duration=20.0,
                               headline="Clutch play", login="alpha", words=())  # fmt: skip
     assert "@alpha on Twitch" in shown.ass
+
+
+def test_faces_can_be_detected_from_several_threads_at_once() -> None:
+    """Two renders at once used to share one OpenCV detector and crash."""
+    import threading
+
+    pytest.importorskip("cv2")
+    np = pytest.importorskip("numpy")
+    from clipvault.render import facecam
+
+    rng = np.random.default_rng(1)
+    frames = [rng.integers(0, 255, (720, 1280, 3), dtype=np.uint8) for _ in range(3)]
+    errors: list[str] = []
+
+    def work() -> None:
+        try:
+            for _ in range(8):
+                for frame in frames:
+                    facecam.detect_faces(frame)
+        except Exception as exc:  # noqa: BLE001
+            errors.append(repr(exc))
+
+    threads = [threading.Thread(target=work) for _ in range(5)]
+    for thread in threads:
+        thread.start()
+    for thread in threads:
+        thread.join()
+    assert errors == []

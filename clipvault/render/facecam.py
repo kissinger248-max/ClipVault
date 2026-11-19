@@ -10,6 +10,7 @@ import logging
 import os
 import statistics
 import tempfile
+import threading
 from functools import lru_cache
 from importlib import resources
 from pathlib import Path
@@ -31,7 +32,9 @@ os.environ.setdefault("OPENCV_LOG_LEVEL", "ERROR")
 log = logging.getLogger(__name__)
 
 
-_detectors: dict[tuple[int, int], Any] = {}
+# One detector per frame size and per thread: OpenCV's face detector is not safe to share
+# between threads (two renders at once failed with "buf.shape() == m.shape()").
+_local = threading.local()
 
 
 class FacecamUnavailable(Exception):
@@ -50,12 +53,15 @@ def detect_faces(image: Any) -> list[Face]:
     except ImportError as exc:
         raise FacecamUnavailable('install with: pip install -e ".[render]"') from exc
     height, width = image.shape[:2]
-    detector = _detectors.get((width, height))
+    detectors = getattr(_local, "detectors", None)
+    if detectors is None:
+        detectors = _local.detectors = {}
+    detector = detectors.get((width, height))
     if detector is None:
         detector = cv2.FaceDetectorYN.create(
             "onnx", _model_bytes(), b"", (width, height), MIN_CONFIDENCE, 0.3, 50
         )
-        _detectors[(width, height)] = detector
+        detectors[(width, height)] = detector
     _count, found = detector.detect(image)
     faces = [tuple(float(v) for v in row[:4]) for row in (found if found is not None else [])]
     return sorted(faces, key=lambda f: -f[2] * f[3])

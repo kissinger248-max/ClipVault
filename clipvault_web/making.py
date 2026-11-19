@@ -127,7 +127,7 @@ def find_cam(source: Path, info: ffmpeg.MediaInfo, look: Look) -> Rect | None:
     try:
         frames = facecam.load_frames(source, CAM_FRAMES)
         cam = facecam.find_cam_rect(frames, [facecam.detect_faces(f) for f in frames])
-    except (facecam.FacecamUnavailable, RenderError) as exc:
+    except Exception as exc:  # noqa: BLE001 - the face cam is optional: letterbox instead
         log.warning("face cam check skipped: %s", exc, extra=ctx(job="web"))
         return None
     return cam if cam is not None and cam.w >= look.split.min_cam_width else None
@@ -161,7 +161,10 @@ def face_in_cam(
                 continue
             seen += 1
             height, width = image.shape[:2]
-            faces = facecam.detect_faces(image)
+            try:
+                faces = facecam.detect_faces(image)
+            except Exception:  # noqa: BLE001 - optional: this frame just doesn't count
+                continue
             if faces and facecam.is_big_centred(faces[0], width, height):
                 return False, None
             inside = [f for f in faces if cam.contains(f[0] + f[2] / 2, f[1] + f[3] / 2)]

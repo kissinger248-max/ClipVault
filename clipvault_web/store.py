@@ -157,7 +157,24 @@ def expire(conn: sqlite3.Connection, settings: WebSettings, now=None) -> int:
         )
         conn.execute("UPDATE run_clips SET path = NULL, thumb_path = NULL WHERE run_id = ?",
                      (row["id"],))  # fmt: skip
+    forget(conn, now)
     return len(rows)
+
+
+FORGET_VISITORS = timedelta(days=7)
+
+
+def forget(conn: sqlite3.Connection, now=None) -> None:
+    """Privacy upkeep: a run stops knowing which (hashed) address made it after 7 days
+    (daily limits only need the last day), and ended sign-ins are deleted."""
+    now = now or utc_now()
+    conn.execute(
+        "UPDATE runs SET visitor = NULL WHERE visitor IS NOT NULL AND created_at < ?",
+        (to_rfc3339(now - FORGET_VISITORS),),
+    )
+    conn.execute("DELETE FROM sessions WHERE expires_at <= ?", (to_rfc3339(now),))
+    conn.execute("UPDATE sessions SET access_token = NULL, token_expires_at = NULL "
+                 "WHERE token_expires_at <= ?", (to_rfc3339(now),))  # fmt: skip
 
 
 def clear_incoming(settings: WebSettings, older_than_s: float = 3600, now=None) -> int:

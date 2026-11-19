@@ -337,7 +337,7 @@ def _find_cam(conn: sqlite3.Connection, settings: WebSettings, run_id: str, look
     if len(videos) >= 2:
         try:
             cam = facecam.detect_streamer_cam(videos, run["twitch_login"] or "")
-        except (facecam.FacecamUnavailable, RenderError) as exc:
+        except Exception as exc:  # noqa: BLE001 - the face cam is optional
             log.warning("face cam check skipped: %s", exc, extra=ctx(job="web", run=run_id))
     if cam is not None and cam.w < look.split.min_cam_width:
         cam = None
