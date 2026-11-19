@@ -318,6 +318,7 @@ python -m clipvault_web reports [--all] [--done ID --outcome TEXT]
 python -m clipvault_web remove RUN_ID | optout LOGIN [--id ID] | block RUN_ID
 python -m clipvault_web cleanup                                 # expiry now (also every 10 min)
 python scripts/web_load_test.py [--runs 50] [--workers 2] [--real VIDEO]
+python scripts/web_twitch_live_check.py LOGIN... [--clip URL] [--vod URL]   # once the Twitch app exists
 ```
 
 Settings are environment variables (secrets from the host's secret store, never a file):
@@ -325,7 +326,7 @@ Settings are environment variables (secrets from the host's secret store, never 
 | Variable | Default | What |
 |---|---|---|
 | `CLIPVAULT_WEB_DATA` | `./web-data` | runs, database, logs |
-| `CLIPVAULT_WEB_PUBLIC_URL` | `http://127.0.0.1:8800` | the address people use (Twitch sign-in comes back here) |
+| `CLIPVAULT_WEB_PUBLIC_URL` | `http://localhost:8800` | the address people use; the Twitch app must list `<this>/auth/twitch/callback` exactly (plain http only works for localhost) |
 | `CLIPVAULT_WEB_TWITCH_CLIENT_ID` / `_SECRET` | none | the website's OWN Twitch app; without it only uploads work |
 | `CLIPVAULT_WEB_TWITCH_DOWNLOADS` | off | the switch's starting position (`on` to start on) |
 | `CLIPVAULT_WEB_GROQ_API_KEY` | none | faster captions; without it the local model is used |
@@ -341,3 +342,14 @@ Before going public: the owner's OK for each paid service (section 8), the websi
 Twitch app (redirect URL `<PUBLIC_URL>/auth/twitch/callback`), the placeholders in
 `site/privacy.html` and `site/terms.html`, and the download-switch decision (PROGRESS.md, W3
 rules check).
+
+### Making the website's Twitch app
+
+At https://dev.twitch.tv/console/apps, **Register Your Application**:
+- Name: anything Twitch accepts (it is shown on the sign-in screen).
+- OAuth Redirect URLs: `http://localhost:8800/auth/twitch/callback` for this computer, and later
+  `https://<the public address>/auth/twitch/callback`. They must match exactly.
+- Category: Website Integration. Client type: Confidential (the server keeps the secret).
+- Then **Manage**: the Client ID is shown; **New Secret** makes the secret (a new one cancels
+  the old). Put them in `CLIPVAULT_WEB_TWITCH_CLIENT_ID` / `_SECRET` (environment only, never
+  a file in the repository) and run `python scripts/web_twitch_live_check.py <a streamer>`.

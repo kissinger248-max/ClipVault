@@ -35,7 +35,10 @@ class WebSettings:
     # The website's OWN Twitch app (never the desktop app's keys: plan section 5, item 1).
     twitch_client_id: str | None = None
     twitch_client_secret: str | None = field(default=None, repr=False)
-    public_url: str = "http://127.0.0.1:8800"  # where Twitch sends people back after sign-in
+    # Where people reach the website; Twitch sends them back here after signing in, so the
+    # website's Twitch app must list <public_url>/auth/twitch/callback exactly. Twitch takes
+    # plain http only for localhost, hence localhost (not 127.0.0.1) on this computer.
+    public_url: str = "http://localhost:8800"
     downloads_default: bool = False  # server downloads of other channels (the switch's start)
     contact_email: str = ""  # takedowns and problem reports
     # W4 limits
@@ -82,7 +85,7 @@ def from_env(data: Path | None = None) -> WebSettings:
         groq_api_key=os.environ.get("CLIPVAULT_WEB_GROQ_API_KEY") or None,
         twitch_client_id=os.environ.get("CLIPVAULT_WEB_TWITCH_CLIENT_ID") or None,
         twitch_client_secret=os.environ.get("CLIPVAULT_WEB_TWITCH_CLIENT_SECRET") or None,
-        public_url=(os.environ.get("CLIPVAULT_WEB_PUBLIC_URL") or "http://127.0.0.1:8800").rstrip(
+        public_url=(os.environ.get("CLIPVAULT_WEB_PUBLIC_URL") or "http://localhost:8800").rstrip(
             "/"
         ),
         downloads_default=os.environ.get("CLIPVAULT_WEB_TWITCH_DOWNLOADS", "").lower() == "on",

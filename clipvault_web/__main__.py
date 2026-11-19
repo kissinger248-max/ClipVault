@@ -60,7 +60,8 @@ def main(argv: list[str] | None = None) -> int:
 
         from .server import create_app
 
-        print(f"ClipVault Web on http://{args.host}:{args.port} (data: {settings.data})")
+        print(f"ClipVault Web on http://{args.host}:{args.port}, open {settings.public_url} "
+              f"(data: {settings.data})")  # fmt: skip
         uvicorn.run(create_app(settings), host=args.host, port=args.port, log_level="warning")
         return 0
 

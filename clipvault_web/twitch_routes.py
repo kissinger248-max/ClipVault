@@ -159,9 +159,13 @@ def add(
     # --- signing in --------------------------------------------------------------------------
 
     @app.get("/auth/twitch")
-    def sign_in(purpose: str = Query("mine", alias="for")):
+    def sign_in(request: Request, purpose: str = Query("mine", alias="for")):
         if not settings.twitch_client_id or purpose not in accounts.SCOPES:
             return RedirectResponse("/", status_code=303)
+        here = f"{request.url.scheme}://{request.url.netloc}"
+        if here != settings.public_url:  # e.g. opened as 127.0.0.1: start on the real address,
+            # or the sign-in cookie would be on a different host than Twitch comes back to
+            return RedirectResponse(f"{settings.public_url}/auth/twitch?for={purpose}", 303)
         state_value, cookie = accounts.new_state(purpose)
         reply = RedirectResponse(accounts.authorize_url(settings, purpose, state_value), 303)
         secure = settings.public_url.startswith("https")

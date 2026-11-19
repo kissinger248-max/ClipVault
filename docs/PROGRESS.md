@@ -1013,3 +1013,9 @@ Read today in the browser (the pages need JavaScript):
 - The website needs its own Twitch app (redirect `<PUBLIC_URL>/auth/twitch/callback`); real Twitch calls, a real sign-in and server yt-dlp downloads are untested until then.
 - The download switch stays OFF unless turned on on purpose (W3 rules check).
 - Built-in headlines are often generic for uploads; an AI headline key would help.
+
+## Session: ready for the website's Twitch app (2026-11-19, local only)
+
+- Confirmed the two fixes from W3/W4 are in and tested: the shared face detector (one per thread; the regression test fails on the old code) and "N more moments" counting distinct moments.
+- Default address is now `http://localhost:8800` (Twitch accepts plain-http redirect URLs only for localhost, per its developer forums; the docs page doesn't say), so the redirect to register is `http://localhost:8800/auth/twitch/callback`. Sign-in opened from another address (127.0.0.1) first moves to the public one, so its cookie comes back with it (test added).
+- `scripts/web_twitch_live_check.py`: once the owner's Twitch app exists, checks the keys, search and the clips each channel/clip/VOD would give (official API only, no downloads) and prints the exact redirect URL. Steps to create the app: `docs/WEB_VERSION_PLAN.md`, end of section 12.

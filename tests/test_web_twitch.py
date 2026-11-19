@@ -324,7 +324,7 @@ def oauth_transport(scope: list[str], seen: list) -> httpx.MockTransport:
 def sign_in(settings, fake, purpose: str, scope: list[str], seen: list) -> TestClient:
     http = httpx.Client(transport=oauth_transport(scope, seen))
     browser = TestClient(create_app(settings, start_worker=False, twitch=fake, http=http),
-                         follow_redirects=False, base_url="https://testserver")  # fmt: skip
+                         follow_redirects=False, base_url=settings.public_url)  # fmt: skip
     go = browser.get(f"/auth/twitch?for={purpose}")
     assert go.status_code == 303 and go.headers["location"].startswith(accounts.AUTHORIZE_URL)
     assert (
@@ -390,3 +390,14 @@ def test_the_live_nudge_shows_while_a_live_streamers_clips_are_made(client, sett
     state = run_state(client, run_id)
     assert state["nudge"] == "live" and state["streamer"] == "KaiCenat"
     assert json.dumps(state)  # plain data
+
+
+def test_sign_in_starts_on_the_public_address(settings, fake) -> None:
+    """Opened as another address (127.0.0.1), sign-in first moves to the public one, or the
+    sign-in cookie would be on a different host than the one Twitch comes back to."""
+    browser = TestClient(create_app(settings, start_worker=False, twitch=fake),
+                         follow_redirects=False, base_url="http://127.0.0.1:8800")  # fmt: skip
+    hop = browser.get("/auth/twitch?for=mine")
+    assert hop.status_code == 303
+    assert hop.headers["location"] == "https://clips.example/auth/twitch?for=mine"
+    assert accounts.STATE_COOKIE not in hop.headers.get("set-cookie", "")
