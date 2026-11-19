@@ -317,6 +317,8 @@ def fake_ffmpeg(monkeypatch: pytest.MonkeyPatch) -> dict:
         "black": [],
         "frozen": [],
         "encodes": [],
+        "corrected": [],
+        "correction_works": False,
     }
 
     def probe(path: Path) -> MediaInfo:
@@ -342,7 +344,14 @@ def fake_ffmpeg(monkeypatch: pytest.MonkeyPatch) -> dict:
 
     monkeypatch.setattr(ffmpeg, "probe", probe)
     monkeypatch.setattr(ffmpeg, "encode", encode)
+    def correct(path: Path, look) -> bool:
+        state["corrected"].append(path.name)
+        if state["correction_works"]:
+            state["loudness"] = "-14.1"
+        return state["correction_works"]
+
     monkeypatch.setattr(ffmpeg, "measure_loudness", loudness)
+    monkeypatch.setattr(ffmpeg, "correct_loudness", correct)
     monkeypatch.setattr(
         ffmpeg, "find_black_and_frozen", lambda *a, **k: (state["black"], state["frozen"])
     )
@@ -452,6 +461,34 @@ def test_qa_catches_each_kind_of_problem(conn: sqlite3.Connection, home: Path, f
     assert failed(headline="antidisestablishmentarianism " * 3) == {"headline_fit", "safe_box"}
     assert failed(headline="BREAKING he got banned") == {"blocklist"}
     assert clip_row(conn, "c1")["state"] == "fetched"  # a manual render doesn't move the clip
+
+
+def test_a_clip_off_the_loudness_target_is_corrected_once(
+    conn: sqlite3.Connection, home: Path, fake_ffmpeg
+) -> None:
+    config, _video = render_ready(conn, home)
+    fake_ffmpeg["loudness"] = "-17.1"  # quiet talk, then a scream: loudnorm fell short
+    fake_ffmpeg["correction_works"] = True
+    result = engine.render_clip(conn, config, "c1")
+    assert result.report.passed and fake_ffmpeg["corrected"] == [result.path.name]
+    fake_ffmpeg["corrected"].clear()
+    assert engine.render_clip(conn, config, "c1").report.passed
+    assert fake_ffmpeg["corrected"] == []  # on target: left alone
+
+
+def test_a_caption_line_leaves_room_for_its_longer_end_word_to_grow() -> None:
+    look = load_look()
+    # A long word at one end and short ones at the other: the long one grows on its own
+    # side (these lines used to reach x 142-147, past the safe box's 150).
+    for texts in (
+        ["INCREDIBLE", "WATCHING", "EVERYBODY", "GO", "IS"],
+        ["ABSOLUTELY", "WAS", "INCREDIBLE", "BRO"],
+        ["RIDICULOUS", "ABSOLUTELY", "SO", "A"],
+    ):
+        words = tuple(Word(text, i * 0.25, i * 0.25 + 0.2) for i, text in enumerate(texts))
+        overlay = ass.build_overlay(look=look, layout="letterbox", duration=3.0, headline=None,
+                                    login="alpha", words=words)
+        assert all(box.inside(look.safe_box) for box in overlay.boxes), texts  # fmt: skip
 
 
 def test_hype_words_are_fine_when_actually_said() -> None:

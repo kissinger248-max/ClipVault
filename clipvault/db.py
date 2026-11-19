@@ -55,9 +55,16 @@ def transaction(conn: sqlite3.Connection) -> Iterator[sqlite3.Connection]:
         conn.commit()
 
 
-def available_migrations() -> list[tuple[str, str]]:
-    """Return ``(name, sql)`` for every bundled migration, oldest first."""
-    folder = resources.files("clipvault.migrations")
+MIGRATIONS = "clipvault.migrations"
+
+
+def available_migrations(package: str = MIGRATIONS) -> list[tuple[str, str]]:
+    """Return ``(name, sql)`` for every bundled migration in ``package``, oldest first.
+
+    The desktop app uses ``clipvault.migrations``; the website (``clipvault_web``) keeps
+    its own database and migrations.
+    """
+    folder = resources.files(package)
     found = []
     for entry in folder.iterdir():
         if entry.name.endswith(".sql"):
@@ -68,7 +75,7 @@ def available_migrations() -> list[tuple[str, str]]:
     return sorted(found)
 
 
-def migrate(conn: sqlite3.Connection) -> list[str]:
+def migrate(conn: sqlite3.Connection, package: str = MIGRATIONS) -> list[str]:
     """Apply migrations that have not run yet; return the names applied.
 
     Each migration runs in its own transaction together with the row that
@@ -81,7 +88,7 @@ def migrate(conn: sqlite3.Connection) -> list[str]:
     )
     done = {row[0] for row in conn.execute("SELECT name FROM schema_migrations")}
     applied: list[str] = []
-    for name, sql in available_migrations():
+    for name, sql in available_migrations(package):
         if name in done:
             continue
         script = (
@@ -101,8 +108,8 @@ def migrate(conn: sqlite3.Connection) -> list[str]:
     return applied
 
 
-def open_db(path: Path | str) -> sqlite3.Connection:
+def open_db(path: Path | str, package: str = MIGRATIONS) -> sqlite3.Connection:
     """Open the database and bring its schema up to date."""
     conn = connect(path)
-    migrate(conn)
+    migrate(conn, package)
     return conn

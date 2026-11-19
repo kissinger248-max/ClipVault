@@ -1,0 +1,27 @@
+{% extends "base.html" %}
+{% block title %}Your clips · ClipVault{% endblock %}
+{% block meta %}<meta name="robots" content="noindex, nofollow">{% endblock %}
+{% block mainclass %}run{% endblock %}
+{% block content %}
+<section class="run-head">
+  <div>
+    <p class="eyebrow" id="source">{{ run.source }}</p>
+    <h1 id="title">{% if run.status == 'done' %}Your clips are <em>ready</em>{% elif run.status == 'failed' %}Something went wrong{% else %}Making your <em>clips</em>{% endif %}</h1>
+    <p class="lede" id="status">{{ run.step }}</p>
+    <div class="bar wide" id="run-bar" {% if run.status in ('done', 'failed') %}hidden{% endif %}><i></i></div>
+  </div>
+  <div class="run-actions">
+    <a class="pill primary" id="zip" href="{{ run.zip or '#' }}" {% if not run.zip %}hidden{% endif %}>Download all</a>
+    <button class="pill ghost" id="copy" type="button">Copy link</button>
+  </div>
+</section>
+
+<p class="error" id="run-error" role="alert" {% if not run.error %}hidden{% endif %}>{{ run.error or '' }}</p>
+
+<div class="clips" id="clips" aria-live="polite"></div>
+
+<p class="note" id="expires">These clips are deleted {{ run.expires }}. Download the ones you want to keep.</p>
+<p class="note"><a href="/">Make clips from another video</a></p>
+<script type="application/json" id="run-initial">{{ run|tojson }}</script>
+{% endblock %}
+{% block scripts %}<script src="/static/web.js" defer></script>{% endblock %}

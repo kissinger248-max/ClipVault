@@ -1,0 +1,42 @@
+{% extends "base.html" %}
+{% block mainclass %}try{% endblock %}
+{% block content %}
+<section class="hero">
+  <h1>Turn a video into <em>5 viral clips</em></h1>
+  <p class="lede">Upload a stream, a podcast or any video. In a few minutes you get vertical clips with a hook headline and word-by-word captions, ready for TikTok, Shorts and Reels. Free, no sign-up.</p>
+</section>
+
+<form class="card upload" id="upload" novalidate data-max-bytes="{{ max_mb * 1024 * 1024 }}" data-max-mb="{{ max_mb }}">
+  <label class="drop" id="drop" for="file">
+    <input id="file" name="file" type="file" accept="video/mp4,video/quicktime,video/x-matroska,video/webm,.mp4,.mov,.mkv,.webm,.m4v" hidden>
+    <span class="drop-icon" aria-hidden="true"><svg width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 16V4M7 8.5l5-5 5 5M5 20h14"/></svg></span>
+    <span class="drop-title" id="drop-title">Drop a video here, or <u>choose a file</u></span>
+    <span class="drop-sub" id="drop-sub">MP4, MOV, MKV or WebM · up to {{ max_minutes }} minutes · {{ '{:,}'.format(max_mb) }} MB</span>
+  </label>
+
+  <div class="fields">
+    <label class="field">
+      <span>Who's in it? <i>Optional, used in headlines</i></span>
+      <input id="who" type="text" maxlength="40" placeholder="e.g. Kai" autocomplete="off">
+    </label>
+    <label class="check">
+      <input id="rights" type="checkbox">
+      <span>I own this video or have permission to use it.</span>
+    </label>
+  </div>
+
+  <div class="progress" id="progress" hidden>
+    <div class="bar"><i id="bar"></i></div>
+    <div class="progress-text"><span id="progress-label">Uploading…</span><span id="progress-amount"></span></div>
+  </div>
+  <p class="error" id="error" role="alert" hidden></p>
+  <button class="pill primary big" id="go" type="submit" disabled>Make my clips</button>
+</form>
+
+<ol class="how">
+  <li><b>1</b><span>Upload a video</span></li>
+  <li><b>2</b><span>We find the moments where it gets loud, funny or wild</span></li>
+  <li><b>3</b><span>Download about 5 vertical clips, captions and headline burned in</span></li>
+</ol>
+{% endblock %}
+{% block scripts %}<script src="/static/web.js" defer></script>{% endblock %}

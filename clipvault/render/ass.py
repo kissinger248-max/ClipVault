@@ -413,9 +413,11 @@ def _caption_lines(
             return 0.0
         gaps = (len(indexes) - 1) * (font.width(" ", size) + spec.word_gap)
         plain = sum(font.width(texts[i], size) for i in indexes) + gaps
-        # Either end word may be the enlarged one; allow for both, plus the outline.
-        ends = font.width(texts[indexes[0]], size) + font.width(texts[indexes[-1]], size)
-        return plain + ends * (spec.active_scale - 1) / 2 + 2 * spec.outline + 4
+        # Either end word may be the enlarged one. The line is centred, so each end grows
+        # on its own side: keep room for the bigger end's growth on both sides (one long
+        # end word used to poke a few pixels past the safe box), plus the outline.
+        ends = max(font.width(texts[indexes[0]], size), font.width(texts[indexes[-1]], size))
+        return plain + ends * (spec.active_scale - 1) + 2 * spec.outline + 4
 
     everything = tuple(range(len(texts)))
     if width(everything) <= spec.max_width or len(texts) < 2 or spec.max_lines < 2:

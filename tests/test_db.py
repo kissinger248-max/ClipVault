@@ -72,7 +72,7 @@ def test_constraints_reject_bad_rows(conn: sqlite3.Connection) -> None:
 
 def test_failed_migration_rolls_back(home: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     bad = [("0001_bad", "CREATE TABLE a (x); CREATE TABLE a (x);")]
-    monkeypatch.setattr(db, "available_migrations", lambda: bad)
+    monkeypatch.setattr(db, "available_migrations", lambda *_: bad)
     conn = db.connect(home / "bad.db")
     with pytest.raises(sqlite3.Error):
         db.migrate(conn)

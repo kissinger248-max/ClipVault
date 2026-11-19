@@ -1,0 +1,30 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>{% block title %}ClipVault: turn a video into viral clips{% endblock %}</title>
+<meta name="description" content="Upload a video and get vertical clips with hook headlines and word-by-word captions, free.">
+{% block meta %}{% endblock %}
+<meta name="theme-color" content="#0B0B0D">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&amp;family=Inter+Tight:wght@600;700;800&amp;family=Instrument+Serif:ital@1&amp;display=swap">
+<link rel="stylesheet" href="/static/web.css">
+<link rel="icon" href="/static/icon.svg" type="image/svg+xml">
+</head>
+<body>
+<header class="top">
+  <a class="brand" href="/" aria-label="ClipVault home"><img src="/static/icon.svg" alt="" width="28" height="28"><span>ClipVault</span></a>
+  <a class="pill ghost" href="{{ settings.app_download_url }}">Get the free app</a>
+</header>
+<main class="{% block mainclass %}{% endblock %}">
+{% block content %}{% endblock %}
+</main>
+<footer class="foot">
+  <p>Uploads and clips are deleted after {{ settings.keep_hours }} hours. Only upload videos you have the right to use.</p>
+  <p><a href="https://clipvault-site-six.vercel.app/privacy.html">Privacy</a> · <a href="https://clipvault-site-six.vercel.app/terms.html">Terms</a> · <a href="{{ settings.app_download_url }}">The ClipVault app</a></p>
+</footer>
+{% block scripts %}{% endblock %}
+</body>
+</html>

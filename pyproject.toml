@@ -33,6 +33,8 @@ transcribe = ["faster-whisper>=1.0"]
 desktop = ["pystray>=0.19", "pillow", "tzlocal>=5", "pywebview>=5.3"]
 # Everything the installed app bundles, plus the builder (packaging/build.py).
 app = ["clipvault[render,transcribe,desktop]"]
+# The website (clipvault_web/, docs/WEB_VERSION_PLAN.md); never part of the installed app.
+web = ["clipvault[render,transcribe]"]
 build = ["clipvault[app]", "pyinstaller>=6.10"]
 
 [project.scripts]
@@ -45,6 +47,8 @@ include = ["clipvault*"]
 "clipvault.migrations" = ["*.sql"]
 "clipvault.data" = ["*.txt", "*.yaml", "*.onnx", "emoji/*"]
 "clipvault.web" = ["templates/*.html", "static/*", "static/fonts/*"]
+"clipvault_web" = ["templates/*.html", "static/*"]
+"clipvault_web.migrations" = ["*.sql"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

@@ -255,7 +255,7 @@ Items 3–6 go ahead with the proposals unless the owner says otherwise.
 
 Same style as BUILD_PLAN.md: one milestone at a time, each with "Done when" checks.
 
-**W1. Upload → 5 clips (the core, no Twitch).**
+**W1. Upload → 5 clips (the core, no Twitch).** ✅ built 2026-11-19 (`clipvault_web/`, local only)
 Upload, moment finder for videos without chat, render 5, results page, 24 h expiry.
 Done when: a 20-minute upload gives 5 clips that pass QA in under 5 minutes on the
 server; files are gone after 24 h; tests use fixtures only.

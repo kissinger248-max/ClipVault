@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import os
 import re
 import subprocess
 from dataclasses import dataclass
@@ -14,6 +15,8 @@ from clipvault import procs
 from clipvault.render.template import Look
 
 TIMEOUT_S = 900
+# Tames a scream above -20 dBFS (4:1) before a clip's loudness is corrected.
+COMPRESSOR = "acompressor=threshold=0.1:ratio=4:attack=5:release=150"
 
 
 class RenderError(Exception):
@@ -88,14 +91,18 @@ def probe(path: Path) -> MediaInfo:
 # --- loudness ------------------------------------------------------------------
 
 
-def measure_loudness(path: Path, start: float = 0.0, duration: float | None = None) -> dict | None:
-    """First loudnorm pass: measure the audio. None when there is no usable audio."""
+def measure_loudness(
+    path: Path, start: float = 0.0, duration: float | None = None, before: str = ""
+) -> dict | None:
+    """First loudnorm pass: measure the audio (after the ``before`` filter, if given).
+    None when there is no usable audio."""
     arguments = ["-ss", f"{start:.3f}"] if start > 0 else []
     arguments += ["-i", str(path)]
     if duration:
         arguments += ["-t", f"{duration:.3f}"]
     arguments += [
-        "-map", "0:a:0", "-af", "loudnorm=I=-14:TP=-1.5:LRA=11:print_format=json",
+        "-map", "0:a:0", "-af", f"{before + ',' if before else ''}"
+        "loudnorm=I=-14:TP=-1.5:LRA=11:print_format=json",
         "-f", "null", "-",
     ]  # fmt: skip
     try:
@@ -125,6 +132,39 @@ def loudnorm_filter(measured: dict | None, look: Look) -> str:
         f":measured_LRA={measured['input_lra']}:measured_thresh={measured['input_thresh']}"
         f":offset={measured['target_offset']}:linear=true,aresample=48000"
     )
+
+
+def correct_loudness(path: Path, look: Look) -> bool:
+    """Second chance for a very dynamic clip (quiet talk, then a scream).
+
+    ``loudnorm`` falls back to its dynamic mode on those and can land a few LU short of
+    the target; a plain gain can't fix it either, because the peaks (the scream) set the
+    loudness. So: a compressor tames the peaks, one gain lifts it onto the target and a
+    limiter keeps the true peak under the limit (tried on a real clip: -17.1 LUFS became
+    -14.05 LUFS at -1.0 dBTP). The picture is copied; only the sound is encoded again.
+    Returns True when the file was changed.
+    """
+    measured = measure_loudness(path, before=COMPRESSOR)
+    if not measured:
+        return False
+    gain = float(look.export.loudness) - float(measured["input_i"])
+    limit = min(max(10 ** ((float(look.export.true_peak) - 0.5) / 20), 0.0625), 1.0)
+    partial = path.with_name(path.name + ".loudness.mp4")
+    try:
+        _ffmpeg(
+            ["-y", "-loglevel", "error", "-i", str(path), "-map", "0:v:0", "-map", "0:a:0",
+             "-c:v", "copy", "-af", f"{COMPRESSOR},volume={gain:.2f}dB,"
+             f"alimiter=limit={limit:.4f}:level=0,"
+             "aresample=48000", "-c:a", "aac", "-ar", "48000",
+             "-b:a", str(look.export.audio_bitrate), "-movflags", "+faststart", str(partial)],
+            what="loudness correction",
+        )  # fmt: skip
+        if not partial.is_file() or partial.stat().st_size == 0:
+            return False
+        os.replace(partial, path)
+    finally:
+        partial.unlink(missing_ok=True)
+    return True
 
 
 # --- encode --------------------------------------------------------------------

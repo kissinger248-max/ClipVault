@@ -211,61 +211,26 @@ def render_clip(
     disclosure = None
     if streamer["permission_type"] == "campaign":
         disclosure = f"#ad Paid partnership with @{clip['login']}"
-    overlay = build_overlay(
-        look=look,
-        layout=chosen,
-        duration=duration,
-        headline=headline,
-        login=clip["login"],
-        words=words,
-        key_word=key_word,
-        disclosure=disclosure,
-        mask=mask,
-        emojis=emojis,
-        emoji_position=look.hook_emoji.position,
-    )
-
     relpath = vertical_relpath(clip["file_path"])
     dest = video.parent / "vertical" / relpath.rsplit("/", 1)[-1]
-    dest.parent.mkdir(parents=True, exist_ok=True)
     started = utc_now()
-    with tempfile.TemporaryDirectory(prefix="clipvault-render-") as folder:
-        work = Path(folder)
-        (work / "overlay.ass").write_text(overlay.ass, encoding="utf-8")
-        shutil.copytree(FONTS_DIR, work / "fonts", ignore=shutil.ignore_patterns("*.txt", ".*"))
-        try:
-            pictures = emoji_mod.prepare_images(overlay.emojis, work)
-        except emoji_mod.EmojiError as exc:
-            raise RenderError(f"hook emoji: {exc}") from exc
-        measured = ffmpeg.measure_loudness(source, start, duration) if info.has_audio else None
-        partial = dest.with_name(dest.name + ".rendering.mp4")
-        try:
-            ffmpeg.encode(
-                source=source,
-                dest=partial,
-                workdir=work,
-                video_filter=plan.video_filter,
-                audio_filter=ffmpeg.loudnorm_filter(measured, look),
-                has_audio=info.has_audio,
-                start=start,
-                duration=duration,
-                look=look,
-                emoji_images=pictures,
-            )
-            os.replace(partial, dest)  # the finished name only ever holds a whole video
-        finally:
-            partial.unlink(missing_ok=True)
-
-    still = cfg.home_dir() / "qa" / (dest.stem + ".jpg")
-    report = qa.run_checks(
-        output=dest,
-        overlay=overlay,
+    report = make_vertical(
+        source=source,
+        info=info,
         plan=plan,
+        dest=dest,
+        start=start,
+        duration=duration,
         look=look,
         headline=headline,
-        transcript_text=transcript.text,
+        key_word=key_word,
+        words=words,
+        login=clip["login"],
+        emojis=emojis,
+        disclosure=disclosure,
         mask=mask,
-        still_path=still,
+        transcript_text=transcript.text,
+        still_path=cfg.home_dir() / "qa" / (dest.stem + ".jpg"),
     )
     seconds = (utc_now() - started).total_seconds()
     with db.transaction(conn):
@@ -310,6 +275,95 @@ def render_clip(
         ),
     )
     return RenderResult(render_id, clip_id, chosen, relpath, dest, headline, report, seconds)
+
+
+def make_vertical(
+    *,
+    source: Path,
+    info: ffmpeg.MediaInfo,
+    plan: layouts.Plan,
+    dest: Path,
+    start: float,
+    duration: float,
+    look: Look,
+    headline: str | None,
+    key_word: str | None,
+    words: tuple[Word, ...],
+    login: str,
+    emojis: tuple[str, ...] = (),
+    disclosure: str | None = None,
+    mask=None,
+    transcript_text: str = "",
+    still_path: Path,
+) -> qa.Report:
+    """Draw the headline and captions over ``start``..``start + duration`` of ``source`` in
+    ``plan``'s layout, write the vertical video to ``dest`` and check it (QA).
+
+    The core of every phone version, shared by the app (:func:`render_clip`) and the
+    website. ``words`` are timed from ``start``. ``dest`` only ever holds a whole video:
+    FFmpeg writes next to it and the file is renamed when it is finished.
+    """
+    overlay = build_overlay(
+        look=look,
+        layout=plan.layout,
+        duration=duration,
+        headline=headline,
+        login=login,
+        words=words,
+        key_word=key_word,
+        disclosure=disclosure,
+        mask=mask,
+        emojis=emojis,
+        emoji_position=look.hook_emoji.position,
+    )
+    dest.parent.mkdir(parents=True, exist_ok=True)
+    with tempfile.TemporaryDirectory(prefix="clipvault-render-") as folder:
+        work = Path(folder)
+        (work / "overlay.ass").write_text(overlay.ass, encoding="utf-8")
+        shutil.copytree(FONTS_DIR, work / "fonts", ignore=shutil.ignore_patterns("*.txt", ".*"))
+        try:
+            pictures = emoji_mod.prepare_images(overlay.emojis, work)
+        except emoji_mod.EmojiError as exc:
+            raise RenderError(f"hook emoji: {exc}") from exc
+        measured = ffmpeg.measure_loudness(source, start, duration) if info.has_audio else None
+        partial = dest.with_name(dest.name + ".rendering.mp4")
+        try:
+            ffmpeg.encode(
+                source=source,
+                dest=partial,
+                workdir=work,
+                video_filter=plan.video_filter,
+                audio_filter=ffmpeg.loudnorm_filter(measured, look),
+                has_audio=info.has_audio,
+                start=start,
+                duration=duration,
+                look=look,
+                emoji_images=pictures,
+            )
+            os.replace(partial, dest)  # the finished name only ever holds a whole video
+        finally:
+            partial.unlink(missing_ok=True)
+
+    def check() -> qa.Report:
+        return qa.run_checks(
+            output=dest,
+            overlay=overlay,
+            plan=plan,
+            look=look,
+            headline=headline,
+            transcript_text=transcript_text,
+            mask=mask,
+            still_path=still_path,
+        )
+
+    report = check()
+    if any(c.name == "loudness" for c in report.failures()):
+        try:
+            if ffmpeg.correct_loudness(dest, look):
+                report = check()
+        except RenderError as exc:  # keep the first version; QA still says it is off
+            log.warning("loudness correction failed: %s", exc, extra=ctx(job="render"))
+    return report
 
 
 def _fetch_portrait(

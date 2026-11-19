@@ -944,3 +944,19 @@ Not pushed or tagged: the owner asked to hold everything until they say so.
 
 **Decision (later the same day)**
 - The owner chose path B for the web version: the website downloads any public Twitch link itself. `docs/WEB_VERSION_PLAN.md` now lists the required safeguards (section 5) and the build order W1–W5, and hard rule 3 in CLAUDE.md says so. Still open: the budget and each paid service (hard rule 11). Proposed defaults for the site, watermark, limits and accounts are in section 9. No web code has been written yet.
+
+## Session: Web version W1, upload -> 5 clips (2026-11-19, local only, not pushed)
+
+**What changed**
+- New `clipvault_web/` package (never imported by the desktop app): settings from `CLIPVAULT_WEB_*` env vars, its own SQLite DB and migrations, moment finder for videos without chat (loudness surges -> transcribe only ~10 candidate minutes -> score reactions/speech -> cut on sentences, 15-59 s), headlines (built-in writer; "Bro" when no name; no chat hooks), layout (native/split/letterbox), renders 5 clips in parallel with a "Made with ClipVault" line, upload/run/download/zip pages, background worker that resumes after a restart, 24 h expiry. CLI: `python -m clipvault_web serve | make | cleanup`.
+- Shared changes that also help the app: `db.migrate/open_db` take a migrations package; `engine.make_vertical` extracted from `render_clip`; caption lines keep room for the longer end word's growth (fixes captions a few px outside the safe box); `ffmpeg.correct_loudness` (compressor + gain + limiter) when QA finds a clip off the loudness target.
+
+**Verified**
+- 20.7-minute test video built from 31 saved clips: 5 clips, all QA passed, 150 s total on this laptop (finding 118 s with local Whisper; Groq would be faster), "16 more moments found".
+- In the browser (local server, test video uploaded with the page's own request): progress, then 5 playable clips, seeking (206), download names, zip.
+- 572 tests passed before the last small fixes; web tests (23) pass after them; ruff clean on new code, total unchanged (519 pre-existing).
+
+**Open issues**
+- Built-in headlines are often generic ("Wait for the ENDING"); AI headlines would help.
+- Full test suite not re-run after the last two small fixes (lifespan hook, hyphen join).
+- W2 (nudges, nicer loading cards) next; nothing deployed, no paid service used.
