@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import logging
 import os
-import re
 import shutil
 import sqlite3
 import tempfile
@@ -20,7 +19,7 @@ from clipvault.process import hook_emoji, transcribe
 from clipvault.process.transcribe import Transcript, Word
 from clipvault.render import emoji as emoji_mod
 from clipvault.render import facecam, ffmpeg, layouts, qa
-from clipvault.render.ass import build_overlay, fit_headline, layout_headline
+from clipvault.render.ass import build_overlay, layout_headline
 from clipvault.render.ffmpeg import RenderError
 from clipvault.render.layouts import Rect
 from clipvault.render.template import FONTS_DIR, Look, load_look
@@ -43,16 +42,6 @@ class RenderResult:
     headline: str | None
     report: qa.Report
     seconds: float
-
-
-def default_headline(title: str | None, max_words: int = 7) -> str | None:
-    """A stand-in headline from the clip title, until the headline writer (M8) supplies one.
-
-    Emoji and symbols are dropped; a title with no real words left gives no headline.
-    """
-    plain = re.sub(r"[^\w\s'!?&-]", " ", title or "", flags=re.UNICODE)
-    words = [w for w in plain.split() if re.search(r"[A-Za-z0-9]", w)]
-    return " ".join(words[:max_words]) or None
 
 
 def hook_emojis_for(
@@ -209,8 +198,12 @@ def render_clip(
         Word(w.text, w.start - start, w.end - start) for w in transcript.words if w.end > start
     )
     mask = transcribe.mask_pattern(transcribe.load_mask_words())
-    if headline is None:
-        headline = clip["headline"] or fit_headline(default_headline(clip["title"]), look)
+    if headline is None:  # the clip's hook headline (written now if it has none yet)
+        from clipvault.process import headlines
+
+        chosen_headline = headlines.ensure(conn, config, clip_id)
+        headline = chosen_headline.text
+        key_word = key_word or chosen_headline.key_word
     flagged = conn.execute(
         "SELECT 1 FROM renders WHERE clip_id = ? AND qa_passed = 0 LIMIT 1", (clip_id,)
     ).fetchone() is not None
@@ -381,12 +374,14 @@ def preview_frame(
         plan = layouts.letterbox(info, look)
     original = storage.resolve(library, clip["file_path"])
     words = _read_transcript(original).words if original else ()
-    headline = clip["headline"] or fit_headline(default_headline(clip["title"]), look)
+    from clipvault.process import headlines
+
+    chosen_headline = headlines.ensure(conn, config, clip["id"])
     spoken = " ".join(w.text for w in words)
-    headline, emojis = hook_emojis_for(clip, headline, spoken, look, False, None, ask=False)
+    headline, emojis = hook_emojis_for(clip, chosen_headline.text, spoken, look, False, None, ask=False)
     overlay = build_overlay(look=look, layout=layout, duration=info.duration, headline=headline,
-                            login=clip["login"], words=words, emojis=emojis,
-                            emoji_position=look.hook_emoji.position)  # fmt: skip
+                            login=clip["login"], words=words, key_word=chosen_headline.key_word,
+                            emojis=emojis, emoji_position=look.hook_emoji.position)  # fmt: skip
     # Show a moment with a caption on screen, a little into the first block.
     moment = min(overlay.blocks[0].start + 0.15, info.duration - 0.1) if overlay.blocks else 1.0
     dest.parent.mkdir(parents=True, exist_ok=True)

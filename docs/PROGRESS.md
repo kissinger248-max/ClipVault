@@ -819,6 +819,66 @@ Report from the owner's friend (Mac, 0.3.4): "Live chat never connects", log: `c
 - selftest here: "Secure connections: 118 trusted certificates for live chat".
 - Not verified on a real Mac: the friend's next start of 0.4.1 is the check (Home's "Right now" shows a streamer as live with a moving chat meter).
 
+## 2026-11-19: Hook headlines: a system for writing them (0.5.0)
+
+Request: "the titles it generates for the clips are cut off, they need to be fixed. also most dont make sense they should make people want to click, exaggerate and shock/entice. create a system for writing the titles".
+
+**What was wrong (seen on the owner's phone versions)**
+- With no AI key, every headline was the viewer's Twitch title, with words dropped from the end until it fit two lines (`ass.fit_headline`). That gave cut-off sentences: "xQc New Zealand gets GTA 6 first", "Lore Update Ray Mond is a master", "Chang Gang Ray Mond failed the 1st".
+- Viewer titles are often junk ("lily p1", "plsying all gta", "uhuhu", "kai").
+- Live and chat moments took the stream's title ("Live chat moment at 4:27:29 - 🐖LIVE🐖CLICK🐖HERE…").
+- One clip had no headline at all.
+- Transcripts can't simply be quoted. xQc often watches videos, so a live moment's transcript was a documentary narrator ("…was arrested for the murder of…"); quoting it would put the narrator's words in the streamer's mouth.
+
+**What changed: `process/headlines.py`**
+- Every clip gets several candidates, each checked and scored. The best one that **fits whole** (measured with the real font) is used; nothing is ever shortened.
+  - `fit_headline` and the title stand-in (`engine.default_headline`) were removed.
+- **Candidate sources:**
+  - **AI**, when a key is stored.
+  - **The viewer's title**, used only when it says something:
+    - 3 to 8 real words, not just the streamer's or game's name;
+    - or a short exclamation or question ("A LANDMINE?", "Baby fever?");
+    - chat slang (xdd, KEKW…) stripped;
+    - a title shared by 3 or more clips is the stream's title and is skipped.
+  - **Reaction hooks** from interjection-type phrases only: shock, hype, funny, fear (strong signals only), rage, "clip that", sad.
+  - **Chat-moment hooks** for live and finished-stream moments, including old ones with no stored surge.
+  - **Views hooks** when a clip has 3× or more the streamer's median views.
+  - **Game hooks** with short names ("GTA 6"), then evergreen hooks.
+- **Templates** exaggerate the reaction, never the event, and each has one CAPS word that the renderer highlights. Names read naturally: "KaiCenat" becomes "Kai Cenat".
+- **Checks:** at most 6 words for hooks (8 for a viewer's own title), no emoji, no BREAKING/LEAKED/BANNED/EXPOSED/CONFIRMED/OFFICIAL unless said or in the title, no masked words.
+- **Variety:** the streamer's last 8 patterns score lower; the more recent, the more so.
+- **The AI prompt** (`write.py`) was rewritten for scroll-stopping hooks:
+  - exaggerate emotion and open a curiosity gap; examples given;
+  - one CAPS word, returned as `key_word`;
+  - grounded in the clip: no invented events, crimes, bans, relationships or health claims;
+  - a video being watched isn't presented as what the streamer said;
+  - don't repeat the streamer's recent headlines;
+  - it's also told how hard chat reacted and the views against the streamer's usual.
+  - If the AI can't be reached or gives nothing usable, the built-in writer is used.
+- Migration `0010_headlines`: `clips.headline_key`, `headline_source` ("kind|pattern"), `headline_version`.
+- **Re-making older phone versions:** `jobs.clips_to_refresh` lists clips whose headline an older version wrote (headlines the user typed are excluded). After new clips, the worker re-makes a few per round in the same layout, newest first, on mains power.
+  - The version is `VERSION * 1000 + headline_generation`. Adding an AI key bumps the generation, so existing clips get AI headlines once.
+- **Panel:**
+  - the clip page has a Headline box: where the headline came from, **Try Another** (the next-best candidate, cycling) or a typed headline (must fit, no emoji); either re-makes the phone version;
+  - Settings has a **Headlines** section: which writer is used, and a field for a free Groq key, checked against Groq's `/models` before saving, with Remove Key.
+- The `headlines` command now uses the system (no key needed).
+
+**Free AI:** Groq has a free tier: no charge, rate-limited (third-party sources, 2026-11-19; the console shows the exact limits). A headline is a few hundred tokens. No key was added: that is the owner's choice and needs their account.
+
+**Verified, and how**
+- `pytest -q`: 448 passed (new tests/test_headlines.py, 21 tests); ruff clean.
+- The built-in writer on about 60 real clips from a copy of the owner's database and transcripts (read only), tuned in three rounds:
+  - live moments rotated through chat hooks;
+  - "uhuhu"/"gtavi"/"kai" titles gave reaction or views hooks;
+  - "ray visits her dad one last time" was kept whole;
+  - the narrator's murder story got a chat-moment hook, not a quote.
+- Real frames drawn with the new headlines next to the old cut-off ones: every headline whole, the highlight on the CAPS word.
+
+**Open issues**
+- The built-in writer can't tell what actually happens in a clip. Its hooks are emotional and safe, but general. AI headlines (free Groq key) are the step up; the owner decides.
+- Re-making all existing phone versions (about 330) takes a couple of hours of mains-power CPU in the background.
+- SPEC §9 ("describes only what happens") is interpreted as: exaggerate reactions and feelings, never facts about people.
+
 ## Session: Posting page (0.5.0, built locally, not released)
 
 **What changed**

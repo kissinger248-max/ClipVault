@@ -204,6 +204,8 @@ def step_worker(conn: sqlite3.Connection, config: cfg.Config, now: datetime) -> 
         made = jobs.run_render(conn, config, limit=RENDER_BATCH)
         if made.rendered or made.failed:
             notes.append(f"edited {made.rendered}, {made.failed} failed, {made.remaining} waiting")
+        if made.refreshed:
+            notes.append(f"{made.refreshed} older phone version(s) given a new headline")
     return "; ".join(notes)
 
 

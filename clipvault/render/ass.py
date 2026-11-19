@@ -205,22 +205,6 @@ def _even_split(words: tuple[str, ...], font: Font, size: float) -> tuple[tuple[
     return (words[:cut], words[cut:])
 
 
-def fit_headline(text: str | None, look: Look, min_words: int = 2) -> str | None:
-    """Drop words from the end of ``text`` until it fits the headline box.
-
-    Used for the stand-in headline made from a clip title. Returns the text
-    unchanged when even ``min_words`` words don't fit (QA then reports it).
-    """
-    if not text:
-        return text
-    words = text.split()
-    for count in range(len(words), min_words - 1, -1):
-        candidate = " ".join(words[:count])
-        if layout_headline(candidate, look).fits:
-            return candidate
-    return text
-
-
 def pick_key_word(words: list[str]) -> int:
     """Index of the word to highlight when none was chosen: the longest one."""
     plain = [re.sub(r"\W", "", w) for w in words]

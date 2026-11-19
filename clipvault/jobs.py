@@ -629,6 +629,7 @@ class RenderSummary:
     """What one round of automatic rendering did."""
 
     rendered: int = 0
+    refreshed: int = 0  # older phone versions made again with a better headline
     failed: int = 0
     remaining: int = 0
     errors: list[str] = field(default_factory=list)
@@ -652,29 +653,66 @@ def clips_to_render(conn: sqlite3.Connection, config: Config) -> list[str]:
     return [row["id"] for row in rows]
 
 
+def clips_to_refresh(conn: sqlite3.Connection) -> list[tuple[str, str | None]]:
+    """Clips whose phone version has a headline an older headline system wrote, newest
+    first, with the layout to keep. Headlines the user typed are left alone."""
+    from clipvault.process import headlines
+
+    rows = conn.execute(
+        "SELECT c.id, (SELECT r.layout FROM renders r WHERE r.clip_id = c.id AND r.path IS NOT "
+        "NULL ORDER BY r.created_at DESC, r.id DESC LIMIT 1) AS layout "
+        "FROM clips c JOIN streamers s ON s.id = c.streamer_id "
+        "WHERE c.removed_at IS NULL AND c.render_error IS NULL AND s.save_enabled = 1 "
+        "AND c.file_path IS NOT NULL "
+        "AND EXISTS (SELECT 1 FROM renders r WHERE r.clip_id = c.id AND r.path IS NOT NULL) "
+        "AND (c.headline_version IS NULL OR c.headline_version != ?) "
+        "AND coalesce(c.headline_source, '') NOT LIKE 'custom%' "
+        "ORDER BY c.created_at DESC",
+        (headlines.current_version(conn),),
+    ).fetchall()
+    return [(row["id"], row["layout"]) for row in rows]
+
+
 def run_render(
     conn: sqlite3.Connection,
     config: Config,
     *,
     limit: int | None = None,
     render: Callable[..., object] | None = None,
+    refresh: bool = True,
 ) -> RenderSummary:
-    """Make the phone version (best layout, headline, captions) of the newest clips."""
+    """Make the phone version (best layout, headline, captions) of the newest clips.
+
+    With room to spare (``limit``), phone versions whose headline an older headline
+    system wrote are made again too (``refresh``), newest first, in the same layout.
+    """
     from clipvault.render import engine
     from clipvault.render.ffmpeg import RenderError
 
     render = render or engine.render_clip
     summary = RenderSummary()
     todo = clips_to_render(conn, config)
-    picked = todo[:limit] if limit else todo
-    for clip_id in picked:
+    picked: list[tuple[str, str | None, bool]] = [
+        (clip_id, None, False) for clip_id in (todo[:limit] if limit else todo)
+    ]
+    if refresh and limit and len(picked) < limit:
+        room = limit - len(picked)
+        picked += [(clip_id, layout, True) for clip_id, layout in clips_to_refresh(conn)[:room]]
+    for clip_id, layout, again in picked:
         if lifecycle.stopping.is_set():
             break  # quitting: the rest waits for the next run
         try:
             with activity.working(clip_id, "editing"):
-                render(conn, config, clip_id)
-            summary.rendered += 1
-            activity.event("edited", "Phone version ready", clip_id=clip_id)
+                if again:
+                    render(conn, config, clip_id, layout=layout)
+                else:
+                    render(conn, config, clip_id)
+            if again:
+                summary.refreshed += 1
+                activity.event("edited", "New headline on the phone version", clip_id=clip_id)
+            else:
+                summary.rendered += 1
+                activity.event("edited", "Phone version ready", clip_id=clip_id)
         except (RenderError, OSError) as exc:
             summary.failed += 1
             summary.errors.append(f"{clip_id}: {exc}")
@@ -682,5 +720,5 @@ def run_render(
                 "UPDATE clips SET render_error = ? WHERE id = ?", (str(exc)[:500], clip_id)
             )
             log.error("phone version failed: %s", exc, extra=ctx(clip=clip_id, job=RENDER_JOB))
-    summary.remaining = len(todo) - len(picked)
+    summary.remaining = len(todo) - len([p for p in picked if not p[2]])
     return summary

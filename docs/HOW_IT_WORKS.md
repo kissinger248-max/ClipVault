@@ -189,9 +189,24 @@ Removing a streamer who has saved clips only switches saving off, so their clips
 
 ## 10. Headlines
 
-**Without an AI key (now):** the headline is made from the clip's Twitch title: emoji and symbols removed, at most 7 words, shortened until it fits two lines. Some come out weak ("big", "smoke").
+Every phone version gets a **hook headline**: the line on top that makes someone stop scrolling. ClipVault writes several candidates for each clip, checks them, and uses the best one that **fits on two lines whole**. A headline is never cut short; one that doesn't fit is simply not used.
 
-**With an AI key (optional, a few cents a month):** an AI model writes a short hook headline from what was said in the clip, plus a post caption and hashtags. ClipVault checks every answer: at most 6 words, no emoji, nothing invented, no "BREAKING / LEAKED / BANNED" unless the streamer actually said it, no blocked words, and it must fit on screen. A bad answer is asked for again, up to 3 times; if none is usable, the title-based headline is kept. Headlines are written with the `headlines` command for the best clips; the phone version then uses them.
+**Where the candidates come from**, roughly best first:
+
+1. **AI** (optional): with a free AI key (Settings, Headlines; a free Groq account at console.groq.com/keys), an AI model reads what was said and writes a hook for that clip.
+2. **The viewer's title**, when it says something ("Ray visits her dad one last time", "A LANDMINE?"). Junk ("uhuhu", "kai"), chat slang ("xdd") and a copied stream title ("LIVE CLICK HERE…") are skipped.
+3. **The streamer's reaction**, from what was said: shock ("no way", "oh my god") becomes "Kai Cenat CAN'T believe this", laughter "xQc can't stop LAUGHING", "let's go" "The HYPE is unreal", "clip that", fear, rage, sad moments. Only reaction-type phrases count, so if the streamer is watching a video, the narrator's words are never presented as theirs.
+4. **The chat moment**: live and finished-stream moments were found because chat went wild ("The moment chat EXPLODED", "Chat could NOT handle this").
+5. **The views**: far more than that streamer's usual clip ("4.5K people watched THIS").
+6. **The game** ("Peak GTA 5 CHAOS"), then evergreen hooks ("Nobody saw this COMING").
+
+**The style:** at most 6 words, one word in CAPS shown in the highlight colour, curiosity and exaggerated emotion. **Never:** invented events or claims about real people (crimes, bans, relationships, health), "BREAKING / LEAKED / BANNED" unless said in the clip, slurs, emoji. Recent patterns for the same streamer are avoided, so a run of clips doesn't all say the same thing.
+
+**Changing one:** on a clip's page, the Headline box shows the headline and where it came from. **Try Another** picks the next-best one; or type your own (the word in CAPS is highlighted) and **Save and Re-make**. Either way the phone version is made again. Headlines you type are never replaced.
+
+**Older phone versions** made with the old title-based headlines are made again with new ones in the background: newest first, a few per round after new clips, on mains power. Adding an AI key does the same once, so they get AI headlines.
+
+**The `headlines` command** writes and lists headlines for the newest clips.
 
 ---
 

@@ -93,14 +93,6 @@ def test_headline_that_cannot_fit_is_reported() -> None:
     assert len(shape.lines) == 2  # still split evenly, so QA measures a realistic box
 
 
-def test_title_headline_is_trimmed_until_it_fits() -> None:
-    assert ass.fit_headline("Clutch play", LOOK) == "Clutch play"
-    trimmed = ass.fit_headline("Streamer accidentally deletes entire inventory again", LOOK)
-    assert trimmed and "Streamer accidentally deletes entire inventory again".startswith(trimmed)
-    assert ass.layout_headline(trimmed, LOOK).fits
-    assert ass.fit_headline(None, LOOK) is None
-
-
 def test_key_word_defaults_to_the_longest() -> None:
     assert ass.pick_key_word(["Kai", "loses", "it!!!"]) == 1
     assert ass.pick_key_word([]) == -1
@@ -376,7 +368,11 @@ def test_render_writes_the_vertical_file_and_records_a_passing_report(
     config, video = render_ready(conn, home)
     result = engine.render_clip(conn, config, "c1")
     assert result.layout == "letterbox" and result.report.passed, result.report.failures()
-    assert result.headline == "Big play!!"  # emoji stripped from the title
+    # A two-word title says too little, so the headline system wrote a hook, stored it on
+    # the clip, and it fits whole.
+    stored = conn.execute("SELECT headline, headline_source FROM clips").fetchone()
+    assert result.headline == stored["headline"] and stored["headline_source"].startswith("hook")
+    assert ass.layout_headline(result.headline, load_look(config)).fits
     assert result.path == video.parent / "vertical" / (video.stem + "_9x16.mp4")
     assert result.path.read_bytes() == b"vertical video"
     assert not list(result.path.parent.glob("*.rendering.mp4"))
@@ -385,7 +381,7 @@ def test_render_writes_the_vertical_file_and_records_a_passing_report(
     assert row["path"] == clip_row(conn, "c1")["file_path"].replace(
         "/2026-11/", "/2026-11/vertical/"
     ).replace(".mp4", "_9x16.mp4")
-    assert (row["layout"], row["qa_passed"], row["headline"]) == ("letterbox", 1, "Big play!!")
+    assert (row["layout"], row["qa_passed"], row["headline"]) == ("letterbox", 1, result.headline)
     names = [c["name"] for c in json.loads(row["qa_report_json"])["checks"]]
     assert names == [
         "duration", "safe_box", "headline_fit", "hook_emoji", "loudness", "black_or_frozen",
@@ -486,10 +482,7 @@ def test_render_errors_are_clear(conn: sqlite3.Connection, home: Path, fake_ffmp
         engine.render_clip(conn, config, "c1")
 
 
-def test_default_headline_and_vertical_path() -> None:
-    assert engine.default_headline("\U0001f991LIVE\U0001f991DRAMA\U0001f991 ok") == "LIVE DRAMA ok"
-    assert engine.default_headline("???") is None and engine.default_headline(None) is None
-    assert engine.default_headline("a b c d e f g h i j") == "a b c d e f g"
+def test_vertical_path() -> None:
     assert engine.vertical_relpath("alpha/2026-11/x_y.mp4") == "alpha/2026-11/vertical/x_y_9x16.mp4"
 
 

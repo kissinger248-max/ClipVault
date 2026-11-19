@@ -613,3 +613,10 @@ details.card > .inside { padding: 0 16px 14px; }
 
 /* Cards the live view keeps but hides (Home shows one row); their own display rule would win. */
 .clip-grid > [hidden], .empty[hidden] { display: none; }
+
+/* Clip page: change the headline; Settings: the AI key field */
+.headline-form { display: flex; flex-direction: column; gap: 10px; }
+.headline-form input[type="text"] { width: 100%; }
+.headline-form .actions { display: flex; flex-wrap: wrap; gap: 8px; }
+.headline-form p { margin: 0; }
+.key-field { width: 100%; margin-top: 8px; }

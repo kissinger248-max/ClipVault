@@ -58,6 +58,7 @@ class PanelState:
         self.live_checked = 0.0
         self.thumb_locks: dict[str, threading.Lock] = {}
         self.locks_guard = threading.Lock()
+        self.tried_headlines: dict[str, list[str]] = {}  # "Try Another": the ones shown so far
 
     def thumb_lock(self, clip_id: str) -> threading.Lock:
         """One lock per clip: different thumbnails are made in parallel, one clip's only once."""
@@ -393,9 +394,11 @@ def create_app(home: Path | None = None) -> FastAPI:
         folder = " › ".join(
             [config().library_root.name, *rows[0]["file_path"].split("/")[:-1]]
         ) if rows[0]["file_path"] else ""  # fmt: skip
+        headline_open = request.query_params.get("edit") == "headline"
         from clipvault.render import emoji as emoji_mod
 
         return page(request, "clip.html", tab="clips", clip=rows[0], renders=renders,
+                    headline_open=headline_open,
                     current=current, checks=checks, folder=folder,
                     emoji_choices=emoji_mod.allowed(),
                     emoji_used=(current["hook_emoji"] or "") if current else "",
@@ -535,6 +538,45 @@ def create_app(home: Path | None = None) -> FastAPI:
             state.executor.submit(_render, state, home, clip_id, None)
             return back(dest, "Saved. Making the phone version again with it.")
         return back(dest, "Saved. It shows up the next time the phone version is made.")
+
+    @app.post("/clips/{clip_id}/headline")
+    def change_headline(clip_id: str, text: str = Form(""), action: str = Form("save")):
+        """Type a headline, or ask the headline system for another; the phone version is
+        then made again with it."""
+        from clipvault.process import headlines
+        from clipvault.render.template import load_look
+
+        state: PanelState = app.state.panel
+        page_url = f"/clips/{quote(clip_id, safe='')}"
+        if clip_id in state.rendering:
+            return back(page_url, "A new phone version is already being made.")
+        with _db(conn) as c:
+            row = c.execute(
+                "SELECT c.headline, (SELECT r.layout FROM renders r WHERE r.clip_id = c.id "
+                "AND r.path IS NOT NULL ORDER BY r.created_at DESC, r.id DESC LIMIT 1) AS layout "
+                "FROM clips c WHERE c.id = ?",
+                (clip_id,),
+            ).fetchone()
+            if row is None:
+                return HTMLResponse("No such clip.", 404)
+            current = config()
+            try:
+                if action == "another":
+                    tried = state.tried_headlines.setdefault(clip_id, [])
+                    if row["headline"] and row["headline"] not in tried:
+                        tried.append(row["headline"])
+                    chosen = headlines.write(c, current, clip_id, exclude=tried)
+                    if chosen.text in tried:  # every candidate shown once: start over
+                        tried.clear()
+                    tried.append(chosen.text)
+                else:
+                    chosen = headlines.set_custom(c, clip_id, text, load_look(current))
+            except ValueError as exc:
+                return back(page_url + "#headline", str(exc))
+        state.rendering.add(clip_id)
+        state.render_errors.pop(clip_id, None)
+        state.executor.submit(_render, state, home, clip_id, row["layout"])
+        return back(page_url, f"New headline: “{chosen.text}”. Making the phone version again…")
 
     @app.post("/clips/{clip_id}/vertical")
     def make_vertical(clip_id: str, layout: str = Form("")):

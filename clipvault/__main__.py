@@ -57,7 +57,7 @@ def build_parser() -> argparse.ArgumentParser:
     search.add_argument("words", nargs="+", help="the words or phrase to look for")
     search.add_argument("--limit", metavar="N", type=int, default=10, help="results to show")
 
-    headlines = sub.add_parser("headlines", help="write hook headlines for the best clips (AI)")
+    headlines = sub.add_parser("headlines", help="write hook headlines for the newest clips")
     headlines.add_argument("--streamer", metavar="LOGIN", help="only this streamer")
     headlines.add_argument("--limit", metavar="N", type=int, default=20, help="clips to write")
 
@@ -362,29 +362,34 @@ def _cmd_render(args: argparse.Namespace) -> int:
 
 
 def _cmd_headlines(args: argparse.Namespace) -> int:
-    from clipvault import jobs
-    from clipvault.process import write
+    """Write hook headlines for the newest saved clips and show them (process/headlines.py)."""
+    from clipvault.process import headlines, write
     from clipvault.streamers import normalize_login
 
     config = cfg.load_config()
-    provider = write.build_provider(config)
-    if provider is None:
-        print("Headlines are written by an AI model, which needs an API key (Groq by default).")
-        print("Store one with: python -m clipvault secrets set llm_api_key --window")
-        print("Until then every vertical video uses a headline made from the clip's title.")
-        return 1
+    if write.build_provider(config) is None:
+        print("Using the built-in headline writer. With an AI key (Settings, Headlines) the "
+              "headlines get sharper.\n")  # fmt: skip
     login = normalize_login(args.streamer) if args.streamer else None
     conn = db.open_db(cfg.db_path())
     try:
-        summary = jobs.run_write(conn, config, provider, login=login, limit=args.limit)
+        query = ("SELECT c.id, s.login FROM clips c JOIN streamers s ON s.id = c.streamer_id "
+                 "WHERE c.file_path IS NOT NULL AND c.removed_at IS NULL "
+                 "AND c.state NOT IN ('found', 'rejected', 'dead')")  # fmt: skip
+        params: list[str] = []
+        if login:
+            query += " AND s.login = ?"
+            params.append(login)
+        rows = conn.execute(query + " ORDER BY c.created_at DESC LIMIT ?",
+                            [*params, args.limit]).fetchall()  # fmt: skip
+        for row in rows:
+            chosen = headlines.write(conn, config, row["id"])
+            _say(f"{row['login']:<16} {chosen.text:<44} ({chosen.kind})")
     finally:
         conn.close()
-    for clip_id, streamer, headline in summary.examples:
-        _say(f"{streamer:<16} {headline}    ({clip_id})")
-    print(f"\n{summary.written} headline(s) written; {summary.unusable} clip(s) got no usable one.")
-    for error in summary.errors:
-        print(f"Problem: {error}")
-    return 1 if summary.errors else 0
+    print(f"\n{len(rows)} headline(s) written. Phone versions pick them up when they're made "
+          "(older ones are made again in the background).")  # fmt: skip
+    return 0
 
 
 def _cmd_search(args: argparse.Namespace) -> int:
