@@ -71,6 +71,22 @@ python -m clipvault doctor
 OS keychain, free disk space and the database, and prints how to fix anything
 that is missing. `[WARN]` lines are optional; `[FAIL]` lines need fixing.
 
+## Hook emojis
+
+A hook can carry one emoji (or up to two) that matches it, drawn as a picture next to the headline: Montserrat has no emoji
+glyphs, so ClipVault lays [Twemoji](https://github.com/jdecked/twemoji) pictures (CC-BY 4.0, credited in `LICENSES/emoji`) over
+the video. The choice comes from the hook, title, transcript, moment type and game using `clipvault/data/hook_emojis.yaml`
+(copy it to `hook_emojis.yaml` in ClipVault's data folder to change it); a running local Ollama model can pick from the same
+allowed list. Never for sensitive moments (injuries, police, fights), clips QA flagged, or 🍆🍑💦 and flags. Settings → Look has
+"Hook emojis" (Off / 1 / Up to 2) and the position; the clip page lets you change or remove the emoji before making the phone
+version again. The same emoji goes on the TikTok caption and the YouTube title.
+
+## Auto-upload (Posting)
+
+The **Posting** page uploads finished phone versions to TikTok (Drafts or Direct Post), YouTube Shorts and Instagram Reels
+through each platform's official API, with captions written by a local Ollama model (`ollama pull llama3.2`). Dry run is on
+until you switch it off, and a clip can only be queued for a streamer who has recorded permission. Setup: [SETUP_UPLOADS.md](SETUP_UPLOADS.md).
+
 ## Settings
 
 - **Non-secret settings** live in `config.yaml`. It is optional: copy

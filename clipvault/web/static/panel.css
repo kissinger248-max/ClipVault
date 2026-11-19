@@ -61,7 +61,10 @@ code { font: 13px/18px ui-monospace, "SF Mono", Menlo, Consolas, monospace; over
   padding: 10px 14px; border-radius: 10px; background: var(--card);
   border: 1px solid var(--sep); box-shadow: var(--shadow);
 }
+.flash.problem { background: var(--red-bg); border-color: var(--red); color: var(--red); font-weight: 600; }
 .error { color: var(--red); font-weight: 600; }
+.posting-permission { margin-top: 10px; padding-top: 10px; border-top: 1px solid var(--sep); }
+.posting-permission input[type=text] { min-width: 260px; }
 
 /* --- cards ------------------------------------------------------------------------ */
 .card { background: var(--card); border: 1px solid var(--sep); border-radius: 12px; box-shadow: var(--shadow); }

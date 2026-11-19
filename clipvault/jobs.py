@@ -559,8 +559,11 @@ def write_for_clip(
     facts = clip_facts(conn, library, clip)
     look = load_look(config)
     blocked = transcribe.mask_pattern(transcribe.load_mask_words())
+    # Leave room for the emoji picture that is drawn next to the hook, so a hook that fits still fits with it.
+    room = ("😂",) if look.hook_emoji.count > 0 else ()
     copy, problems = write.write_copy(
-        facts, provider, blocked=blocked, fits=lambda text: layout_headline(text, look).fits
+        facts, provider, blocked=blocked,
+        fits=lambda text: layout_headline(text, look, room, look.hook_emoji.position).fits,
     )
     log_ctx = ctx(clip=clip_id, streamer=facts.login, job=WRITE_JOB)
     if copy is None:

@@ -1,0 +1,7 @@
+Emoji pictures in this folder are Twemoji graphics.
+
+Copyright 2019 Twitter, Inc and other contributors (continued by Jason Sofonia & Justine De Caires, https://github.com/jdecked/twemoji).
+Licensed under CC-BY 4.0: https://creativecommons.org/licenses/by/4.0/
+Source: https://github.com/jdecked/twemoji (version 15.1.0, assets/72x72). The pictures were not modified;
+ClipVault only scales them to the size of the video headline text.
+The full licence text is in LICENSE-Twemoji-graphics.txt.

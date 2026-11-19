@@ -11,6 +11,7 @@ import re
 from dataclasses import dataclass, field
 
 from clipvault.process.transcribe import Word, mask_text
+from clipvault.render.emoji import SIDE_PER_CAP, Placement, is_emoji
 from clipvault.render.template import Font, Look, get_font
 
 _PHRASE_END = ".,?!;:"
@@ -54,6 +55,7 @@ class Overlay:
     headline_lines: int = 0
     headline_fits: bool = True
     blocks: list[CaptionBlock] = field(default_factory=list)
+    emojis: list[Placement] = field(default_factory=list)  # emoji pictures to lay over the video
 
 
 # --- small ASS helpers ---------------------------------------------------------
@@ -116,11 +118,35 @@ class HeadlineLayout:
     box: Box
 
 
-def layout_headline(text: str, look: Look) -> HeadlineLayout:
-    """Choose the size and line breaks for the headline (largest size that fits)."""
+def emoji_side(font: Font, size: float) -> float:
+    """Width and height of an emoji picture next to text of letter size ``size``."""
+    return font.cap_height(size) * SIDE_PER_CAP
+
+
+def line_width(line: tuple[str, ...], font: Font, size: float) -> float:
+    """Width of a headline line in pixels; an emoji token is a picture as wide as it is tall, one space from its word."""
+    words = [w for w in line if not is_emoji(w)]
+    pictures = len(line) - len(words)
+    if not pictures:
+        return font.width(" ".join(line), size)
+    gaps = (len(line) - 1) - max(len(words) - 1, 0)  # spaces next to a picture
+    text = font.width(" ".join(words), size) if words else 0.0
+    return text + pictures * emoji_side(font, size) + gaps * font.width(" ", size)
+
+
+def layout_headline(
+    text: str, look: Look, emojis: tuple[str, ...] = (), position: str = "end"
+) -> HeadlineLayout:
+    """Choose the size and line breaks for the headline (largest size that fits).
+
+    ``emojis`` are drawn as pictures at the ``end`` (or ``start``) of the hook; they take part in the
+    measuring like words, so the width limit, the line count and the shrinking all account for them.
+    """
     spec = look.headline
     font = get_font(spec.font)
     words = tuple((text.upper() if spec.uppercase else text).split())
+    if emojis:
+        words = (*emojis, *words) if position == "start" else (*words, *emojis)
     inner = spec.max_width - 2 * spec.padding_x
     size = float(spec.size)
     chosen: tuple[tuple[str, ...], ...] | None = None
@@ -133,12 +159,17 @@ def layout_headline(text: str, look: Look) -> HeadlineLayout:
     if chosen is None:
         size = float(spec.min_size)
         chosen = _even_split(words, font, size) if spec.max_lines >= 2 else (words,)
-    widest = max(font.width(" ".join(line), size) for line in chosen)
+    widest = max(line_width(line, font, size) for line in chosen)
     height = len(chosen) * size * spec.line_spacing + 2 * spec.padding_y
     width = widest + 2 * spec.padding_x
     centre = look.frame.width / 2
     box = Box("headline", centre - width / 2, spec.top, centre + width / 2, spec.top + height)
     return HeadlineLayout(chosen, size, fits, box)
+
+
+def _cut_ok(words: tuple[str, ...], cut: int) -> bool:
+    """A line may break before ``words[cut]`` unless that would leave an emoji picture alone on its line."""
+    return not is_emoji(words[cut]) and not is_emoji(words[cut - 1])
 
 
 def _break_lines(
@@ -147,14 +178,16 @@ def _break_lines(
     """Fewest lines that fit; for two lines, the most even split. None if nothing fits."""
     if not words:
         return ((),)
-    if font.width(" ".join(words), size) <= max_width:
+    if line_width(words, font, size) <= max_width:
         return (words,)
     if max_lines < 2 or len(words) < 2:
         return None
     best: tuple[float, tuple[tuple[str, ...], ...]] | None = None
     for cut in range(1, len(words)):
+        if not _cut_ok(words, cut):
+            continue
         first, second = words[:cut], words[cut:]
-        widest = max(font.width(" ".join(first), size), font.width(" ".join(second), size))
+        widest = max(line_width(first, font, size), line_width(second, font, size))
         if widest <= max_width and (best is None or widest < best[0]):
             best = (widest, (first, second))
     return best[1] if best else None
@@ -162,13 +195,12 @@ def _break_lines(
 
 def _even_split(words: tuple[str, ...], font: Font, size: float) -> tuple[tuple[str, ...], ...]:
     """The most even two-line split, whatever the width (for a headline that can't fit)."""
-    if len(words) < 2:
+    cuts = [c for c in range(1, len(words)) if _cut_ok(words, c)]
+    if not cuts:
         return (words,)
     cut = min(
-        range(1, len(words)),
-        key=lambda c: max(
-            font.width(" ".join(words[:c]), size), font.width(" ".join(words[c:]), size)
-        ),
+        cuts,
+        key=lambda c: max(line_width(words[:c], font, size), line_width(words[c:], font, size)),
     )
     return (words[:cut], words[cut:])
 
@@ -196,16 +228,18 @@ def pick_key_word(words: list[str]) -> int:
 
 
 def _headline_events(
-    layout: HeadlineLayout, look: Look, key_word: str | None, end: float
+    layout: HeadlineLayout, look: Look, key_word: str | None, end: float,
+    placements: list[Placement] | None = None,
 ) -> list[str]:
     spec = look.headline
     font = get_font(spec.font)
     size = layout.size
     flat = [w for line in layout.lines for w in line]
-    key_index = pick_key_word(flat)
+    text_at = [i for i, w in enumerate(flat) if not is_emoji(w)]  # emoji pictures are never the highlighted word
+    key_index = text_at[pick_key_word([flat[i] for i in text_at])] if text_at else -1
     if key_word:
         wanted = re.sub(r"\W", "", key_word).lower()
-        matches = [i for i, w in enumerate(flat) if re.sub(r"\W", "", w).lower() == wanted]
+        matches = [i for i in text_at if re.sub(r"\W", "", flat[i]).lower() == wanted]
         key_index = matches[0] if matches else key_index
 
     events: list[str] = []
@@ -223,12 +257,19 @@ def _headline_events(
     space = font.width(" ", size)
     slot = size * spec.line_spacing
     index = 0
+    side = emoji_side(font, size)
     for row, line in enumerate(layout.lines):
-        line_width = font.width(" ".join(line), size)
-        x = look.frame.width / 2 - line_width / 2
+        whole = line_width(line, font, size)
+        x = look.frame.width / 2 - whole / 2
         baseline = spec.top + spec.padding_y + row * slot + slot / 2 + cap / 2
         top = baseline - font.ascent(size)
         for word in line:
+            if is_emoji(word):  # a picture, laid over the video later: centred on the capital letters' height
+                if placements is not None:
+                    placements.append(Placement(word, x, baseline - cap / 2 - side / 2, side))
+                x += side + space
+                index += 1
+                continue
             width = font.width(word, size)
             colour = text_colour
             if index == key_index:
@@ -467,19 +508,28 @@ def build_overlay(
     key_word: str | None = None,
     disclosure: str | None = None,
     mask: re.Pattern | None = None,
+    emojis: tuple[str, ...] = (),
+    emoji_position: str = "end",
 ) -> Overlay:
-    """Build the ASS file for one render and report where every piece of text sits."""
+    """Build the ASS file for one render and report where every piece of text sits.
+
+    ``emojis`` are drawn as pictures next to the headline (see :mod:`clipvault.render.emoji`); their
+    boxes are checked against the safe box like any text.
+    """
     overlay = Overlay(ass="")
     events: list[str] = []
     centre = look.frame.width / 2
     below = float(look.headline.top)
 
     if headline and headline.strip():
-        shape = layout_headline(headline.strip(), look)
+        shape = layout_headline(headline.strip(), look, emojis, emoji_position)
         overlay.headline_size, overlay.headline_fits = shape.size, shape.fits
         overlay.headline_lines = len(shape.lines)
         overlay.boxes.append(shape.box)
-        events += _headline_events(shape, look, key_word, duration)
+        events += _headline_events(shape, look, key_word, duration, overlay.emojis)
+        overlay.boxes += [
+            Box("emoji", p.x, p.y, p.x + p.side, p.y + p.side) for p in overlay.emojis
+        ]
         below = shape.box.y1
 
     def line_of_text(

@@ -818,3 +818,32 @@ Report from the owner's friend (Mac, 0.3.4): "Live chat never connects", log: `c
 - From this PC with the new code: a real connection to `wss://eventsub.wss.twitch.tv/ws` opened and Twitch's welcome (session id) arrived.
 - selftest here: "Secure connections: 118 trusted certificates for live chat".
 - Not verified on a real Mac: the friend's next start of 0.4.1 is the check (Home's "Right now" shows a streamer as live with a moving chat meter).
+
+## Session: Posting page (0.5.0, built locally, not released)
+
+**What changed**
+- New `clipvault/posting/` package: developer-key storage (OS keychain, entries named `posting.*`), OAuth connect with token refresh for TikTok, YouTube and Instagram, caption + hashtag generator (local Ollama; hashtags built in code from `clipvault/data/hashtags.yaml`, optional override at `<home>/hashtags.yaml`), the three uploaders, the queue (spacing, jitter, daily max, retries, Post manually list) and Theo's pre-upload checks.
+- Migration `0010_posting.sql` only adds tables. New `posting` scheduler step (every minute) and the Posting page (`/posting`, sidebar and phone bar).
+- Hard rule 1 is enforced in `uploads.enqueue` and again in `uploads.run_job`: no queue and no upload unless the streamer has `post_enabled` with a recorded permission.
+- Dry run starts ON. Auto-approve starts OFF; TikTok defaults to Drafts.
+
+**Conflict with the hard rules, for the owner to decide**
+- Rule 2 says to post only through the posting-service adapter (Upload-Post / Blotato). This feature posts through the platforms' own official APIs instead (no scraping, no automation). It was added at the user's request; the owner has not signed off.
+
+**Verified**
+- `tests/test_posting.py` (23 tests) passes on Python 3.9 with test-only shims (`datetime.UTC`, `hashlib.scrypt`); the rest of the suite was not run on 3.12.
+- Not verified: any real TikTok/YouTube/Instagram call, Ollama output, a packaged build.
+
+
+## Session: Hook emojis (0.6.0)
+
+**What changed**
+- Emoji pictures next to the hook: `clipvault/render/emoji.py` (pictures, splitting emoji out of text, never/allowed lists), `clipvault/process/hook_emoji.py` (choosing: table, optional local model, sensitive/never rules), `clipvault/data/hook_emojis.yaml`, 37 Twemoji PNGs in `clipvault/data/emoji/` with the CC-BY 4.0 attribution (also copied into `LICENSES/emoji` in the app).
+- `ass.layout_headline` takes the emoji as part of the measured line (width, 2-line breaks, shrink-to-min, box); emoji pictures are never drawn as font text. FFmpeg lays the pictures over the subtitles (`ffmpeg.video_graph`).
+- QA: new `hook_emoji` check (blank-box characters, missing picture, outside the safe box); emoji boxes also go through the safe-box check.
+- Migration `0012_hook_emoji.sql` (clips.hook_emoji = the person's choice, renders.hook_emoji = what was drawn). Settings → Look: Hook emojis and position. Clip page: dropdown + "Save and Make Again". Posting captions use the same emoji.
+- selftest gained "Hook emoji drawing" (real FFmpeg, runs in every packaged build).
+
+**Verified**
+- Full suite on Python 3.12; a real FFmpeg render shows the picture next to the hook (box and outline styles, start/end).
+- Not verified: a real Ollama choice, and the emoji on a real Twitch clip in the installed app.

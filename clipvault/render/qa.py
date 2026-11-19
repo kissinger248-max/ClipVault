@@ -7,10 +7,11 @@ import re
 from dataclasses import asdict, dataclass, field
 from pathlib import Path
 
+from clipvault.render import emoji as emoji_mod
 from clipvault.render import ffmpeg
 from clipvault.render.ass import Overlay
 from clipvault.render.layouts import SPLIT, Plan
-from clipvault.render.template import Look
+from clipvault.render.template import Look, get_font
 
 LOUDNESS_TOLERANCE = 2.0
 # Words that turn a clip into fake news unless the streamer actually said them (SPEC §9).
@@ -96,6 +97,9 @@ def run_checks(
             else f"does not fit in {look.headline.max_lines} lines at {look.headline.min_size} px",
         )
 
+    if headline:
+        report.add(*_emoji_check(overlay, headline, look))
+
     if plan.layout == SPLIT:
         report.add(*_face_check(output, look))
 
@@ -144,6 +148,27 @@ def run_checks(
         except (ffmpeg.RenderError, OSError, ImportError) as exc:
             report.add("preview_still", False, f"could not save the preview: {exc}")
     return report
+
+
+def _emoji_check(overlay: Overlay, headline: str, look: Look) -> tuple[str, bool, str]:
+    """Hook emoji: every emoji has a picture, no letter of the hook would show as a blank box, nothing leaves the safe box."""
+    font = get_font(look.headline.font)
+    blank = sorted({ch for ch in headline if not font.has_glyph(ch)})
+    pictures = [p for p in overlay.emojis]
+    missing = [p.char for p in pictures if not emoji_mod.has_asset(p.char)]
+    outside = [p.char for p in pictures
+               if not (look.safe_box.x0 <= p.x and p.x + p.side <= look.safe_box.x1
+                       and look.safe_box.y0 <= p.y and p.y + p.side <= look.safe_box.y1)]
+    problems = []
+    if blank:
+        problems.append(f"the hook has characters the font would draw as blank boxes: {blank}")
+    if missing:
+        problems.append(f"no picture for emoji {missing}")
+    if outside:
+        problems.append(f"emoji outside the safe box: {outside}")
+    if problems:
+        return "hook_emoji", False, "; ".join(problems)
+    return "hook_emoji", True, f"{len(pictures)} emoji picture(s), all inside the safe box" if pictures else "no emoji, no blank boxes"
 
 
 def _face_check(output: Path, look: Look) -> tuple[str, bool, str]:

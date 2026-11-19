@@ -76,6 +76,8 @@ class LookConfig:
     headline_style: str = "box"
     caption_size: int = 72
     show_credit: bool = False  # "@login on Twitch" under the headline
+    hook_emojis: int = 1  # emoji pictures next to the hook: 0 off, 1, or up to 2
+    hook_emoji_position: str = "end"  # "end" or "start" of the hook
 
 
 @dataclass(frozen=True)
@@ -158,6 +160,21 @@ def home_dir() -> Path:
     if is_packaged():
         return app_data_dir()
     return Path.cwd().resolve()
+
+
+PANEL_PORT_FILE = "panel.port"
+
+
+def panel_port(config: Config) -> int:
+    """The port the running app's panel really listens on.
+
+    Normally ``panel.port`` from config.yaml. When another program already used that port the app
+    picked the next free one and wrote it to ``panel.port`` in its home folder; this reads it.
+    """
+    try:
+        return int((home_dir() / PANEL_PORT_FILE).read_text(encoding="utf-8").strip())
+    except (OSError, ValueError):
+        return config.panel.port
 
 
 def resource_dir() -> Path:
@@ -304,6 +321,8 @@ def _build(raw: dict[str, Any]) -> Config:
             headline_style=reader.choice("look.headline_style", ("box", "outline"), "box"),
             caption_size=reader.integer("look.caption_size", 72, minimum=56, maximum=96),
             show_credit=reader.boolean("look.show_credit", False),
+            hook_emojis=reader.integer("look.hook_emojis", 1, minimum=0, maximum=2),
+            hook_emoji_position=reader.choice("look.hook_emoji_position", ("end", "start"), "end"),
         ),
         notifications=NotificationsConfig(
             quiet_hours=reader.time_pair("notifications.quiet_hours", ("23:00", "08:00")),

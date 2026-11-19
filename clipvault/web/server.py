@@ -36,7 +36,7 @@ from clipvault.web import auth
 
 HERE = Path(__file__).parent
 PUBLIC_PATHS = ("/login", "/setup-password", "/static/", "/manifest.webmanifest", "/healthz",
-                "/app/")  # fmt: skip
+                "/app/", "/oauth/")  # fmt: skip
 LOCAL_HOSTS = {"127.0.0.1", "::1", "localhost", "testclient"}
 PAGE_SIZE = 24
 LIVE_CACHE_S = 120
@@ -393,8 +393,12 @@ def create_app(home: Path | None = None) -> FastAPI:
         folder = " › ".join(
             [config().library_root.name, *rows[0]["file_path"].split("/")[:-1]]
         ) if rows[0]["file_path"] else ""  # fmt: skip
+        from clipvault.render import emoji as emoji_mod
+
         return page(request, "clip.html", tab="clips", clip=rows[0], renders=renders,
                     current=current, checks=checks, folder=folder,
+                    emoji_choices=emoji_mod.allowed(),
+                    emoji_used=(current["hook_emoji"] or "") if current else "",
                     transcript=text[0] if text else "", rendering=clip_id in state.rendering,
                     original=original, lines=lines,
                     render_error=state.render_errors.get(clip_id, ""))  # fmt: skip
@@ -507,6 +511,31 @@ def create_app(home: Path | None = None) -> FastAPI:
                         "Automation, allow ClipVault to control Photos, then try again.")  # fmt: skip
         return back(dest, "Saved to Photos.")
 
+    @app.post("/clips/{clip_id}/hook-emoji")
+    def set_hook_emoji(clip_id: str, emoji: str = Form("auto"), remake: str = Form("")):
+        """Change or remove the emoji drawn next to this clip's hook ("auto" lets ClipVault pick, "none" removes it)."""
+        from clipvault.render import emoji as emoji_mod
+
+        dest = f"/clips/{quote(clip_id, safe='')}"
+        if emoji == "auto":
+            value: str | None = None
+        elif emoji == "none":
+            value = ""
+        elif emoji in emoji_mod.allowed().values():
+            value = emoji
+        else:
+            return back(dest, "Couldn't save: choose Automatic, None or one of the listed emojis.")
+        with _db(conn) as c:
+            if c.execute("UPDATE clips SET hook_emoji = ? WHERE id = ?", (value, clip_id)).rowcount == 0:
+                return back("/clips", "No such clip.")
+        state: PanelState = app.state.panel
+        if remake and clip_id not in state.rendering:
+            state.rendering.add(clip_id)
+            state.render_errors.pop(clip_id, None)
+            state.executor.submit(_render, state, home, clip_id, None)
+            return back(dest, "Saved. Making the phone version again with it.")
+        return back(dest, "Saved. It shows up the next time the phone version is made.")
+
     @app.post("/clips/{clip_id}/vertical")
     def make_vertical(clip_id: str, layout: str = Form("")):
         state: PanelState = app.state.panel
@@ -585,6 +614,44 @@ def create_app(home: Path | None = None) -> FastAPI:
             )
         return back("/streamers", "Saved.")
 
+    @app.post("/streamers/{streamer_id}/permission")
+    def update_permission(
+        streamer_id: int,
+        permission_type: str = Form("none"),
+        proof: str = Form(""),
+        post: str = Form(""),
+    ):
+        """Record whether (and how) a streamer allowed posting their clips (hard rule 1).
+
+        Posting can only be switched on with a Campaign or Written permission and a proof link or
+        note; the database enforces it too, but the person gets a plain message here instead."""
+        where = f"/streamers#streamer-{streamer_id}"
+        proof = proof.strip()
+        with _db(conn) as c:
+            row = c.execute("SELECT login, display_name FROM streamers WHERE id = ?", (streamer_id,)).fetchone()
+            if row is None:
+                return back("/streamers")
+            name = row["display_name"] or row["login"]
+            if permission_type not in ("none", "campaign", "written"):
+                return back(where, f"Couldn't save {name}: choose None, Campaign or Written.")
+            wants_post = bool(post)
+            if wants_post and permission_type == "none":
+                return back(where, f"Couldn't turn on Post clips for {name}: choose Campaign or Written first. "
+                                   "Posting needs the streamer's permission.")
+            if wants_post and not proof:
+                return back(where, f"Couldn't turn on Post clips for {name}: add a proof link (or a note saying where "
+                                   "their permission is). Posting needs proof of permission.")
+            try:
+                c.execute(
+                    "UPDATE streamers SET permission_type = ?, permission_ref = ?, post_enabled = ? WHERE id = ?",
+                    (permission_type, proof or None if permission_type != "none" else None,
+                     1 if wants_post else 0, streamer_id),
+                )
+            except sqlite3.IntegrityError:
+                return back(where, f"Couldn't save {name}'s posting permission: posting needs a Campaign or "
+                                   "Written permission with a proof link.")
+        return back(where, f"Saved {name}'s posting permission." + (" Posting is on." if wants_post else ""))
+
     @app.post("/streamers/{streamer_id}/remove")
     def remove_streamer(streamer_id: int):
         with _db(conn) as c:
@@ -629,9 +696,10 @@ def create_app(home: Path | None = None) -> FastAPI:
 
     # --- settings and setup live in their own module --------------------------------------
 
-    from clipvault.web import activity_routes, settings_routes
+    from clipvault.web import activity_routes, posting_routes, settings_routes
 
     settings_routes.register(app, page=page, back=back, conn=conn, config=config, home=home)
+    posting_routes.register(app, page=page, conn=conn, config=config)
     clip_card = templates.env.get_template("_macros.html").module.clip_card
     activity_routes.register(app, back=back, conn=conn, config=config, card=clip_card,
                              clip_rows=_clip_rows, local_midnight=_local_midnight_utc)  # fmt: skip

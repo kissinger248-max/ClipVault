@@ -17,6 +17,8 @@ document.addEventListener("DOMContentLoaded", () => {
       accent: data.get("accent") || "",
       size: data.get("size") || "",
       credit: data.get("credit") ? "1" : "0",
+      emojis: data.get("hook_emojis") || "",
+      epos: data.get("hook_emoji_position") || "",
     });
     look.querySelectorAll("img[data-layout]").forEach((img) => {
       img.src = `/look/preview/${img.dataset.layout}.jpg?${query}`;

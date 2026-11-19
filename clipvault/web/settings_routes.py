@@ -315,7 +315,8 @@ def register(
 
     @app.get("/look/preview/{layout}.jpg")
     def look_preview(
-        layout: str, style: str = "", accent: str = "", size: int = 0, credit: str = ""
+        layout: str, style: str = "", accent: str = "", size: int = 0, credit: str = "",
+        emojis: str = "", epos: str = "",
     ):
         import dataclasses
         import hashlib
@@ -337,6 +338,8 @@ def register(
             accent=accent if _COLOR.match(accent or "") else current.look.accent,
             caption_size=size if 56 <= size <= 96 else current.look.caption_size,
             show_credit=credit == "1" if credit in ("0", "1") else current.look.show_credit,
+            hook_emojis=int(emojis) if emojis in ("0", "1", "2") else current.look.hook_emojis,
+            hook_emoji_position=epos if epos in ("end", "start") else current.look.hook_emoji_position,
         )
         look = load_look(dataclasses.replace(current, look=wanted))
         c = conn()
@@ -361,6 +364,8 @@ def register(
         accent: str = Form("#FFD400"),
         size: str = Form("72"),
         credit: str = Form(""),
+        hook_emojis: str = Form(""),
+        hook_emoji_position: str = Form(""),
         next: str = Form("/settings#look"),
     ):
         try:
@@ -373,6 +378,14 @@ def register(
             "look.caption_size": caption_size,
             "look.show_credit": bool(credit),
         }
+        if hook_emojis:      # the setup wizard's form has no emoji controls and leaves them alone
+            if hook_emojis not in ("0", "1", "2"):
+                return back(next, "Not saved: hook emojis must be Off, 1 or Up to 2.")
+            updates["look.hook_emojis"] = int(hook_emojis)
+        if hook_emoji_position:
+            if hook_emoji_position not in ("end", "start"):
+                return back(next, "Not saved: the emoji position must be End or Start.")
+            updates["look.hook_emoji_position"] = hook_emoji_position
         return save(updates, next, "Look saved. New vertical copies use it.")
 
     # --- updates ------------------------------------------------------------------------

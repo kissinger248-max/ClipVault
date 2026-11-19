@@ -1,6 +1,6 @@
 {% set palette = [('#D9480F', 'Orange'), ('#F2C200', 'Yellow'), ('#1F9D55', 'Green'), ('#8B3FD9', 'Purple')] %}
 {% set accent = config.look.accent|upper %}
-{% set preview_query = 'style=' ~ config.look.headline_style ~ '&accent=' ~ (accent|urlpart) ~ '&size=' ~ config.look.caption_size ~ '&credit=' ~ (1 if config.look.show_credit else 0) %}
+{% set preview_query = 'style=' ~ config.look.headline_style ~ '&accent=' ~ (accent|urlpart) ~ '&size=' ~ config.look.caption_size ~ '&credit=' ~ (1 if config.look.show_credit else 0) ~ '&emojis=' ~ config.look.hook_emojis ~ '&epos=' ~ config.look.hook_emoji_position %}
 <form method="post" action="/settings/look" class="{{ 'look-wizard' if look_wizard else 'card' }}" data-look-form {{ '' if look_wizard else 'data-autosubmit' }}>
   <input type="hidden" name="csrf" value="{{ csrf }}">
   <input type="hidden" name="next" value="{{ look_next|default('/settings#look') }}">
@@ -45,6 +45,17 @@
         </select></div>
       <label class="line"><span>Credit line “@streamer on Twitch”</span>
         <input type="checkbox" class="switch" role="switch" name="credit" value="1" {{ 'checked' if config.look.show_credit }}></label>
+      <div class="line"><span>Hook emojis</span>
+        <select name="hook_emojis" class="small" aria-label="Hook emojis">
+          <option value="0" {{ 'selected' if config.look.hook_emojis == 0 }}>Off</option>
+          <option value="1" {{ 'selected' if config.look.hook_emojis == 1 }}>1</option>
+          <option value="2" {{ 'selected' if config.look.hook_emojis == 2 }}>Up to 2</option>
+        </select></div>
+      <div class="line"><span>Emoji position</span>
+        <select name="hook_emoji_position" class="small" aria-label="Emoji position">
+          <option value="end" {{ 'selected' if config.look.hook_emoji_position == 'end' }}>End of the hook</option>
+          <option value="start" {{ 'selected' if config.look.hook_emoji_position == 'start' }}>Start of the hook</option>
+        </select></div>
       <div class="muted small">Changes apply to new phone versions. To redo an old one, open the clip and choose More › Make Again.</div>
       <noscript><button class="btn small">Save Look</button></noscript>
     </div>

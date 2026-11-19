@@ -46,6 +46,29 @@ class AlreadyRunning(Exception):
     """Another ClipVault is already running from the same folder."""
 
 
+def port_in_use(port: int) -> bool:
+    """True when some program already answers on 127.0.0.1:``port``."""
+    import socket
+
+    try:
+        with socket.create_connection(("127.0.0.1", port), timeout=0.5):
+            return True
+    except OSError:
+        return False
+
+
+def choose_port(wanted: int) -> int:
+    """``wanted``, or the next free port when another program (not ClipVault) already uses it.
+
+    Without this, a second web app on the same port can silently answer the app window's
+    requests (it connects to 127.0.0.1) and show that program's pages instead of ClipVault's.
+    """
+    for port in range(wanted, wanted + 20):
+        if not port_in_use(port):
+            return port
+    return wanted
+
+
 class PanelServer:
     """The control panel served by uvicorn on a background thread."""
 
@@ -55,11 +78,15 @@ class PanelServer:
         from clipvault.web.server import create_app
 
         self.config = config
+        self.port = choose_port(config.panel.port)
+        if self.port != config.panel.port:
+            log.warning("port %s is used by another program; the control panel uses %s instead",
+                        config.panel.port, self.port, extra=ctx(job="panel"))  # fmt: skip
         self.server = uvicorn.Server(
             uvicorn.Config(
                 create_app(home),
                 host=config.panel.host,
-                port=config.panel.port,
+                port=self.port,
                 log_level="warning",
                 access_log=False,
                 lifespan="off",
@@ -78,7 +105,7 @@ class PanelServer:
 
     @property
     def local_url(self) -> str:
-        return f"http://127.0.0.1:{self.config.panel.port}"
+        return f"http://127.0.0.1:{self.port}"
 
     def start(self, timeout: float = 10.0) -> bool:
         """Start serving; False when the server could not start (port taken)."""
@@ -90,10 +117,18 @@ class PanelServer:
         ok = bool(self.server.started)
         if ok:
             log.info("control panel started", extra=ctx(job="panel", host=self.config.panel.host,
-                                                          port=self.config.panel.port))  # fmt: skip
+                                                          port=self.port))  # fmt: skip
+            try:
+                (cfg.home_dir() / cfg.PANEL_PORT_FILE).write_text(str(self.port), encoding="utf-8")
+            except OSError:
+                pass
         return ok
 
     def stop(self) -> None:
+        try:
+            (cfg.home_dir() / cfg.PANEL_PORT_FILE).unlink()
+        except OSError:
+            pass
         self.server.should_exit = True
         self.thread.join(timeout=10)
 
@@ -252,6 +287,9 @@ class App:
         every(self._run, "interval", args=["updates"], id="updates",
               next_run_time=now + timedelta(minutes=1),
               seconds=UPDATES_EVERY.total_seconds())  # fmt: skip
+        every(self._run, "interval", args=["posting"], id="posting",
+              next_run_time=now + timedelta(seconds=90),
+              seconds=60)  # fmt: skip
         every(self.heartbeat.tick, "interval", id="heartbeat",
               next_run_time=now + timedelta(seconds=10),
               seconds=TICK_EVERY.total_seconds())  # fmt: skip

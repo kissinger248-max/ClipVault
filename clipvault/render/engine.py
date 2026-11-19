@@ -16,10 +16,11 @@ from clipvault import db
 from clipvault.alerts import get_setting, set_setting
 from clipvault.library import storage
 from clipvault.logging_setup import ctx
-from clipvault.process import transcribe
+from clipvault.process import hook_emoji, transcribe
 from clipvault.process.transcribe import Transcript, Word
+from clipvault.render import emoji as emoji_mod
 from clipvault.render import facecam, ffmpeg, layouts, qa
-from clipvault.render.ass import build_overlay, fit_headline
+from clipvault.render.ass import build_overlay, fit_headline, layout_headline
 from clipvault.render.ffmpeg import RenderError
 from clipvault.render.layouts import Rect
 from clipvault.render.template import FONTS_DIR, Look, load_look
@@ -52,6 +53,48 @@ def default_headline(title: str | None, max_words: int = 7) -> str | None:
     plain = re.sub(r"[^\w\s'!?&-]", " ", title or "", flags=re.UNICODE)
     words = [w for w in plain.split() if re.search(r"[A-Za-z0-9]", w)]
     return " ".join(words[:max_words]) or None
+
+
+def hook_emojis_for(
+    clip: sqlite3.Row, headline: str | None, transcript_text: str, look: Look,
+    flagged: bool, mask, *, ask: bool = True, http=None, model: str | None = None,
+) -> tuple[str | None, tuple[str, ...]]:
+    """The hook text without emoji decoration, and the emoji pictures to draw next to it.
+
+    The clip's own choice (``clips.hook_emoji``: empty means "none") wins; otherwise one is picked from
+    what the hook, title, transcript and game say (a running local Ollama model decides when ``ask`` is
+    true; the table otherwise). Stream-title decoration (red dots, palm trees, flags) never survives:
+    only emojis from the allowed list are ever drawn. When the hook plus its emoji would not fit on the
+    allowed lines, the emoji is dropped.
+    """
+    plain, present = emoji_mod.split_headline(headline or "")
+    count = int(look.hook_emoji.count)
+    if not plain or count <= 0:
+        return (plain or None), ()
+    rules = emoji_mod.load_rules()
+    allowed = set(emoji_mod.allowed(rules).values())
+    override = clip["hook_emoji"] if "hook_emoji" in clip.keys() else None
+    if override is not None:                         # the person chose (an empty string means "none")
+        wanted = emoji_mod.split_headline(override, rules)[1]
+        chars = tuple(c for c in dict.fromkeys(wanted) if c in allowed)[:count]
+    else:
+        if ask and http is None:
+            try:
+                from clipvault.posting import captiongen
+                from clipvault.posting import http as shim
+
+                http, model = shim, captiongen.pick_model(http=shim)
+            except Exception:  # noqa: BLE001 - no local model is the normal case
+                http, model = None, None
+        chars = tuple(hook_emoji.choose(
+            headline=plain + "".join(present), title=clip["title"] or "", transcript=transcript_text,
+            game=clip["game_name"] or "", count=count, qa_flagged=flagged, blocked=mask, rules=rules,
+            http=http if ask and model else None, model=model if ask else None,
+        ))
+    if chars and not layout_headline(plain, look, chars, look.hook_emoji.position).fits:
+        log.info("hook too long for an emoji; drawn without", extra=ctx(clip=clip["id"], job="render"))
+        chars = ()
+    return plain, chars
 
 
 def vertical_relpath(file_relpath: str) -> str:
@@ -168,6 +211,10 @@ def render_clip(
     mask = transcribe.mask_pattern(transcribe.load_mask_words())
     if headline is None:
         headline = clip["headline"] or fit_headline(default_headline(clip["title"]), look)
+    flagged = conn.execute(
+        "SELECT 1 FROM renders WHERE clip_id = ? AND qa_passed = 0 LIMIT 1", (clip_id,)
+    ).fetchone() is not None
+    headline, emojis = hook_emojis_for(clip, headline, transcript.text, look, flagged, mask)
     disclosure = None
     if streamer["permission_type"] == "campaign":
         disclosure = f"#ad Paid partnership with @{clip['login']}"
@@ -181,6 +228,8 @@ def render_clip(
         key_word=key_word,
         disclosure=disclosure,
         mask=mask,
+        emojis=emojis,
+        emoji_position=look.hook_emoji.position,
     )
 
     relpath = vertical_relpath(clip["file_path"])
@@ -191,6 +240,10 @@ def render_clip(
         work = Path(folder)
         (work / "overlay.ass").write_text(overlay.ass, encoding="utf-8")
         shutil.copytree(FONTS_DIR, work / "fonts", ignore=shutil.ignore_patterns("*.txt", ".*"))
+        try:
+            pictures = emoji_mod.prepare_images(overlay.emojis, work)
+        except emoji_mod.EmojiError as exc:
+            raise RenderError(f"hook emoji: {exc}") from exc
         measured = ffmpeg.measure_loudness(source, start, duration) if info.has_audio else None
         partial = dest.with_name(dest.name + ".rendering.mp4")
         try:
@@ -204,6 +257,7 @@ def render_clip(
                 start=start,
                 duration=duration,
                 look=look,
+                emoji_images=pictures,
             )
             os.replace(partial, dest)  # the finished name only ever holds a whole video
         finally:
@@ -225,18 +279,19 @@ def render_clip(
         existing = conn.execute(
             "SELECT id FROM renders WHERE clip_id = ? AND layout = ?", (clip_id, chosen)
         ).fetchone()
-        values = (relpath, headline, int(report.passed), report.to_json(), to_rfc3339(utc_now()))
+        values = (relpath, headline, int(report.passed), report.to_json(), to_rfc3339(utc_now()),
+                  "".join(emojis))
         if existing:
             render_id = existing["id"]
             conn.execute(
                 "UPDATE renders SET path = ?, headline = ?, qa_passed = ?, qa_report_json = ?, "
-                "created_at = ? WHERE id = ?",
+                "created_at = ?, hook_emoji = ? WHERE id = ?",
                 (*values, render_id),
             )
         else:
             render_id = conn.execute(
                 "INSERT INTO renders (clip_id, layout, path, headline, qa_passed, qa_report_json, "
-                "created_at) VALUES (?, ?, ?, ?, ?, ?, ?)",
+                "created_at, hook_emoji) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
                 (clip_id, chosen, *values),
             ).lastrowid
         # A clip has one phone-version file whatever its layout, so an earlier render in
@@ -327,8 +382,11 @@ def preview_frame(
     original = storage.resolve(library, clip["file_path"])
     words = _read_transcript(original).words if original else ()
     headline = clip["headline"] or fit_headline(default_headline(clip["title"]), look)
+    spoken = " ".join(w.text for w in words)
+    headline, emojis = hook_emojis_for(clip, headline, spoken, look, False, None, ask=False)
     overlay = build_overlay(look=look, layout=layout, duration=info.duration, headline=headline,
-                            login=clip["login"], words=words)  # fmt: skip
+                            login=clip["login"], words=words, emojis=emojis,
+                            emoji_position=look.hook_emoji.position)  # fmt: skip
     # Show a moment with a caption on screen, a little into the first block.
     moment = min(overlay.blocks[0].start + 0.15, info.duration - 0.1) if overlay.blocks else 1.0
     dest.parent.mkdir(parents=True, exist_ok=True)
@@ -336,9 +394,11 @@ def preview_frame(
         work = Path(folder)
         (work / "overlay.ass").write_text(overlay.ass, encoding="utf-8")
         shutil.copytree(FONTS_DIR, work / "fonts", ignore=shutil.ignore_patterns("*.txt", ".*"))
-        graph = f"[0:v]{plan.video_filter}[base];[base]subtitles=overlay.ass:fontsdir=fonts[v]"
+        pictures = emoji_mod.prepare_images(overlay.emojis, work)
+        extra_inputs = [a for name, _x, _y in pictures for a in ("-i", name)]
+        graph = ffmpeg.video_graph(plan.video_filter, pictures, 1, tail="")
         ffmpeg._ffmpeg(
-            ["-y", "-loglevel", "error", "-i", str(video), "-ss", f"{max(moment, 0):.3f}",
+            ["-y", "-loglevel", "error", "-i", str(video), *extra_inputs, "-ss", f"{max(moment, 0):.3f}",
              "-filter_complex", graph, "-map", "[v]", "-frames:v", "1", "-q:v", "3",
              str(dest.resolve())],
             cwd=work,

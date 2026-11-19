@@ -70,6 +70,8 @@ def licence_datas(root: Path, tools: Path) -> list[tuple[str, str]]:
         datas.append((str(python_licence), "LICENSES/Python"))
     for font_licence in (root / "assets" / "fonts").glob("*.txt"):
         datas.append((str(font_licence), "LICENSES/fonts"))
+    for emoji_licence in (root / "clipvault" / "data" / "emoji").glob("*.txt"):
+        datas.append((str(emoji_licence), "LICENSES/emoji"))  # Twemoji graphics, CC-BY 4.0 (attribution required)
     inter = root / "clipvault" / "web" / "static" / "fonts" / "OFL-Inter.txt"
     if inter.exists():
         datas.append((str(inter), "LICENSES/fonts"))

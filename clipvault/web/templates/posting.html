@@ -1,0 +1,89 @@
+{% extends "base.html" %}
+{% block title %}Posting · ClipVault{% endblock %}
+{% block content %}
+<header class="page-head">
+  <div>
+    <h1 class="page-title">Posting</h1>
+    <div class="subhead" id="mode">Upload finished phone versions to TikTok, YouTube Shorts and Instagram Reels</div>
+  </div>
+</header>
+<style>
+#posting-app .pill{display:inline-block;padding:2px 9px;border-radius:99px;font-size:11px;font-weight:600;border:1px solid currentColor}
+#posting-app .ok,#posting-app .connected{color:#1f9d55}#posting-app .warn,#posting-app .expired{color:#c27a00}#posting-app .bad,#posting-app .error{color:#d13438}
+#posting-app .mut{color:var(--muted,#8a8a8e)}#posting-app .mono{font-family:ui-monospace,Menlo,monospace;font-size:12px}
+#posting-app .card{margin:0 0 14px;padding:16px}#posting-app h2{font-size:15px;margin:0 0 8px}
+#posting-app .row{display:flex;gap:10px;flex-wrap:wrap;align-items:end}#posting-app .row>*{flex:1;min-width:180px}#posting-app .row>button{flex:0 0 auto;min-width:0}
+#posting-app label{display:block;margin:8px 0 4px;font-size:12px}#posting-app input,#posting-app select,#posting-app textarea{width:100%}
+#posting-app textarea{min-height:90px}#posting-app code{word-break:break-all}#posting-app nav.ptabs{display:flex;gap:6px;flex-wrap:wrap;margin:0 0 14px}
+#posting-app section{display:none}#posting-app section.on{display:block}
+#posting-toast{position:fixed;bottom:18px;right:18px;padding:10px 14px;border-radius:10px;display:none;max-width:380px;background:var(--surface,#fff);border:1px solid var(--line,#ccc);box-shadow:0 4px 18px rgba(0,0,0,.2);z-index:50}
+</style>
+<div id="posting-app" data-csrf="{{ csrf }}">
+<nav class="ptabs" id="tabs"></nav>
+<section id="setup"></section><section id="accounts"></section><section id="queue"></section><section id="manual"></section><section id="settings"></section>
+</div>
+<div id="posting-toast"></div>
+<script>
+
+const $=s=>document.querySelector(s),esc=s=>String(s??'').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const CSRF=document.getElementById('posting-app').dataset.csrf;
+const api=async(u,m='GET',b)=>{const o={method:m==='GET'?'GET':'POST'};if(m!=='GET'){const f=new URLSearchParams();f.set('csrf',CSRF);f.set('payload',JSON.stringify(b||{}));o.body=f;o.headers={'Content-Type':'application/x-www-form-urlencoded'}}const r=await fetch(u,o);const j=await r.json().catch(()=>({}));if(!r.ok)throw new Error(j.detail||r.statusText);return j};
+const toast=t=>{const e=$('#posting-toast');e.textContent=t;e.style.display='block';setTimeout(()=>e.style.display='none',4500)};
+const TABS=[['setup','Platform Setup'],['accounts','Connected Accounts'],['queue','Queue'],['manual','Post manually'],['settings','Settings']];
+let cur=(location.hash||'#setup').slice(1);if(!TABS.find(t=>t[0]===cur))cur='setup';
+function tabs(){$('#tabs').innerHTML=TABS.map(([k,l])=>`<button class="btn small ${k===cur?'primary':''}" onclick="go('${k}')">${l}</button>`).join('');document.querySelectorAll('section').forEach(s=>s.classList.toggle('on',s.id===cur))}
+async function go(k){cur=k;location.hash=k;tabs();({setup,accounts,queue,manual,settings}[k])()}
+const safe=f=>async(...a)=>{try{await f(...a)}catch(e){toast(e.message)}};
+const setup=safe(async()=>{const d=await api('/api/posting/setup');$('#mode').textContent=d.settings.dry_run==='1'?'Dry run is ON: nothing is posted':'LIVE: uploads are real';
+$('#setup').innerHTML=Object.entries(d.platforms).map(([k,p])=>`<div class="card"><h2>${esc(p.label)}</h2>
+${p.redirect_uri?`<div class="mut">Redirect URI to paste into the developer portal:</div><p><code>${esc(p.redirect_uri)}</code> <button class="btn small" onclick="navigator.clipboard.writeText('${esc(p.redirect_uri)}');toast('Copied')">Copy</button></p>`:''}
+<div class="row">${p.fields.map(f=>`<div><label>${esc(f.label)} ${f.saved?'<span class="pill ok">saved</span>':'<span class="pill warn">not set</span>'}</label><input type="password" id="f_${k}_${f.key}" placeholder="${f.saved?'•••••••• (leave empty to keep)':''}" autocomplete="off"></div>`).join('')}
+<button class="btn small primary" onclick="saveCred('${k}')">Save</button></div>
+<details style="margin-top:10px"><summary class="mut">How to create the ${esc(p.label)} developer app</summary><ol>${p.guide.map(g=>`<li>${esc(g)}</li>`).join('')}</ol>${p.scopes.length?`<div class="mut mono">Scopes: ${esc(p.scopes.join(', '))}</div>`:''}</details></div>`).join('')});
+const saveCred=safe(async k=>{const d=await api('/api/posting/setup'),b={};d.platforms[k].fields.forEach(f=>b[f.key]=$(`#f_${k}_${f.key}`).value);const r=await api('/api/posting/credentials/'+k,'POST',b);toast(r.saved?'Saved':'Nothing to save');setup()});
+const accounts=safe(async()=>{const[a,s]=await Promise.all([api('/api/posting/accounts'),api('/api/posting/setup')]);
+const by={};a.accounts.forEach(x=>(by[x.platform]=by[x.platform]||[]).push(x));
+$('#accounts').innerHTML=(a.connect_error?`<div class="card"><b class="bad">Couldn't connect.</b> ${esc(a.connect_error)} <button class="btn small" onclick="api('/api/posting/connect-error/clear','POST').then(accounts)">Dismiss</button></div>`:'')+['tiktok','youtube','instagram'].map(k=>`<div class="card"><h2>${esc(s.platforms[k].label)}</h2>
+${(by[k]||[]).map(x=>`<div class="row" style="margin:8px 0"><div><b>${esc(x.label)}</b> <span class="mut">@${esc(x.handle||'')}</span> <span class="pill ${x.status}">${x.status}</span>
+${k==='instagram'&&x.account_type&&!['BUSINESS','MEDIA_CREATOR','CREATOR'].includes(x.account_type)?'<div class="pill bad">Personal account: switch to Business or Creator</div>':''}
+${x.error?`<div class="mut">${esc(x.error)}</div>`:''}</div><button class="btn small" onclick="connect('${k}','${esc(x.label)}')">Reconnect</button><button class="btn small" onclick="disc(${x.id})">Disconnect</button></div>`).join('')||'<div class="mut">No accounts yet.</div>'}
+<div class="row" style="margin-top:10px"><div><label>Name for the new account</label><input id="lbl_${k}" placeholder="e.g. Clips #1"></div><button class="btn small primary" onclick="connect('${k}')">Connect ${esc(s.platforms[k].label)}</button></div></div>`).join('')+
+`<div class="card"><h2>Routing rules</h2><div class="mut">Send a streamer or clip type to a specific account. No rule = the platform's first account.</div>
+${a.rules.map(r=>`<div class="row" style="margin:6px 0"><div>${esc(r.streamer)} · ${esc(r.clip_type)} → ${esc((a.accounts.find(x=>x.id===r.account_id)||{}).label||'?')}</div><button class="btn small" onclick="api('/api/posting/rules/${r.id}/delete','POST').then(accounts)">Remove</button></div>`).join('')}
+<div class="row" style="margin-top:8px"><div><label>Streamer login (or *)</label><input id="r_s" value="*"></div><div><label>Clip type (funny, rage, clutch… or *)</label><input id="r_t" value="*"></div>
+<div><label>Account</label><select id="r_a">${a.accounts.map(x=>`<option value="${x.id}">${esc(x.platform)} · ${esc(x.label)}</option>`).join('')}</select></div><button class="btn small primary" onclick="addRule()">Add</button></div></div>`});
+const embedded=!/Chrome\/|Firefox\/|Edg\//.test(navigator.userAgent);
+const connect=safe(async(k,label)=>{const r=await api('/api/posting/connect/'+k,'POST',{label:label||($('#lbl_'+k)||{}).value||''});
+if(!embedded){location.href=r.url;return}
+const o=await api('/api/posting/open-external','POST',{url:r.url});
+if(!o.opened){toast('Could not open your browser. Copy this address into it: '+r.url);return}
+toast('Finish signing in in your browser. This page updates when it is done.');watchAccounts()});
+let watching=0;
+const watchAccounts=async()=>{const stamp=a=>JSON.stringify([a.connect_error,a.accounts.map(x=>[x.id,x.status,x.token_expires_at])]);const first=stamp(await api('/api/posting/accounts'));const id=++watching;
+for(let i=0;i<100&&id===watching;i++){await new Promise(r=>setTimeout(r,3000));try{const a=await api('/api/posting/accounts');if(stamp(a)!==first){toast(a.connect_error?'Sign-in failed':'Account connected');if(cur==='accounts')accounts();return}}catch(e){}}};
+const disc=safe(async id=>{if(confirm('Disconnect this account?')){await api(`/api/posting/accounts/${id}/disconnect`,'POST');accounts()}});
+const addRule=safe(async()=>{await api('/api/posting/rules','POST',{streamer:$('#r_s').value,clip_type:$('#r_t').value,account_id:$('#r_a').value});accounts()});
+const N={tiktok:'TikTok',youtube:'YouTube',instagram:'Instagram'};
+const queueClip=safe(async id=>{const r=await api('/api/posting/enqueue/'+encodeURIComponent(id),'POST');toast(r.jobs.length+' jobs queued');queue()});
+const queue=safe(async()=>{const q=await api('/api/posting/queue');$('#queue').innerHTML=`<div class="card"><h2>Ready to queue</h2><div class="mut">Phone versions that are finished. Only streamers with recorded permission can be queued.</div>${q.ready.slice(0,15).map(c=>`<div class="row" style="margin:6px 0"><div>${esc(c.title||c.id)} <span class="mut">· ${esc(c.streamer)}</span>${c.qa_failed?' <span class="pill warn">QA flagged</span>':''}</div>${c.blocked?`<span class="mut">${esc(c.blocked)}</span>`:`<button class="btn small primary" onclick="queueClip('${esc(c.id)}')">Queue for posting</button>`}</div>`).join('')||'<span class="mut">No finished phone versions waiting.</span>'}</div>`+`<div class="card"><div class="row"><div><b>${q.queue.length}</b> waiting to upload</div><button class="btn small primary" onclick="runNow()">Run now</button></div></div>`+
+`<div class="card"><h2>Up next</h2>${q.queue.map(j=>`<div style="margin:6px 0"><span class="pill">${N[j.platform]}</span> <span>${esc(j.title)}</span> · ${new Date(j.not_before*1000).toLocaleString()} ${j.reason?`<div class="mut">${esc(j.reason)}</div>`:''}</div>`).join('')||'<span class="mut">Nothing queued.</span>'}</div>`+
+`<div class="card"><h2>Done</h2>${q.done.map(j=>`<div style="margin:6px 0"><span class="pill ok">${j.state.replace('_',' ')}</span> ${N[j.platform]} <span>${esc(j.title)}</span> ${j.result_url?`<a href="${esc(j.result_url)}" style="color:var(--acc2)" target="_blank">open</a>`:''}<div class="mut">${esc(j.reason||'')}</div>${j.state==='drafted'?`<div class="mut" style="margin-top:4px">TikTok's draft upload can't carry a caption, so paste ClipVault's:</div><textarea id="d_${j.id}" readonly>${esc(j.caption.tiktok||'')}</textarea><button class="btn small" onclick="navigator.clipboard.writeText($('#d_${j.id}').value);toast('Caption copied')">Copy caption</button>`:''}</div>`).join('')||'<span class="mut">Nothing yet.</span>'}</div>`+
+`<div class="card"><h2>Log</h2>${q.log.map(l=>`<div class="mono mut">${new Date(l.at*1000).toLocaleString()} · ${esc(l.platform)} · ${esc(l.clip_id)} · ${esc(l.result)} ${esc(l.detail||'')}</div>`).join('')}</div>`});
+const runNow=safe(async()=>{const r=await api('/api/posting/run','POST');toast(JSON.stringify(r));queue()});
+const manual=safe(async()=>{const q=await api('/api/posting/queue');$('#manual').innerHTML=q.manual.map(j=>{const cap=j.caption[{tiktok:'tiktok',youtube:'youtube_title',instagram:'instagram'}[j.platform]]||'';const desc=j.platform==='youtube'?j.caption.youtube_description:'';
+return `<div class="card"><div class="row"><div><span class="pill ${j.state==='blocked'?'bad':'warn'}">${j.state==='blocked'?'blocked by Theo':'post by hand'}</span> <b>${N[j.platform]}</b> <span>${esc(j.title)}</span></div></div>
+<div class="mut" style="margin:6px 0">${esc(j.reason)}</div><textarea id="c_${j.id}">${esc(cap)}${desc?'\n\n'+esc(desc):''}</textarea>
+<div class="row" style="margin-top:8px"><button class="btn small primary" onclick="copy(${j.id})">Copy caption</button><button class="btn small" onclick="api('/api/posting/reveal/${encodeURIComponent(j.clip_id)}','POST').catch(e=>toast(e.message))">Open in Finder</button><button class="btn small" onclick="api('/api/posting/jobs/${j.id}/retry','POST').then(manual)">Try again</button><button class="btn small primary" onclick="api('/api/posting/jobs/${j.id}/posted','POST').then(manual)">Mark as posted</button></div></div>`}).join('')||'<div class="card mut">Nothing to post by hand.</div>'});
+const copy=id=>{navigator.clipboard.writeText($('#c_'+id).value);toast('Caption copied')};
+const settings=safe(async()=>{const d=await api('/api/posting/setup'),s=d.settings;const sw=(k,l,h)=>`<div class="row" style="margin:8px 0"><div><b>${l}</b><div class="mut">${h||''}</div></div><select onchange="setS('${k}',this.value)"><option value="1" ${s[k]==='1'?'selected':''}>On</option><option value="0" ${s[k]==='0'?'selected':''}>Off</option></select></div>`;
+const num=(k,l)=>`<div><label>${l}</label><input value="${esc(s[k])}" onchange="setS('${k}',this.value)"></div>`;
+$('#settings').innerHTML=`<div class="card"><h2>Safety</h2>${sw('dry_run','Dry run','Runs every step without posting anything. Starts ON.')}${sw('auto_approve','Auto-approve','Posts waiting clips without your OK. Leave off while testing.')}
+<div class="row"><div><label>TikTok mode</label><select onchange="setS('tiktok_mode',this.value)"><option value="drafts" ${s.tiktok_mode==='drafts'?'selected':''}>Send to Drafts/Inbox (you tap Post)</option><option value="direct" ${s.tiktok_mode==='direct'?'selected':''}>Direct Post (needs TikTok audit)</option></select></div>
+<div><label>YouTube privacy</label><select onchange="setS('youtube_privacy',this.value)">${['private','unlisted','public'].map(v=>`<option ${s.youtube_privacy===v?'selected':''}>${v}</option>`).join('')}</select></div></div></div>
+<div class="card"><h2>Platforms</h2>${sw('enabled_tiktok','TikTok')}${sw('enabled_youtube','YouTube Shorts')}${sw('enabled_instagram','Instagram Reels')}</div>
+<div class="card"><h2>Spacing</h2><div class="row">${num('min_gap_minutes','Minutes between posts (same account)')}${num('jitter_minutes','Random jitter (minutes)')}${num('daily_max','Max posts per account per day')}${num('cross_account_gap_minutes','Minutes between accounts (same clip)')}</div></div>`});
+const setS=safe(async(k,v)=>{await api('/api/posting/settings','POST',{[k]:v});toast('Saved')});
+window.go=go;tabs();go(cur);
+
+</script>
+{% endblock %}

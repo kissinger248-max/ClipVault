@@ -130,6 +130,27 @@ def loudnorm_filter(measured: dict | None, look: Look) -> str:
 # --- encode --------------------------------------------------------------------
 
 
+def video_graph(
+    video_filter: str, images: list[tuple[str, int, int]] | tuple = (), first_input: int = 1,
+    tail: str = "setsar=1,format=yuv420p",
+) -> str:
+    """The video filter graph: layout, burned-in subtitles, then the emoji pictures laid on top.
+
+    ``images`` are ``(file name, x, y)`` from :func:`clipvault.render.emoji.prepare_images`; the files
+    are FFmpeg inputs numbered from ``first_input``. Without pictures the graph is exactly the old one.
+    """
+    if not images:
+        return f"[0:v]{video_filter}[base];[base]subtitles=overlay.ass:fontsdir=fonts" + (
+            f",{tail}[v]" if tail else "[v]"
+        )
+    graph = f"[0:v]{video_filter}[base];[base]subtitles=overlay.ass:fontsdir=fonts[t0]"
+    previous = "t0"
+    for i, (_name, x, y) in enumerate(images):
+        graph += f";[{previous}][{first_input + i}:v]overlay={x}:{y}:format=auto[t{i + 1}]"
+        previous = f"t{i + 1}"
+    return graph + (f";[{previous}]{tail}[v]" if tail else f";[{previous}]null[v]")
+
+
 def encode(
     *,
     source: Path,
@@ -141,8 +162,9 @@ def encode(
     start: float,
     duration: float,
     look: Look,
+    emoji_images: list[tuple[str, int, int]] | tuple = (),
 ) -> None:
-    """Render the vertical video. ``workdir`` holds ``overlay.ass`` and ``fonts/``.
+    """Render the vertical video. ``workdir`` holds ``overlay.ass``, ``fonts/`` and any emoji pictures.
 
     FFmpeg runs inside ``workdir`` and is given plain relative names for the
     subtitle file and font folder: Windows paths (drive colons, backslashes)
@@ -155,10 +177,11 @@ def encode(
     arguments += ["-i", str(source)]
     if not has_audio:
         arguments += ["-f", "lavfi", "-i", "anullsrc=r=48000:cl=stereo"]
-    graph = (
-        f"[0:v]{video_filter}[base];[base]subtitles=overlay.ass:fontsdir=fonts,"
-        "setsar=1,format=yuv420p[v]"  # square pixels: scaling 1280x720 to 1080x608 leaves 1216:1215
-    )
+    first_picture = 1 if has_audio else 2
+    for name, _x, _y in emoji_images:
+        arguments += ["-i", name]
+    # setsar=1: square pixels (scaling 1280x720 to 1080x608 leaves 1216:1215)
+    graph = video_graph(video_filter, emoji_images, first_picture)
     arguments += ["-filter_complex", graph, "-map", "[v]"]
     arguments += ["-map", "0:a:0", "-af", audio_filter] if has_audio else ["-map", "1:a:0"]
     arguments += [

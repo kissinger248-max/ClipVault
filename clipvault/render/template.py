@@ -54,12 +54,14 @@ def load_look(config: cfg.Config | None = None) -> Look:
         values["accent"] = config.look.accent
         values["headline_style"] = config.look.headline_style
         values["credit"] = {**values["credit"], "enabled": config.look.show_credit}
+        values["hook_emoji"] = {"count": config.look.hook_emojis, "position": config.look.hook_emoji_position}
         if config.look.caption_size != cfg.LookConfig().caption_size:  # set by the user
             # Bigger captions also need a bigger lower limit for over-long words.
             values["caption"] = {**values["caption"], "size": config.look.caption_size,
                                  "min_size": min(values["caption"].get("min_size", 56),
                                                  config.look.caption_size)}  # fmt: skip
     values.setdefault("headline_style", "box")
+    values.setdefault("hook_emoji", {"count": 1, "position": "end"})
     return Look(values)
 
 
@@ -112,6 +114,16 @@ class Font:
     def line_height(self, px: float) -> float:
         """Height libass reserves for one line."""
         return (self.win_ascent + self.win_descent) * px / self.units_per_em
+
+    @lru_cache(maxsize=2048)  # noqa: B019
+    def has_glyph(self, char: str) -> bool:
+        """False when the font would draw ``char`` as a blank box (its "missing glyph")."""
+        if char.isspace():
+            return True
+        font = self._pil(40)
+        missing = font.getmask("\U0010ffff")
+        mine = font.getmask(char)
+        return not (mine.size == missing.size and bytes(mine) == bytes(missing))
 
     def cap_height(self, px: float) -> float:
         """Height of a capital letter."""

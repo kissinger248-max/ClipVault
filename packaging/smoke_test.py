@@ -116,6 +116,31 @@ def exercise(base: str) -> None:
         check(preview.status_code == 200, "the look preview answers")
         font = http.get("/static/fonts/Inter-latin.woff2")
         check(font.status_code == 200 and font.content[:4] == b"wOF2", "panel fonts are served")
+        posting = http.get("/posting")
+        check(posting.status_code == 200 and 'id="posting-app"' in posting.text, "the Posting page is served")
+        setup_api = http.get("/api/posting/setup").json()
+        check(setup_api["settings"]["dry_run"] == "1" and "tiktok" in setup_api["platforms"],
+              "Posting starts in dry-run with its three platforms")
+        # TikTok sign-in uses PKCE (nothing is sent to TikTok here: the page is only built, not opened)
+        import hashlib
+        from urllib.parse import parse_qs, urlparse
+
+        token = re.search(r'data-csrf="([^"]+)"', posting.text).group(1)
+
+        def post(path: str, payload: dict) -> httpx.Response:
+            return http.post(path, data={"csrf": token, "payload": __import__("json").dumps(payload)})
+
+        post("/api/posting/credentials/tiktok", {"client_key": "smoke-key", "client_secret": "smoke-secret"})
+        link = post("/api/posting/connect/tiktok", {"label": "smoke"}).json()["url"]
+        query = {k: v[0] for k, v in parse_qs(urlparse(link).query).items()}
+        check(query.get("scope") == "user.info.basic,video.upload", "TikTok asks only for user.info.basic and video.upload")
+        check(query.get("code_challenge_method") == "S256" and len(query.get("code_challenge", "")) == 64,
+              "TikTok sign-in carries a PKCE challenge (S256, hex)")
+        check(query["redirect_uri"] == f"http://localhost:{urlparse(base).port}/oauth/tiktok/callback",
+              "TikTok's callback address is this app's own port")
+        check(hashlib.sha256(b"x").hexdigest() != query["code_challenge"], "the challenge is not a fixed value")
+        forged = http.get("/oauth/tiktok/callback", params={"code": "c", "state": "forged"})
+        check(forged.status_code == 400 and "started here" in forged.text, "a callback with a made-up state is refused")
         if "Sign In with Twitch" in step2.text:
             token = re.search(r'name="csrf" value="([^"]+)"', step2.text).group(1)
             http.post("/settings/twitch-login", data={"csrf": token, "next": "/setup/2"})
@@ -198,7 +223,7 @@ def forget_secrets(service: str) -> None:
     import keyring
     from keyring.errors import PasswordDeleteError
 
-    for name in SECRET_NAMES:
+    for name in (*SECRET_NAMES, "posting.cred:tiktok:client_key", "posting.cred:tiktok:client_secret"):
         try:
             keyring.delete_password(service, name)
         except PasswordDeleteError:

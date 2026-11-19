@@ -76,6 +76,23 @@
       </details>
     </div>
 
+    {% if clip.render_id and not original %}
+    <form method="post" action="/clips/{{ clip.id|urlpart }}/hook-emoji" class="card pad hook-emoji" aria-label="Hook emoji">
+      <input type="hidden" name="csrf" value="{{ csrf }}">
+      <div class="line"><strong>Hook emoji</strong>
+        <span class="muted small">{% if emoji_used %}This phone version shows {{ emoji_used }}.{% else %}This phone version has no emoji.{% endif %}</span></div>
+      <div class="row" style="gap: 10px; align-items: center; flex-wrap: wrap">
+        <select name="emoji" class="small" aria-label="Hook emoji">
+          <option value="auto" {{ 'selected' if clip.hook_emoji is none }}>Automatic</option>
+          <option value="none" {{ 'selected' if clip.hook_emoji == '' }}>None</option>
+          {% for key, char in emoji_choices.items() %}<option value="{{ char }}" {{ 'selected' if clip.hook_emoji == char }}>{{ char }} {{ key }}</option>{% endfor %}
+        </select>
+        <button class="btn small">Save</button>
+        <button class="btn small primary" name="remake" value="1">Save and Make Again</button>
+      </div>
+    </form>
+    {% endif %}
+
     {% if lines or transcript %}
     <details class="card" open>
       <summary>What was said</summary>

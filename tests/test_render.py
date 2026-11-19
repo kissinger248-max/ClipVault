@@ -388,7 +388,7 @@ def test_render_writes_the_vertical_file_and_records_a_passing_report(
     assert (row["layout"], row["qa_passed"], row["headline"]) == ("letterbox", 1, "Big play!!")
     names = [c["name"] for c in json.loads(row["qa_report_json"])["checks"]]
     assert names == [
-        "duration", "safe_box", "headline_fit", "loudness", "black_or_frozen",
+        "duration", "safe_box", "headline_fit", "hook_emoji", "loudness", "black_or_frozen",
         "caption_time", "blocklist", "preview_still",
     ]  # fmt: skip
     encode = fake_ffmpeg["encodes"][0]

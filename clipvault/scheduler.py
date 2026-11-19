@@ -61,6 +61,7 @@ STEPS = {
     "summary": StepInfo("summary", "daily summary", runs_while_paused=True),
     "notify": StepInfo("notify", "send notifications", runs_while_paused=True),
     "updates": StepInfo("updates", "check for updates", runs_while_paused=True),
+    "posting": StepInfo("posting", "upload to your accounts"),
 }
 
 
@@ -341,6 +342,13 @@ def step_updates(conn: sqlite3.Connection, config: cfg.Config, now: datetime) ->
     return updates.step_updates(conn, config, now)
 
 
+def step_posting(conn: sqlite3.Connection, config: cfg.Config, now: datetime) -> str:
+    """Write captions ahead and upload what is due (only for clips that were queued for posting)."""
+    from clipvault.web import posting_routes
+
+    return posting_routes.step_posting(conn, config, now)
+
+
 STEP_FUNCTIONS: dict[str, Step] = {
     "discover": step_discover,
     "worker": step_worker,
@@ -349,4 +357,5 @@ STEP_FUNCTIONS: dict[str, Step] = {
     "summary": step_summary,
     "notify": step_notify,
     "updates": step_updates,
+    "posting": step_posting,
 }

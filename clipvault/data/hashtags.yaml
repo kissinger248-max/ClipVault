@@ -1,0 +1,36 @@
+# Editable hashtag rules for captions (Copywriter). Restart not needed; read on every caption.
+# Game tags come ONLY from the real Twitch category name (case-insensitive exact match).
+games:
+  "Grand Theft Auto V": ["#gta5", "#gtarp"]
+  "Grand Theft Auto VI": ["#gta6"]
+  "Grand Theft Auto IV": ["#gta4"]
+  "Just Chatting": ["#justchatting"]
+  "Minecraft": ["#minecraft"]
+  "Fortnite": ["#fortnite"]
+  "Call of Duty: Warzone": ["#warzone", "#cod"]
+  "VALORANT": ["#valorant"]
+  "League of Legends": ["#leagueoflegends"]
+  "Counter-Strike": ["#cs2"]
+  "Apex Legends": ["#apexlegends"]
+  "IRL": ["#irl"]
+# Moment type -> tags (1-2 are used). Types are detected from the clip's own judge reason, title and transcript.
+moments:
+  funny: ["#funny", "#lol"]
+  rage: ["#rage", "#angry"]
+  clutch: ["#clutch", "#insane"]
+  reaction: ["#reaction"]
+  fail: ["#fail"]
+  wholesome: ["#wholesome"]
+  hype: ["#hype"]
+moment_keywords:
+  funny: [funny, laugh, joke, hilarious, lol, hysterical, prank, roast]
+  rage: [rage, angry, furious, mad, scream, yell, ragequit, tilt]
+  clutch: [clutch, win, wins, victory, comeback, 1v, ace, beats, beat]
+  reaction: [reaction, react, shocked, surprised, wow, speechless, jumpscare]
+  fail: [fail, dies, died, lost, loses, mistake, oops, trolled]
+  wholesome: [wholesome, sweet, kind, emotional, hug, thank, gift]
+  hype: [hype, crazy, insane, unreal, huge]
+# Never added, whatever the model says.
+blocklist: ["#fyp", "#foryou", "#foryoupage", "#viral", "#followforfollow", "#f4f", "#like4like", "#follow4follow",
+           "#xyzbca", "#trending", "#explorepage", "#likeforlike", "#spam"]
+limits: {min_tags: 4, max_tags: 8}

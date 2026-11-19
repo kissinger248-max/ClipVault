@@ -18,7 +18,7 @@
 <div class="streamer-list">
   {% for s in streamers %}
   {% set name = s.display_name or s.login %}
-  <section class="card streamer" aria-label="{{ name }}">
+  <section class="card streamer" id="streamer-{{ s.id }}" aria-label="{{ name }}">
     <form method="post" action="/streamers/{{ s.id }}/update" class="settings" data-autosubmit>
       <input type="hidden" name="csrf" value="{{ csrf }}">
       <input type="hidden" name="top_n" value="{{ s.top_n }}">
@@ -52,6 +52,22 @@
           <option value="native" {{ 'selected' if s.layout_override == 'native' }}>Twitch’s own vertical</option>
         </select></label>
       <noscript><button class="btn small">Save</button></noscript>
+    </form>
+    <form method="post" action="/streamers/{{ s.id }}/permission" class="settings posting-permission">
+      <input type="hidden" name="csrf" value="{{ csrf }}">
+      <div class="name-line"><span class="name">Posting permission</span>
+        <span class="muted small-line">{{ 'Posting is on' if s.post_enabled else 'Posting is off' }}. Required before any clip of {{ name }} can be queued on the Posting page.</span></div>
+      <label class="mini-field">Permission
+        <select name="permission_type">
+          <option value="none" {{ 'selected' if s.permission_type == 'none' }}>None</option>
+          <option value="campaign" {{ 'selected' if s.permission_type == 'campaign' }}>Campaign</option>
+          <option value="written" {{ 'selected' if s.permission_type == 'written' }}>Written</option>
+        </select></label>
+      <label class="mini-field">Proof link
+        <input type="text" name="proof" value="{{ s.permission_ref or '' }}" placeholder="Link to the campaign, DM or email" autocomplete="off"></label>
+      <label class="switch-label"><span>Post clips</span>
+        <input type="checkbox" class="switch" role="switch" name="post" value="1" {{ 'checked' if s.post_enabled }} aria-label="Post clips for {{ name }}"></label>
+      <button class="btn small primary">Save Permission</button>
     </form>
     <form method="post" action="/streamers/{{ s.id }}/remove" class="inline" data-confirm="Remove {{ name }}? Clips already saved stay in the library.">
       <input type="hidden" name="csrf" value="{{ csrf }}"><button class="btn medium danger">Remove</button>

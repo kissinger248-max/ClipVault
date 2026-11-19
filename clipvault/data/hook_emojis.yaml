@@ -1,0 +1,133 @@
+# Hook emojis: one emoji (at most two) that matches a video's hook, drawn as a picture next to the headline.
+# Copy this file to "hook_emojis.yaml" in ClipVault's data folder to change it (it replaces this one).
+#
+# - emojis:    the ONLY emojis that can ever be used. Each has a bundled picture (clipvault/data/emoji/<code>.png).
+# - moments:   a kind of moment, the emoji for it, and words that signal it (in the title, hook or what was said).
+# - games:     a game or category name (part of it, lowercase) that leans towards an emoji.
+# - sensitive: words that mean "no emoji at all" (injuries, police, fights, ...).
+# - never:     emojis that are never used, even if someone types them (also every country flag).
+
+emojis:
+  laugh: "😂"
+  rofl: "🤣"
+  shock: "😳"
+  mindblown: "🤯"
+  wow: "😮"
+  rage: "🤬"
+  frustrated: "😤"
+  trophy: "🏆"
+  crown: "👑"
+  fire: "🔥"
+  boom: "💥"
+  skull: "💀"
+  clown: "🤡"
+  money: "💰"
+  scream: "😱"
+  cold: "🥶"
+  wholesome: "🥹"
+  heart: "❤"
+  salute: "🫡"
+  car: "🚗"
+  soccer: "⚽"
+  basketball: "🏀"
+  football: "🏈"
+  baseball: "⚾"
+  game: "🎮"
+  party: "🎉"
+  hundred: "💯"
+  cool: "😎"
+  clap: "🙌"
+  eyes: "👀"
+  popcorn: "🍿"
+  brain: "🧠"
+  target: "🎯"
+  rocket: "🚀"
+  goat: "🐐"
+  cry: "😭"
+  sweat: "😅"
+
+moments:
+  funny:
+    emoji: laugh
+    keywords: [lol, lmao, lmfao, funny, hilarious, joke, haha, hahaha, laughing, laugh, comedy, roast, "i'm dying", "im dying"]
+  shock:
+    emoji: shock
+    keywords: [wtf, omg, shocked, shocking, unbelievable, insane, "no way", "what the", "did not see", "didn't see", speechless]
+  rage:
+    emoji: rage
+    keywords: [rage, raging, mad, angry, furious, screaming, trash, garbage, hate, annoying, tilted]
+  clutch:
+    emoji: trophy
+    keywords: [clutch, win, wins, won, winner, victory, champion, champ, gg, ace, comeback, finally, "let's go", "lets go"]
+  hype:
+    emoji: fire
+    keywords: [hype, hyped, fire, lit, cooking, cook, banger, heat, goated, sheesh, "let him cook", crazy]
+  fail:
+    emoji: skull
+    keywords: [fail, failed, embarrassing, cringe, oops, ruined, dead, bruh, "i'm done", "im done", clowned]
+  money:
+    emoji: money
+    keywords: [money, cash, dollars, giveaway, rich, million, "paid", payout, jackpot, bag]
+  scary:
+    emoji: scream
+    keywords: [scary, scared, jumpscare, horror, terrifying, creepy, ghost, haunted, terrified]
+  wholesome:
+    emoji: wholesome
+    keywords: [wholesome, sweet, aww, heartwarming, emotional, grateful, proud, "thank you", thanks, kind]
+  cars:
+    emoji: car
+    keywords: [car, cars, drift, drifting, driving, race, racing, chase, crash, crashed, speed]
+  soccer:
+    emoji: soccer
+    keywords: [soccer, goal, striker, fifa, penalty, goalkeeper, offside]
+  basketball:
+    emoji: basketball
+    keywords: [basketball, dunk, nba, buzzer, "three pointer", "3 pointer", layup]
+
+# A game only nudges the choice (it can't decide alone): it adds one point to its emoji.
+games:
+  "grand theft auto": car
+  "gta": car
+  "need for speed": car
+  "forza": car
+  "fifa": soccer
+  "ea sports fc": soccer
+  "nba 2k": basketball
+  "madden": football
+  "mlb": baseball
+  "phasmophobia": scream
+  "lethal company": scream
+  "outlast": scream
+
+sensitive:
+  - injury
+  - injured
+  - blood
+  - bleeding
+  - ambulance
+  - hospital
+  - police
+  - cop
+  - cops
+  - arrest
+  - arrested
+  - handcuffs
+  - fight
+  - fighting
+  - brawl
+  - punched
+  - assault
+  - abuse
+  - suicide
+  - died
+  - death
+  - funeral
+  - killed
+  - murder
+  - shooting
+  - stabbed
+  - cancer
+  - tragic
+  - "rest in peace"
+
+never: ["🍆", "🍑", "💦"]

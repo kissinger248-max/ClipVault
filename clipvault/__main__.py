@@ -685,8 +685,9 @@ def _cmd_run(args: argparse.Namespace) -> int:
         if cfg.is_packaged() and not args.no_browser:
             # Opened again (desktop icon, Start menu): bring the running copy's window
             # forward, or open its panel in the browser when it has no window.
-            if not _show_running_window(config.panel.port):
-                webbrowser.open(f"http://127.0.0.1:{config.panel.port}")
+            port = cfg.panel_port(config)
+            if not _show_running_window(port):
+                webbrowser.open(f"http://127.0.0.1:{port}")
             return 0
         print(f"{exc}. Only one copy may run at a time.")
         return 1
@@ -717,7 +718,7 @@ def _cmd_window(args: argparse.Namespace) -> int:
 
     from clipvault import window
 
-    url = (args.url or f"http://127.0.0.1:{cfg.load_config().panel.port}").rstrip("/")
+    url = (args.url or f"http://127.0.0.1:{cfg.panel_port(cfg.load_config())}").rstrip("/")
     # Read the token and drop it, so the browser engine's own processes don't inherit it.
     token = os.environ.pop(window.TOKEN_ENV, "")
     if not token:

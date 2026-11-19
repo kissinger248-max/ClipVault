@@ -182,6 +182,46 @@ def _caption_render() -> str:
         return f"test video with a caption made and read back ({out.stat().st_size:,} bytes)"
 
 
+def _emoji_render() -> str:
+    """Draw a hook with an emoji picture into a test frame, the way phone versions are made, and look for it."""
+    import shutil as sh
+
+    from PIL import Image
+
+    from clipvault.render import ffmpeg as video
+    from clipvault.render.ass import build_overlay
+    from clipvault.render.emoji import prepare_images
+    from clipvault.render.template import FONTS_DIR, load_look
+
+    ffmpeg = sh.which("ffmpeg")
+    if not ffmpeg:
+        raise RuntimeError("ffmpeg not found on PATH")
+    look = load_look()
+    overlay = build_overlay(look=look, layout="letterbox", duration=1, headline="Clutch win", login="kai",
+                            emojis=("\U0001f3c6",))  # fmt: skip
+    if len(overlay.emojis) != 1:
+        raise RuntimeError("the emoji was not laid out")
+    with tempfile.TemporaryDirectory() as folder:
+        work = Path(folder)
+        sh.copytree(FONTS_DIR, work / "fonts", ignore=sh.ignore_patterns("*.txt", ".*"))
+        (work / "overlay.ass").write_text(overlay.ass, encoding="utf-8")
+        pictures = prepare_images(overlay.emojis, work)
+        command = [ffmpeg, "-hide_banner", "-nostdin", "-y", "-f", "lavfi", "-i", "color=c=0x101010:s=1080x1920:d=1:r=30",
+                   *[a for name, _x, _y in pictures for a in ("-i", name)],
+                   "-filter_complex", video.video_graph("null", pictures, 1, tail="format=rgb24"),
+                   "-map", "[v]", "-frames:v", "1", "frame.png"]  # fmt: skip
+        result = subprocess.run(command, cwd=work, capture_output=True, text=True, timeout=120)
+        if result.returncode != 0 or not (work / "frame.png").exists():
+            raise RuntimeError("FFmpeg could not lay an emoji over a frame: " + result.stderr[-300:])
+        place = overlay.emojis[0]
+        with Image.open(work / "frame.png") as frame:
+            region = frame.convert("RGB").crop((int(place.x), int(place.y), int(place.x + place.side), int(place.y + place.side)))
+        coloured = sum(1 for r, g, b in region.getdata() if max(r, g, b) - min(r, g, b) > 80)
+    if coloured < 200:
+        raise RuntimeError(f"the emoji picture is not in the frame ({coloured} coloured pixels)")
+    return f"emoji picture drawn next to the hook ({coloured} coloured pixels)"
+
+
 def _panel_files() -> str:
     from clipvault.web import server
 
@@ -221,6 +261,7 @@ CHECKS: list[Check] = [
     ("Face model", _face_model),
     ("Caption fonts", _fonts),
     ("Caption drawing", _caption_render),
+    ("Hook emoji drawing", _emoji_render),
     ("Control panel files", _panel_files),
     ("Database", _database),
     ("Twitch", _twitch_app),
