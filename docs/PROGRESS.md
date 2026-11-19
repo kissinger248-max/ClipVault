@@ -907,3 +907,37 @@ Request: "the titles it generates for the clips are cut off, they need to be fix
 **Verified**
 - Full suite on Python 3.12; a real FFmpeg render shows the picture next to the hook (box and outline styles, start/end).
 - Not verified: a real Ollama choice, and the emoji on a real Twitch clip in the installed app.
+
+
+## Session: Streamer pages and the Edited clips folders (0.8.0, 2026-11-19, local only)
+
+Not pushed or tagged: the owner asked to hold everything until they say so.
+
+**What changed**
+- New `clipvault/library/edited.py` and migration `0013_edited_files.sql`: `Edited clips/<Streamer>/` and `Edited clips/All streamers/` in the library, holding only finished phone versions. Each file is a hard link to the phone version (a copy where the drive can't hold hard links), named "date time headline.mp4", and recorded in `edited_files` (hard rule 8).
+  - Rendering adds the clip (and replaces its old files).
+  - Deleting a clip, or retention, removes its files.
+  - The worker step backfills older phone versions (`edited.sync`, 200 per round); a file deleted by hand stays deleted.
+- New page `/streamers/{login}`: header with LIVE badge and Edited Clips Folder / Watch on Twitch / Settings, the live card for that streamer only, loading cards for their clips on the way, and their edited clips with paging.
+- `/api/activity?streamer=login` filters live channels, work, events, pipeline and finished cards to one streamer. `activity.js` reads `data-streamer` and has its own headline for that page ("xQc is live", "KaiCenat isn't live right now"). Live rows on Home link to the streamer page.
+- `POST /folders/open` shows a folder in Explorer or Finder on the computer running ClipVault. From a phone it answers with the folder's path instead.
+- Streamers page: names link to the page, a "LIVE · Watch" badge and Watch Live Clips button while live (now also when the chat watcher sees them live, not only Twitch's 2-minute cached answer), an edited count, and an Edited Clips Folder button. Clips page: All Edited Clips Folder.
+- The jobs report the streamer for "editing" work, so the streamer page shows it.
+- The phone tab bar fits five tabs (Posting from 0.6.0 had pushed Settings onto a second row).
+- `docs/WEB_VERSION_PLAN.md`: plan and feature list for a free browser version (paste a Twitch link, search a streamer or upload a video, get about 5 clips, nudges to the app). No code written. It needs the owner's decisions (section 9), notably the Twitch download path.
+
+**Verified**
+- `tests/test_edited.py` (12 tests): links in both folders, the copy fallback, replacement on re-render, name collisions, removal on delete and retention (the user's own files left alone), backfill once, library away, safe names, the streamer page, the API filter, the folder button locally and from a phone. Full suite: 548 passed.
+- `ruff`: no new findings. The 519 existing ones and 26 unformatted files came with the 0.6.0/0.7.0 posting and emoji code and were left alone.
+- In the browser against a copy of the real database with pretend live chat for xQc (port 8792, separate keychain service, both removed afterwards):
+  - xQc's page showed the chat meter and loading cards turning into finished clips;
+  - the folder button reported `Twitch Archive\Edited clips\xQc`;
+  - KaiCenat's page showed the not-live message;
+  - Streamers showed LIVE · Watch for xQc;
+  - Clips showed the folder button;
+  - checked at phone size (375 px).
+- Not verified: the folders on a real library (the demo didn't write there), opening Finder on a Mac, and a packaged build.
+
+**Open issues**
+- The first run after updating adds up to 200 older phone versions per worker round until all are in (about 430 today); hard links make it fast and take no space.
+- The page's "N edited clips" count updates on reload, not live.

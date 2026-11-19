@@ -169,7 +169,9 @@ def remove_clip_files(
     if row is None or row["removed_at"] or row["starred"]:
         return False
     log_ctx = ctx(clip=clip_id, streamer=row["login"], job=job)
-    deleted_any = False
+    from clipvault.library import edited
+
+    deleted_any = edited.withdraw(conn, library, clip_id) > 0  # its "Edited clips" files
     for relpath in clip_relpaths(conn, row):
         path = storage.resolve(library, relpath)
         if path is None:

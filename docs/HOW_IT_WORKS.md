@@ -127,6 +127,21 @@ Removing a streamer who has saved clips only switches saving off, so their clips
 - Chat replays go in a `chat` folder inside the streamer's folder.
 - Anything you put in a folder called `Favorites` is never touched by ClipVault.
 
+**The Edited clips folders:** every finished phone version also shows up in `Edited clips`
+inside the library folder, ready to post or share:
+
+- `Edited clips/<Streamer>/`: that streamer's phone versions, named by date and headline
+  ("2026-11-16 21.04 Kai Cenat LOSES IT.mp4");
+- `Edited clips/All streamers/`: everyone's, with the streamer's name in front.
+
+Only finished phone versions go there: never an original or a half-made video. The files
+take no extra space (they are the same file on disk as the phone version; on a drive that
+can't do that, such as a FAT/exFAT memory stick, they are copies). When a clip is made again
+its file is replaced; when a clip is deleted, or cleaned up by retention, its files leave
+the folders too. A file you delete from these folders yourself stays deleted. Phone
+versions made before 0.8.0 are added in the background, a couple of hundred at a time.
+The buttons on the Streamers, streamer and Clips screens open these folders.
+
 **Quality:** 720p by default (smaller files) or 1080p.
 
 **Downloader:** viewer clips and cuts from recordings use a widely used free download tool (yt-dlp), which updates itself once a day because Twitch changes often. If downloads fail several times in a row, an alert says the downloader may need attention.
@@ -295,11 +310,13 @@ A website that runs inside ClipVault at http://127.0.0.1:8765. It opens in your 
 
 **Clips on their way** appear as loading cards at the front of Newest clips (and on the Clips screen): a dark tile with a moving shine, its stage (downloading, cutting, writing subtitles, making the phone version, waiting for the stream to catch up with a countdown, waiting for the charger) and a four-part bar (found, saved, subtitles, phone version). When the phone version is ready, the card turns into the finished clip. The numbers on Home count up as it happens.
 
-**Clips:** the edited phone versions as tall cards, newest first. Filter by streamer, by kind (viewer clips, or chat and live moments), by order (newest, most viewed, oldest), by minimum views, or starred only. Search finds clips by what was said, with the matching words highlighted. Clips on their way show as loading cards at the top.
+**Clips:** the edited phone versions as tall cards, newest first. **All Edited Clips Folder** opens the folder with everyone's phone versions. Filter by streamer, by kind (viewer clips, or chat and live moments), by order (newest, most viewed, oldest), by minimum views, or starred only. Search finds clips by what was said, with the matching words highlighted. Clips on their way show as loading cards at the top.
 
 **A clip's page:** the phone version plays first. Buttons: **Save video** (downloads the phone version), **See original** (the raw Twitch video, with its own download), and **Star** (starred clips are never deleted). Under "More": make the phone version again in another layout, open it on Twitch, or delete it (deleted clips are never downloaded again). The transcript is under "What was said".
 
-**Streamers:** each streamer with their Twitch picture, a LIVE badge when they are live, how many clips are saved, and their settings (section 3). Add a streamer by name or channel link, or remove one.
+**Streamers:** each streamer with their Twitch picture, a LIVE badge when they are live, how many clips are edited and saved, and their settings (section 3). Their name, **Open Page** (or **Watch Live Clips** while they are live) opens their own page; **Edited Clips Folder** opens their folder of phone versions. Add a streamer by name or channel link, or remove one.
+
+**A streamer's page** (click a streamer): their picture, a LIVE badge, and buttons for their Edited Clips Folder, their Twitch channel and their settings. While they are live, "Live now" shows their chat meter and what just happened, and their moments appear as loading cards that turn into the finished clip when the phone version is ready, the same as on Home but only for that streamer. When they are offline it says so, and their newest edited clips are below (only phone versions, never the originals).
 
 **Settings:** storage (folder, quality, how long to keep less popular clips, the free-space limit, the monthly estimate), schedule (how often to look for clips, time zone, subtitles on or off, heavy work on battery), the look of the phone videos (section 9), Twitch app keys (stored securely, never shown again), live chat login (section 6), phone (notifications, quiet hours, summary time, and opening the panel on your phone), and the panel password.
 
@@ -314,6 +331,7 @@ A website that runs inside ClipVault at http://127.0.0.1:8765. It opens in your 
 | What | Where |
 | --- | --- |
 | Clips, phone versions, subtitles, chat replays | The library folder (`Twitch Archive` by default) |
+| Finished phone versions, per streamer and all together | `Edited clips` inside the library folder |
 | Database backups | `.clipvault-backups` inside the library folder |
 | The database (the memory of every clip, streamer, step and setting) | `clipvault.db` in the ClipVault folder |
 | Settings | `config.yaml` in the ClipVault folder (the Settings screen writes it for you) |

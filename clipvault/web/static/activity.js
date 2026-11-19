@@ -1,4 +1,4 @@
-// ClipVault's live view on Home and Clips: what the app is doing right now.
+// ClipVault's live view on Home, Clips and a streamer's page: what the app is doing now.
 //
 // The first answer is written into the page (#activity-initial); after that it asks
 // /api/activity every few seconds and shows:
@@ -7,6 +7,7 @@
 // - loading cards for clips on their way (found, saved, subtitled) that turn into the
 //   real card the moment the phone version is ready;
 // - the numbers on Home's tiles.
+// On a streamer's page (data-streamer="login") everything is about that streamer only.
 // Pages work without this file; they just don't move. Reduce Motion stops the animation.
 (() => {
   const first = document.getElementById("activity-initial");
@@ -30,6 +31,9 @@
     retry: '<path d="M4.5 12a7.5 7.5 0 1 0 2.2-5.3M4.5 4.5v4h4"/>',
   };
 
+  const streamer = (root && root.dataset.streamer) || (grid && grid.dataset.streamer) || "";
+  const pageName = (root && root.dataset.name) || streamer;
+  const here = window.location.pathname;
   let since = 0;
   let after = grid ? grid.dataset.after || "" : "";
   let skew = 0; // server clock minus this clock, in seconds
@@ -88,6 +92,7 @@
       const more = d.waiting - 1;
       return { state: "busy", title: titles[work.stage] || "Working", sub: more > 0 ? `${plural(more, "more clip")} on the way` : "Nearly caught up" };
     }
+    if (streamer) return streamerHeadline(d);
     if (d.steps.length) {
       const live = d.live.channels.length ? ` · watching ${names(d.live.channels)} live` : "";
       return { state: "busy", title: `${d.steps[0].label}…`, sub: d.waiting ? `${plural(d.waiting, "clip")} on the way${live}` : `Started ${ago(d.steps[0].since)}${live}` };
@@ -96,7 +101,7 @@
       return { state: "live", title: `Watching ${names(d.live.channels)} live`, sub: `A moment is saved when chat gets ${d.live.min_surge}× busier than usual.` };
     }
     if (d.waiting && !d.power.heavy_ok) {
-      return { state: "waiting", title: `${plural(d.waiting, "clip")} waiting for the charger`, sub: "On battery, subtitles and phone versions wait for mains power.", action: form("/settings/heavy-on-battery", { next: "/" }, "Edit on Battery Too", false) };
+      return chargerHeadline(d);
     }
     if (d.waiting) {
       return { state: "busy", title: `${plural(d.waiting, "clip")} on the way`, sub: "They are worked on one after another." };
@@ -104,6 +109,22 @@
     const next = d.next && d.next.discover;
     const when = next ? Math.round((next - now()) / 60) : null;
     return { state: "idle", title: "All caught up", sub: when !== null && when >= 0 ? `Next look for new clips ${when < 1 ? "in a moment" : `in ${when} min`}.` : "New clips appear here as soon as they’re found." };
+  }
+
+  function chargerHeadline(d) {
+    return { state: "waiting", title: `${plural(d.waiting, "clip")} waiting for the charger`, sub: "On battery, subtitles and phone versions wait for mains power.", action: form("/settings/heavy-on-battery", { next: here }, "Edit on Battery Too", false) };
+  }
+
+  function streamerHeadline(d) {
+    const live = d.live.channels[0];
+    const onTheWay = d.waiting ? `${plural(d.waiting, "clip")} on the way` : "";
+    if (live) {
+      return { state: "live", title: `${pageName} is live`, sub: [onTheWay, `A moment is saved when chat gets ${d.live.min_surge}× busier than usual.`].filter(Boolean).join(" · ") };
+    }
+    if (d.waiting && !d.power.heavy_ok) return chargerHeadline(d);
+    if (d.waiting) return { state: "busy", title: onTheWay, sub: "Each one appears below when its phone version is ready." };
+    const checked = d.live.checked ? ` (checked ${ago(d.live.checked)})` : "";
+    return { state: "idle", title: `${pageName} isn’t live right now`, sub: `Their chat is watched as soon as they go live${checked}. New edited clips appear below.` };
   }
 
   function renderNow(d) {
@@ -118,7 +139,7 @@
       action.dataset.html = h.action || "";
     }
     const next = document.querySelector("[data-next]");
-    if (next) setText(next, d.live.channels.length ? plural(d.live.channels.length, "streamer") + " live" : "");
+    if (next && !streamer) setText(next, d.live.channels.length ? plural(d.live.channels.length, "streamer") + " live" : "");
     renderLive(d);
     renderFeed(d);
   }
@@ -134,8 +155,9 @@
     if (!live.channels.length) {
       let note = "";
       if (d.paused) note = "";
-      else if (!live.on || live.status === "off") note = `<span>Live moments are off.</span>${form("/settings/live", { on: "1", next: "/" }, "Turn On", false)}`;
+      else if (!live.on || live.status === "off") note = `<span>Live moments are off.</span>${form("/settings/live", { on: "1", next: here }, "Turn On", false)}`;
       else if (live.status === "no_login") note = '<span>Sign in with Twitch to catch moments while your streamers are live.</span><a class="btn small primary" href="/settings#twitch">Sign In</a>';
+      else if (streamer && live.status !== "starting") note = ""; // the headline says it
       else if (live.status === "idle") note = `<span>No one on your list is live right now${live.checked ? ` · checked ${ago(live.checked)}` : ""}. Live chat is watched as soon as they start.</span>`;
       else if (live.status === "starting") note = "<span>Getting ready to watch live chat…</span>";
       const html = note ? `<div class="live-note">${note}</div>` : "";
@@ -159,7 +181,9 @@
           ? `<img class="avatar" src="${esc(channel.avatar)}" alt="" width="40" height="40">`
           : `<span class="avatar initial">${esc((channel.name || "?")[0].toUpperCase())}</span>`;
         const bars = Array.from({ length: 31 }, (_, i) => `<span class="bar${i === 30 ? " now" : ""}"></span>`).join("");
-        row.innerHTML = `${face}<div class="live-who"><div class="name"><span>${esc(channel.name)}</span><span class="live-pill"><i></i>LIVE</span></div><div class="sub" data-sub></div></div>`
+        const name = streamer ? `<span>${esc(channel.name)}</span>`
+          : `<a href="/streamers/${encodeURIComponent(channel.login)}" title="See ${esc(channel.name)}’s live clips come in">${esc(channel.name)}</a>`;
+        row.innerHTML = `${face}<div class="live-who"><div class="name">${name}<span class="live-pill"><i></i>LIVE</span></div><div class="sub" data-sub></div></div>`
           + `<div class="meter" role="img" aria-label="Chat activity over the last five minutes">${bars}<span class="line base"></span><span class="line goal"></span></div>`;
         box.append(row);
       }
@@ -387,7 +411,8 @@
 
   async function poll() {
     try {
-      const reply = await fetch(`/api/activity?since=${since}&after=${encodeURIComponent(after)}`,
+      const only = streamer ? `&streamer=${encodeURIComponent(streamer)}` : "";
+      const reply = await fetch(`/api/activity?since=${since}&after=${encodeURIComponent(after)}${only}`,
         { cache: "no-store", headers: { Accept: "application/json" } });
       if (!reply.ok || !(reply.headers.get("content-type") || "").includes("json")) {
         if (reply.redirected || reply.status === 401 || reply.status === 403) stopped = true; // signed out

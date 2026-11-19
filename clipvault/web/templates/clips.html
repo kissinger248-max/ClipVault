@@ -46,9 +46,15 @@
   </div>
 </form>
 
+<div class="clips-bar">
 <div class="editing" {{ 'data-activity-summary' if live }} data-total="{{ total }}">
   {% if editing %}<span class="spinner cv-spin" aria-hidden="true"></span><span>{{ editing }} more clip{{ 's are' if editing != 1 else ' is' }} still being edited<span class="desk-only">&nbsp;and will appear here</span>.</span>
   {% else %}{{ '{:,}'.format(total) }} clip{{ 's' if total != 1 }}{% if filters.q %} saying “{{ filters.q }}”{% endif %}.{% endif %}
+</div>
+<form method="post" action="/folders/open" class="inline">
+  <input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="next" value="/clips">
+  <button class="btn small" title="Every streamer's finished phone versions in one folder"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round" aria-hidden="true"><path d="M3 6.5A1.5 1.5 0 0 1 4.5 5h4l2 2.5h9A1.5 1.5 0 0 1 21 9v9.5a1.5 1.5 0 0 1-1.5 1.5h-15A1.5 1.5 0 0 1 3 18.5z"/></svg>All Edited Clips Folder</button>
+</form>
 </div>
 
 {% if clips or live %}

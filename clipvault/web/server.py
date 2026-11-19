@@ -598,11 +598,13 @@ def create_app(home: Path | None = None) -> FastAPI:
                 "AND c.file_path IS NOT NULL AND c.removed_at IS NULL "
                 "AND c.state NOT IN ('found', 'dead')) AS saved, "
                 "(SELECT coalesce(sum(c.file_size), 0) FROM clips c WHERE c.streamer_id = s.id "
-                "AND c.removed_at IS NULL) AS bytes "
+                "AND c.removed_at IS NULL) AS bytes, "
+                "(SELECT count(*) FROM clips c WHERE c.streamer_id = s.id "
+                f"AND c.removed_at IS NULL AND {EDITED}) AS edited "
                 "FROM streamers s ORDER BY s.login"
             ).fetchall()
-        live = _live_now(
-            app.state.panel, [r["twitch_user_id"] for r in rows if r["twitch_user_id"]]
+        live = _watched_live() | set(
+            _live_now(app.state.panel, [r["twitch_user_id"] for r in rows if r["twitch_user_id"]])
         )
         from clipvault.web.settings_routes import estimate_gb_per_month
 
@@ -746,12 +748,72 @@ def create_app(home: Path | None = None) -> FastAPI:
     activity_routes.register(app, back=back, conn=conn, config=config, card=clip_card,
                              clip_rows=_clip_rows, local_midnight=_local_midnight_utc)  # fmt: skip
 
-    def live_view(c: sqlite3.Connection) -> dict[str, Any]:
+    def live_view(c: sqlite3.Connection, streamer: str | None = None) -> dict[str, Any]:
         """The live view's first answer, written into the page so it shows at once."""
         current = config()
         return activity_routes.payload(
             c, current, since=0, after=to_rfc3339(utc_now()), card=clip_card,
-            clip_rows=_clip_rows, today=_local_midnight_utc(current))  # fmt: skip
+            clip_rows=_clip_rows, today=_local_midnight_utc(current),
+            streamer=streamer)  # fmt: skip
+
+    # --- one streamer: their live chat, clips on their way, their edited clips ----------
+
+    @app.get("/streamers/{login}", response_class=HTMLResponse)
+    def streamer_page(request: Request, login: str):
+        q = request.query_params
+        page_no = max(int(q.get("page", "1")) if q.get("page", "1").isdigit() else 1, 1)
+        with _db(conn) as c:
+            streamer = c.execute(
+                "SELECT * FROM streamers WHERE login = ?", (login.lower(),)
+            ).fetchone()
+            if streamer is None:
+                return HTMLResponse("No such streamer.", 404)
+            where = f"s.id = ? AND c.removed_at IS NULL AND {EDITED}"
+            total = c.execute(
+                f"SELECT count(*) FROM clips c JOIN streamers s ON s.id = c.streamer_id "
+                f"WHERE {where}", (streamer["id"],)).fetchone()[0]  # fmt: skip
+            rows = _clip_rows(c, where, [streamer["id"]], "c.created_at DESC", PAGE_SIZE,
+                              (page_no - 1) * PAGE_SIZE)  # fmt: skip
+            live = live_view(c, streamer["login"]) if page_no == 1 else None
+            everyone = [r[0] for r in c.execute(
+                "SELECT twitch_user_id FROM streamers WHERE twitch_user_id IS NOT NULL"
+            )]  # fmt: skip
+        pages = max((total + PAGE_SIZE - 1) // PAGE_SIZE, 1)
+        # The chat watcher knows first; otherwise ask Twitch (the same cached answer as
+        # the Streamers page, so asking for everyone keeps that page's answer whole).
+        is_live = bool(live and live["live"]["channels"]) or (
+            bool(streamer["twitch_user_id"])
+            and streamer["twitch_user_id"] in _live_now(app.state.panel, everyone))  # fmt: skip
+        return page(request, "streamer.html", tab="streamers", streamer=streamer, clips=rows,
+                    total=total, page_no=page_no, pages=pages, live=live,
+                    is_live=is_live)  # fmt: skip
+
+    # --- the "Edited clips" folders (library/edited.py) ----------------------------------
+
+    @app.post("/folders/open")
+    def open_folder(request: Request, streamer: str = Form(""), next: str = Form("/clips")):
+        """Show an edited-clips folder in Explorer or Finder on this computer."""
+        from clipvault.library import edited
+
+        target = _safe_next(next, "/clips")
+        with _db(conn) as c:
+            library = storage.open_library(c, config())
+            row = None
+            if streamer:
+                row = c.execute("SELECT * FROM streamers WHERE login = ?",
+                                (streamer.lower(),)).fetchone()  # fmt: skip
+                if row is None:
+                    return back(target, "No such streamer.")
+        if not library.available:
+            return back(target, "The library folder can't be found (is the drive connected?).")
+        folder = edited.folder(library, row)
+        if not _is_local(request):  # a phone can't open a folder on the computer
+            return back(target, f"On the computer, the folder is: {folder}")
+        try:
+            edited.open_in_file_manager(folder)
+        except OSError as exc:
+            return back(target, f"Couldn't open the folder ({exc}). It is: {folder}")
+        return back(target, f"Opened {folder.name}.")
 
     @app.get("/manifest.webmanifest")
     def manifest():
@@ -1006,6 +1068,14 @@ def _render(state: PanelState, home: Path, clip_id: str, layout: str | None) -> 
         log.error("panel render failed: %s", exc, extra=ctx(clip=clip_id, job="panel"))
     finally:
         state.rendering.discard(clip_id)
+
+
+def _watched_live() -> set[str]:
+    """Twitch user ids whose live chat is being watched right now (known before Twitch's
+    "who is live" answer, which is cached for 2 minutes)."""
+    from clipvault import activity
+
+    return {ch["user_id"] for ch in activity.snapshot()["live"]["channels"]}
 
 
 def _live_now(state: PanelState, user_ids: list[str]) -> dict[str, str]:

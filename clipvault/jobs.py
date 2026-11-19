@@ -698,11 +698,15 @@ def run_render(
     if refresh and limit and len(picked) < limit:
         room = limit - len(picked)
         picked += [(clip_id, layout, True) for clip_id, layout in clips_to_refresh(conn)[:room]]
+    marks = ", ".join("?" * len(picked))
+    logins = dict(conn.execute(
+        "SELECT c.id, s.login FROM clips c JOIN streamers s ON s.id = c.streamer_id "
+        f"WHERE c.id IN ({marks})", [p[0] for p in picked]))  # fmt: skip
     for clip_id, layout, again in picked:
         if lifecycle.stopping.is_set():
             break  # quitting: the rest waits for the next run
         try:
-            with activity.working(clip_id, "editing"):
+            with activity.working(clip_id, "editing", logins.get(clip_id, "")):
                 if again:
                     render(conn, config, clip_id, layout=layout)
                 else:

@@ -48,12 +48,13 @@ def register(
     """Add the live-view routes to the panel."""
 
     @app.get("/api/activity")
-    def api_activity(since: int = 0, after: str = "") -> dict[str, Any]:
+    def api_activity(since: int = 0, after: str = "", streamer: str = "") -> dict[str, Any]:
         current = config()
         c = conn()
         try:
             return payload(c, current, since=since, after=after, card=card,
-                           clip_rows=clip_rows, today=local_midnight(current))  # fmt: skip
+                           clip_rows=clip_rows, today=local_midnight(current),
+                           streamer=streamer or None)  # fmt: skip
         finally:
             c.close()
 
@@ -88,8 +89,10 @@ def payload(
     card: Callable[[sqlite3.Row], str],
     clip_rows: Callable[..., list[sqlite3.Row]],
     today: str,
+    streamer: str | None = None,
 ) -> dict[str, Any]:
-    """Everything the live view shows, as plain data."""
+    """Everything the live view shows, as plain data; only one streamer's when
+    ``streamer`` (a login) is given (the streamer page)."""
     from clipvault import jobs
     from clipvault.live import LIVE_MIN_SURGE, LIVE_SETTING
 
@@ -116,10 +119,17 @@ def payload(
     for item in snap["events"]:
         if item.get("login"):
             item["name"] = people.get(item["login"], {}).get("name", item["login"])
+    if streamer:
+        snap["live"]["channels"] = [ch for ch in snap["live"]["channels"]
+                                    if ch["login"] == streamer]  # fmt: skip
+        snap["work"] = [w for w in snap["work"] if w["login"] == streamer]
+        snap["events"] = [e for e in snap["events"] if e.get("login") == streamer]
 
-    pipeline, waiting = _pipeline(c, config, snap, paused=paused, heavy_ok=heavy_ok)
-    done, newest = _done(c, after, card, clip_rows)
-    snap["live"].update(on=alerts.get_setting(c, LIVE_SETTING) != "0", min_surge=LIVE_MIN_SURGE)
+    pipeline, waiting = _pipeline(c, config, snap, paused=paused, heavy_ok=heavy_ok,
+                                  streamer=streamer)  # fmt: skip
+    done, newest = _done(c, after, card, clip_rows, streamer)
+    snap["live"].update(on=alerts.get_setting(c, LIVE_SETTING) != "0", min_surge=LIVE_MIN_SURGE,
+                        streamer=streamer)  # fmt: skip
     return {
         **snap,
         "paused": paused,
@@ -143,7 +153,13 @@ def payload(
 
 
 def _pipeline(
-    c: sqlite3.Connection, config: cfg.Config, snap: dict, *, paused: bool, heavy_ok: bool
+    c: sqlite3.Connection,
+    config: cfg.Config,
+    snap: dict,
+    *,
+    paused: bool,
+    heavy_ok: bool,
+    streamer: str | None = None,
 ) -> tuple[list[dict], int]:
     """Clips on their way to a phone version, the most interesting first; and how many."""
     marks = ", ".join("?" * len(WAITING_STATES))
@@ -152,9 +168,13 @@ def _pipeline(
         "AND s.save_enabled = 1 AND (c.reject_reason IS NULL OR c.reject_reason = 'muted') "
         "AND NOT EXISTS (SELECT 1 FROM renders r WHERE r.clip_id = c.id AND r.path IS NOT NULL)"
     )
+    params: list[Any] = list(WAITING_STATES)
+    if streamer:
+        where += " AND s.login = ?"
+        params.append(streamer)
     total = c.execute(
         f"SELECT count(*) FROM clips c JOIN streamers s ON s.id = c.streamer_id WHERE {where}",
-        WAITING_STATES,
+        params,
     ).fetchone()[0]
     busy = {w["clip_id"]: w for w in snap["work"]}
     rows = c.execute(
@@ -164,7 +184,7 @@ def _pipeline(
         "ORDER BY c.id IN (SELECT value FROM json_each(?)) DESC, "
         "(c.source = 'live_spike') DESC, c.state IN ('transcribed', 'written') DESC, "
         "c.created_at DESC LIMIT ?",
-        (*WAITING_STATES, _json_list(busy), PIPELINE_SHOWN),
+        (*params, _json_list(busy), PIPELINE_SHOWN),
     ).fetchall()
     now = utc_now()
     items = []
@@ -215,15 +235,23 @@ def _done(
     after: str,
     card: Callable[[sqlite3.Row], str],
     clip_rows: Callable[..., list[sqlite3.Row]],
+    streamer: str | None = None,
 ) -> tuple[list[dict], str]:
     """Phone versions made after ``after`` (newest first), as card HTML."""
     if not after:
         return [], to_rfc3339(utc_now())
+    where = (
+        "c.removed_at IS NULL AND EXISTS (SELECT 1 FROM renders r WHERE r.clip_id = c.id "
+        "AND r.path IS NOT NULL AND r.created_at > ?)"
+    )
+    params: list[Any] = [after]
+    if streamer:
+        where += " AND s.login = ?"
+        params.append(streamer)
     rows = clip_rows(
         c,
-        "c.removed_at IS NULL AND EXISTS (SELECT 1 FROM renders r WHERE r.clip_id = c.id "
-        "AND r.path IS NOT NULL AND r.created_at > ?)",
-        [after],
+        where,
+        params,
         "render_at DESC",
         DONE_SHOWN,
     )

@@ -202,6 +202,12 @@ def step_worker(conn: sqlite3.Connection, config: cfg.Config, now: datetime) -> 
     if heavy:
         # Every new clip gets its phone version (the dashboard shows those), newest first.
         made = jobs.run_render(conn, config, limit=RENDER_BATCH)
+        # Phone versions made before the "Edited clips" folders existed (quick: links).
+        from clipvault.library import edited, storage
+
+        added = edited.sync(conn, config, storage.open_library(conn, config))
+        if added:
+            notes.append(f"{added} phone version(s) added to the Edited clips folders")
         if made.rendered or made.failed:
             notes.append(f"edited {made.rendered}, {made.failed} failed, {made.remaining} waiting")
         if made.refreshed:

@@ -54,7 +54,7 @@ clipvault/
   process/           # filter.py, music.py, transcribe.py, write.py
   render/            # layouts.py, facecam.py, ass.py, ffmpeg.py, qa.py, longform.py
   publish/           # base.py, uploadpost.py, blotato.py, queue.py, campaigns.py, stats.py
-  library/           # storage.py, retention.py
+  library/           # storage.py, retention.py, edited.py (the Edited clips folders)
   notify/            # ntfy.py
   web/               # routes/, templates/, static/
   jobs.py            # job definitions and state transitions
@@ -78,6 +78,7 @@ docs/
   SPEC.md
   BUILD_PLAN.md
   PROGRESS.md
+  WEB_VERSION_PLAN.md   # the browser version (plan only, not built)
 assets/fonts/        # Montserrat (OFL) and any other bundled fonts
 ```
 

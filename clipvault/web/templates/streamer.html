@@ -1,0 +1,55 @@
+{% extends "base.html" %}
+{% from "_macros.html" import clip_card %}
+{% set name = streamer.display_name or streamer.login %}
+{% block title %}{{ name }} · ClipVault{% endblock %}
+{% block contentclass %}tight streamer-page{% endblock %}
+{% block content %}
+<a class="back" href="/streamers">‹ Streamers</a>
+
+<header class="streamer-head">
+  {% if streamer.avatar_url %}<img class="avatar large" src="{{ streamer.avatar_url }}" alt="" width="64" height="64">
+  {% else %}<div class="avatar large c0" aria-hidden="true">{{ name[:1]|upper }}</div>{% endif %}
+  <div class="streamer-title">
+    <h1 class="page-title">{{ name }}{% if is_live %} <span class="live cv-live">LIVE</span>{% endif %}</h1>
+    <div class="subhead">{{ total }} edited clip{{ 's' if total != 1 }}</div>
+  </div>
+  <div class="actions">
+    <form method="post" action="/folders/open" class="inline">
+      <input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="streamer" value="{{ streamer.login }}">
+      <input type="hidden" name="next" value="/streamers/{{ streamer.login|urlpart }}">
+      <button class="btn"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round" aria-hidden="true"><path d="M3 6.5A1.5 1.5 0 0 1 4.5 5h4l2 2.5h9A1.5 1.5 0 0 1 21 9v9.5a1.5 1.5 0 0 1-1.5 1.5h-15A1.5 1.5 0 0 1 3 18.5z"/></svg>Edited Clips Folder</button>
+    </form>
+    <a class="btn" href="https://www.twitch.tv/{{ streamer.login|urlpart }}" target="_blank" rel="noopener">Watch on Twitch</a>
+    <a class="btn" href="/streamers#streamer-{{ streamer.id }}">Settings</a>
+  </div>
+</header>
+
+{% if live %}
+<section class="section" aria-labelledby="now-title">
+  <div class="section-head"><h2 id="now-title" class="section-title">{{ 'Live now' if is_live else 'Right now' }}</h2><span class="muted small" data-next></span></div>
+  <div class="card now-card" data-activity-now data-streamer="{{ streamer.login }}" data-name="{{ name }}" data-csrf="{{ csrf }}" aria-live="polite">
+    <div class="now-head">
+      <span class="now-orb" data-orb aria-hidden="true"><i></i></span>
+      <div class="now-text"><div class="now-title" data-now-title>{{ name }}</div><div class="muted" data-now-sub></div></div>
+      <div class="now-action" data-now-action></div>
+    </div>
+    <div class="live-rows" data-live-rows></div>
+    <ul class="feed" data-feed aria-label="What just happened"></ul>
+  </div>
+</section>
+{% endif %}
+
+<section class="section" aria-labelledby="clips-title">
+  <div class="section-head"><h2 id="clips-title" class="section-title">Edited clips</h2></div>
+  <div class="clip-grid" {% if live %}data-activity-grid data-loading="8" data-after="{{ live.after }}"{% endif %}>{% for clip in clips %}{{ clip_card(clip) }}{% endfor %}</div>
+  {% if not clips %}<p class="empty" data-empty>No edited clips of {{ name }} yet. New ones appear here as soon as their phone version is made{% if is_live %}; live moments start showing up a few minutes after chat goes wild{% endif %}.</p>{% endif %}
+  {% if pages > 1 %}
+  <nav class="pager" aria-label="Pages">
+    {% if page_no > 1 %}<a class="btn" href="/streamers/{{ streamer.login|urlpart }}?page={{ page_no - 1 }}">‹ Newer</a>{% else %}<span></span>{% endif %}
+    <span class="muted">Page {{ page_no }} of {{ pages }}</span>
+    {% if page_no < pages %}<a class="btn" href="/streamers/{{ streamer.login|urlpart }}?page={{ page_no + 1 }}">Older ›</a>{% else %}<span></span>{% endif %}
+  </nav>
+  {% endif %}
+</section>
+{% if live %}<script type="application/json" id="activity-initial">{{ live|tojson }}</script>{% endif %}
+{% endblock %}

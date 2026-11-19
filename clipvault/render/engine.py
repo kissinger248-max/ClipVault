@@ -293,6 +293,11 @@ def render_clip(
             "DELETE FROM renders WHERE clip_id = ? AND id != ? AND path = ?",
             (clip_id, render_id, relpath),
         )
+    # The finished phone version goes into its streamer's "Edited clips" folder and the
+    # all-streamers one (library/edited.py).
+    from clipvault.library import edited
+
+    edited.publish(conn, config, library, clip_id)
     log.info(
         "clip rendered",
         extra=ctx(
