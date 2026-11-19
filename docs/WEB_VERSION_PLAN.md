@@ -1,7 +1,9 @@
 # ClipVault Web: plan and feature list (draft for review)
 
-Status: **plan only, no code yet.** Written 2026-11-19 for the owner to review. Nothing
-here is built until the decisions in section 9 are made.
+Status: **plan only, no code yet.** Written 2026-11-19 for the owner to review.
+**Decided 2026-11-19:** the owner chose **path B**: the website downloads any public
+Twitch link itself (section 5), with the safeguards listed there. The other decisions in
+section 9 have proposed defaults; nothing paid is bought without the owner's OK.
 
 ## 1. What it is
 
@@ -32,9 +34,9 @@ works out what was typed:
 
 | Input | What happens |
 |---|---|
-| Twitch **clip** link | That clip becomes 1 edited clip, plus up to 4 more of the streamer's top clips from the same week ("more like this"). |
-| Twitch **VOD** link | The best 5 moments of that stream, found from chat activity and audio loudness (the app's `vod_spikes` scoring). |
-| Twitch **channel** link, or a **streamer name** | Search (official Twitch API), pick the streamer, and get their top 5 moments of the last 7 days. A LIVE badge shows when they're live, with "Clip live moments automatically → get the app". |
+| Twitch **clip** link | That clip becomes 1 edited clip, plus up to 4 more of the streamer's top clips from the same week ("more like this"). Works for any streamer. |
+| Twitch **VOD** link | The best 5 moments of that stream, found from chat activity and audio loudness (the app's `vod_spikes` scoring). Only those moments are downloaded, never the whole stream. |
+| Twitch **channel** link, or a **streamer name** | Search (official Twitch API), pick the streamer, and get their top 5 clips of the last 7 days as finished vertical clips. A LIVE badge shows when they're live, with "Clip live moments automatically → get the app". |
 | **Uploaded video** (mp4/mov/mkv/webm, up to 60 min / 2 GB) | The best 5 moments, found from audio loudness, laughter and what is said (the transcript). |
 | **Sign in with Twitch** (optional) | "My channel": your own recent streams and clips, downloaded the official way. |
 
@@ -88,51 +90,56 @@ Rules: **one nudge per screen**, always honest, never blocking a download that's
    the limit resets.
 6. **After a download:** a small toast. "Tip: the app saves every clip into a folder per
    streamer."
-7. **"Open in the app"** (later, phase 4): if the app is installed, the streamer can be
+7. **"Open in the app"** (later, W5): if the app is installed, the streamer can be
    added to it in one click (a `clipvault://add?streamer=xqc` link the app registers).
 
 Measured per nudge: shown, clicked, installer downloaded (see 7.4).
 
-## 5. Twitch rules: what the web version may download
+## 5. Twitch downloads: path B (decided 2026-11-19)
 
-This decides the whole design. The desktop app's hard rule 3 says unofficial downloaders
-(yt-dlp) are **only for the private archive** on the user's own computer, and SPEC.md notes
-that "Twitch's terms restrict downloading and automated extraction except where Twitch
-permits it". A website that downloads any streamer's video for anyone who asks is not a
-private archive. It is the case those terms are written for, and it is a much bigger target
-for takedowns and for Twitch revoking the API key.
+**The decision.** The website downloads any public Twitch clip, or moments of a public VOD,
+on its own server with yt-dlp, for whoever pastes the link. The owner chose this over
+"official and owned sources only" (path A) and "Twitch clips only" (path C) on 2026-11-19.
 
-Three ways to handle it:
+**What it changes.** Hard rule 3 allowed unofficial downloads only for the private archive.
+It now also allows them for the web version's one-off runs, with the safeguards below
+(CLAUDE.md is updated to match). SPEC.md notes that "Twitch's terms restrict downloading
+and automated extraction except where Twitch permits it". This path accepts that risk. The
+risk is a takedown, or Twitch blocking the website's API key or its server. The
+safeguards keep that risk small and make sure it can never reach the desktop app.
 
-**A. Official and owned sources only (recommended for launch)**
-- **Generate** from: uploaded videos (the uploader confirms they have the rights), the
-  signed-in streamer's own channel (official Get Clips Download), and streamers who
-  authorized ClipVault on Twitch.
-- **Find but don't download** for everyone else: search and paste-a-link still work.
-  Discovery uses the official Helix API, and the top 5 moments show as Twitch embeds with
-  their suggested headlines. Then: "Make these 5 into vertical clips in the free app." The
-  app downloads them on the user's own computer, which is the private-archive case the
-  app already handles.
-- Upside: no legal grey zone, the API key is safe, and the strongest nudge to the app is
-  built in.
-- Downside: a clipper pasting someone else's link doesn't get finished files in the
-  browser.
+**Safeguards (all required before launch):**
 
-**B. Download any public Twitch link on the server (what the request describes literally)**
-- Highest wow factor and conversion.
-- Goes against hard rule 3 and the SPEC note above, so it needs the owner's explicit
-  decision (hard rule 11: changing a hard rule).
-- If chosen: a separate Twitch app and API key for the website, so a ban can't take the
-  desktop app down with it; files kept 24 h at most and only for the requester; a public
-  streamer opt-out list; a DMCA contact and takedown process; and a check of Twitch's
-  current Developer Agreement first (hard rule 10). Getting legal advice is worth it.
+1. **Its own Twitch key.** The website uses a separate Twitch developer app (its own
+   client id and secret). The desktop app's keys are never used on the server, so if
+   Twitch blocks the website, the app keeps working. The owner creates that Twitch app.
+2. **Only the moments.** Clip files, or `--download-sections` cuts of a VOD (at most
+   5 × 60 s per run), never a whole stream, and nothing behind a login: no cookies, no
+   subscriber-only or deleted videos.
+3. **Private and short-lived.** Results are reachable only through the requester's
+   unguessable link, marked `noindex`, never listed in a public gallery, and deleted
+   after 24 h. Source downloads are deleted as soon as the clips are made.
+4. **Streamer opt-out.** A page where a streamer signs in with Twitch and blocks their
+   channel; blocked channels are refused at the input box, with a polite message. Opt-outs
+   are honoured immediately and kept forever.
+5. **Takedowns.** A takedown/DMCA contact on every result page and in the terms, answered
+   within 24 h, with a log of requests and a repeat-abuser block.
+6. **Kill switch.** One server setting turns server-side Twitch downloads off at once.
+   Twitch links then fall back to path A: the top 5 moments as Twitch embeds, plus "make
+   these in the free app". It's for a warning from Twitch, a takedown wave, or a broken
+   downloader.
+7. **Check the rules before building it.** Before the Twitch milestone (W3), read Twitch's
+   current Terms of Service and Developer Agreement and the yt-dlp project notes, and
+   write down what they say in PROGRESS.md (hard rule 10). Legal advice before the public
+   launch is strongly recommended.
+8. **No posting, ever.** The website never posts anything anywhere. Files are only
+   downloaded by the person who asked (hard rule 1 still holds for the app).
+9. **Keep the downloader healthy.** yt-dlp is updated daily on the server. Repeated
+   failures raise an alert and switch to the fallback above, instead of failing every run.
 
-**C. Middle ground:** like A, plus server downloads of **Twitch clips only** (short,
-already public, made by viewers), never VODs, with the same safeguards as B. It is still an
-unofficial download, so the same decision applies.
-
-The rest of this plan works with A, and B or C can be added later as a switch, without a
-redesign.
+**Why this still sells the app:** the website gives 5 clips from one link; the app
+watches streamers all day, catches live moments and keeps every clip. The nudges in
+section 4 do that job.
 
 ## 6. How a run works
 
@@ -151,7 +158,9 @@ browser ──► web API ──► job queue ──► worker (FFmpeg, the clip
    - Uploads: loudness, laughter (the audio tagger) and transcript keywords, plus an
      optional AI pick of the 5 best stretches. **New code**: the app always has chat or
      view counts; an upload has neither.
-3. **Fetch:** only the moments, never the whole VOD (as in the app: `--download-sections`).
+3. **Fetch:** yt-dlp on the server, with the website's own Twitch key for lookups, and
+   only the moments, never the whole VOD (as in the app: `--download-sections`). The
+   opt-out list is checked first, and the kill switch is honoured (section 5).
 4. **Subtitles:** Groq Whisper on each moment's audio only, so 5 × about 45 s, not the
    whole stream.
 5. **Phone versions:** the app's `render/` pipeline and QA, run unchanged. 5 clips run side
@@ -162,13 +171,14 @@ Each step records its state, so a worker crash resumes the run instead of starti
 (hard rule 7), as in the app.
 
 **Expected time per run:** 2–4 minutes (fetching 30 s, subtitles 15 s, rendering about
-1–2 min on 8 cores). It needs to be measured in phase 1.
+1–2 min on 8 cores). It needs to be measured in W1.
 
 ## 7. Technical choices
 
 ### 7.1 Reuse, don't fork
 The web worker imports the existing `clipvault` package: `render/`, `process/headlines.py`,
-`process/transcribe.py`, `process/hook_emoji.py`, `discover/vod_spikes.py`, `twitch/api.py`.
+`process/transcribe.py`, `process/hook_emoji.py`, `discover/vod_spikes.py`, `twitch/api.py`,
+`fetch/ytdlp.py`.
 New code lives in a separate `web/` service folder, so the desktop app never ships it, and
 fixes to the pipeline reach both automatically.
 
@@ -220,19 +230,26 @@ Prices change, so check them before deciding.
 | AI headlines (optional) | better hooks | small; the built-in writer works without it |
 | Domain (optional) | a nicer address than the Vercel one | yearly |
 | Cloudflare Turnstile, analytics | abuse protection, measuring | free tiers |
+| The website's own Twitch developer app | lookups and search (section 5) | free |
 
 The biggest cost is **CPU time for rendering**. One 8-core server should manage roughly
-20–40 runs an hour. That needs measuring in phase 1 before any promotion.
+20–40 runs an hour. That needs measuring in W1 before any promotion.
 
-## 9. Decisions needed from the owner
+## 9. Decisions
 
-1. **Which Twitch path:** A (recommended), B or C from section 5.
-2. **Monthly budget**, and approval of each paid service in section 8.
-3. **Where it lives:** a `/try` page on the current download site, or its own domain.
-4. **Watermark:** a small "Made with ClipVault" in the corner (inside the safe box), or
-   none.
-5. **Free limits:** 3 runs a day and 5 clips per run, or other numbers.
-6. **Accounts:** none, Twitch sign-in only (recommended), or email too.
+1. **Which Twitch path:** **decided: B** (2026-11-19), with the section 5 safeguards.
+2. **Monthly budget**, and approval of each paid service in section 8. *Still needed
+   before anything is bought or deployed.* Building and testing on this computer needs no
+   paid service.
+3. **Where it lives:** proposed: a `/try` page on the current download site, with the
+   workers on one small server.
+4. **Watermark:** proposed: a small "Made with ClipVault" in a corner, inside the safe
+   box.
+5. **Free limits:** proposed: 3 runs a day without an account, 5 with Twitch sign-in,
+   about 5 clips per run.
+6. **Accounts:** proposed: none needed; optional Twitch sign-in.
+
+Items 3–6 go ahead with the proposals unless the owner says otherwise.
 
 ## 10. Build order (after the decisions)
 
@@ -248,26 +265,37 @@ Loading cards, the working-screen card, the "+N more moments" card, the daily-li
 analytics events.
 Done when: every screen shows at most one nudge, and events arrive for a test run.
 
-**W3. Streamer search and links (path A).**
-Search Channels, paste clip, VOD and channel links, top 5 moments as embeds, "make them in
-the app", and Sign in with Twitch → "My channel" with official downloads.
-Done when: pasting any Twitch link gives the right top 5; your own channel gives finished
-clips; no unofficial download runs on the server (a test checks this).
+**W3. Twitch links and streamer search (path B).**
+Starts with the rules check in section 5 (item 7), written down in PROGRESS.md. Then:
+- Search Channels, and clip, VOD and channel links, all with the website's own Twitch key;
+- server downloads of only the moments (yt-dlp, with daily updates);
+- the streamer opt-out page, the takedown contact and the kill switch with its path A
+  fallback;
+- Sign in with Twitch → "My channel".
+
+Done when:
+- pasting any public Twitch clip, VOD or channel link gives about 5 finished clips;
+- an opted-out channel is refused;
+- with the kill switch on, the same link shows embeds and "make them in the app", and
+  nothing is downloaded (tests check all three);
+- no request ever uses the desktop app's keys.
 
 **W4. Hardening and launch.**
 CAPTCHA, limits, queue cap, takedown link, privacy and terms text, load test, a
 "busy" page.
 Done when: a 50-run load test finishes without errors, and limits and the busy page work.
 
-**W5 (only if B or C is chosen). Server-side Twitch downloads** behind a switch, with the
-separate API key, opt-out list and takedown process.
-
-**W6 (later). "Open in the app"** links that add a streamer to the installed app, and a
+**W5 (later). "Open in the app"** links that add a streamer to the installed app, and a
 "made N clips on the web" welcome in the app.
 
 ## 11. Risks
 
-- **Twitch terms and API access** (section 5): the main risk. Path A avoids it.
+- **Twitch terms and API access** (section 5): the main risk, accepted with path B. Its
+  own Twitch key keeps the desktop app safe. The opt-out, takedowns and 24 h deletion keep
+  complaints small, and the kill switch turns server downloads off in one step if Twitch
+  objects.
+- **The downloader breaking:** Twitch changes often. Daily yt-dlp updates, plus the
+  fallback to embeds.
 - **Cost from popularity:** rendering is CPU-heavy. The daily limits, queue cap and busy page
   keep the bill flat.
 - **Upload moment-finding quality:** without chat, picking the 5 best moments is harder.

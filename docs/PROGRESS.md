@@ -941,3 +941,6 @@ Not pushed or tagged: the owner asked to hold everything until they say so.
 **Open issues**
 - The first run after updating adds up to 200 older phone versions per worker round until all are in (about 430 today); hard links make it fast and take no space.
 - The page's "N edited clips" count updates on reload, not live.
+
+**Decision (later the same day)**
+- The owner chose path B for the web version: the website downloads any public Twitch link itself. `docs/WEB_VERSION_PLAN.md` now lists the required safeguards (section 5) and the build order W1–W5, and hard rule 3 in CLAUDE.md says so. Still open: the budget and each paid service (hard rule 11). Proposed defaults for the site, watermark, limits and accounts are in section 9. No web code has been written yet.
