@@ -1,6 +1,10 @@
 # Muse, posting to TikTok and YouTube, and CapCut: plan (draft for review)
 
-Status: **plan only, no code.** Written 2026-11-19 for the owner to review. The request was:
+Status: **plan only, no code.** Written 2026-11-19 for the owner to review.
+**Decided 2026-11-19:** posting route **(b)**: keep the official-API uploaders and apply for
+TikTok's and Google's audits (`docs/POSTING_AUDITS.md`); hard rule 2 was changed to match.
+M1 (Upload-Post adapter) is dropped. The Muse connector (M2) and CapCut (M3) still wait for
+decisions 2 and 3. The request was:
 "incorporate Muse to log into accounts and run uploading to TikTok/YouTube, and also editing
 with CapCut if needed." Nothing is built until the decisions in section 7 are made.
 

@@ -837,3 +837,40 @@ def test_settings_route_respaces_the_queue(client, home, monkeypatch):
     due = [r[0] for r in c.execute("SELECT not_before FROM upload_jobs ORDER BY id")]
     c.close()
     assert abs((due[1] - due[0]) - 300) < 1
+
+
+def test_tiktok_drafts_stay_under_five_waiting_a_day(env, monkeypatch):
+    """TikTok's Upload API holds at most 5 pending drafts per 24 h (docs checked 2026-11-19)."""
+    c, s, _ = env
+    connect_account(c, s)
+    for p in ("youtube", "instagram"):
+        store.set_setting(c, f"enabled_{p}", "0")
+    store.set_setting(c, "dry_run", "0")
+    store.set_setting(c, "jitter_minutes", "0")
+    store.set_setting(c, "min_gap_minutes", "5")
+    store.set_setting(c, "daily_max", "50")
+    now = 1_800_000_000.0  # early in a UTC day: six 5-minute slots fit easily
+    for i in range(6):
+        lib = make_clip(env, monkeypatch, f"d{i}")
+        uploads.enqueue(c, lib, f"d{i}", now)
+    due = [r[0] for r in c.execute("SELECT not_before FROM upload_jobs ORDER BY id")]
+    same_day = [t for t in due if t - due[0] < 86400 and int(t // 86400) == int(due[0] // 86400)]
+    assert len(same_day) == 5 and due[5] > max(due[:5])  # the sixth waits for the next day
+    store.set_setting(c, "tiktok_mode", "direct")  # Direct Post has no such cap
+    lib = make_clip(env, monkeypatch, "d6")
+    uploads.enqueue(c, lib, "d6", now)
+
+
+def test_tiktok_too_many_pending_drafts_waits_a_day(tmp_path):
+    v = tmp_path / "s.mp4"
+    v.write_bytes(b"0" * 100)
+    clip = ClipFile("c", v, 20)
+    caption = {"per_platform": {"tiktok": "hi"}}
+
+    def responder(m, u, k):
+        return resp({"error": {"code": tiktok.TOO_MANY_PENDING, "message": "x"}}, 403)
+
+    with pytest.raises(UploadError) as e:
+        tiktok.TikTok().upload(clip, caption, {}, "t", {"tiktok_mode": "drafts"},
+                               http=FakeHTTP(responder), sleep=lambda s: None)  # fmt: skip
+    assert e.value.code == "quota" and "5 drafts" in str(e.value)

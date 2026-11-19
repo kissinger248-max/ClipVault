@@ -23,11 +23,15 @@ Posting → **Connected Accounts** → Connect. You sign in on the platform's ow
 Add up to ~5 accounts per platform. Instagram accounts must be Business or Creator. While an app is unapproved, add each of your
 accounts as a test user (TikTok: Target User; Google: Test user; Meta: Instagram tester).
 
-## 3. The audits (why posts may be private at first)
-- **TikTok:** an unaudited app can only post privately. Keep **Drafts mode** (default): the clip lands in your TikTok inbox and you tap Post.
-  To get Direct Post, submit the app for review in the TikTok developer portal (demo video, explanation of the use case) and wait for approval.
-- **YouTube:** uploads from an unverified Google project are locked to private. Apply via the YouTube API Services audit form, then set privacy to public.
-  Default quota is 10,000 units/day, about 6 uploads (each costs 1,600).
+## 3. The audits (what's needed, checked 2026-11-19)
+Full details: `docs/POSTING_AUDITS.md`.
+- **TikTok:** keep **Drafts mode** (default): the clip lands in your TikTok inbox and you tap Post. No audit is needed for your
+  own accounts (add them as Target Users while the app is in Sandbox). TikTok holds at most 5 waiting drafts per account per
+  day, so ClipVault never schedules more than 5 a day there. Don't apply for Direct Post: TikTok's guidelines exclude tools
+  that repost content from other platforms or post only to your own accounts.
+- **YouTube:** Google's current docs say uploads from unverified projects are *not* locked to private any more, and uploads
+  have their own quota of 100 a day per project. Upload one Short as private, check it, then switch privacy to public.
+  Use a Personal-mode or "In production" OAuth app: apps left in Testing get sign-ins that expire after 7 days.
 - **Instagram:** works for your own testers right away; to use it on accounts you don't own, Meta app review is needed. 25 posts per 24 h per account.
 
 ## 4. Safety defaults

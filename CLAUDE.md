@@ -11,7 +11,7 @@ A personal program that watches a list of Twitch streamers, finds their best mom
 ## Hard rules (never break these)
 
 1. **Posting is gated per streamer.** A post can only be created when the streamer has `post_enabled = true` AND `permission_type` is `campaign` or `written` with a non-empty `permission_ref`. Enforce this in the publish code path itself, not only in the UI. Add a test for it.
-2. **Post only through the posting-service adapter** (Upload-Post first, Blotato as an alternative). Never use browser automation, scraped endpoints, or unofficial TikTok or YouTube upload libraries.
+2. **Post only through the platforms' own official APIs** (TikTok Content Posting API, YouTube Data API, Instagram Graph API; `clipvault/posting/`), with accounts connected by OAuth so ClipVault never handles their passwords. The owner chose this over a posting service on 2026-11-19 (`docs/MUSE_POSTING_PLAN.md`); public posts wait for each platform's app audit. Never use browser automation (including an AI assistant driving a browser), scraped endpoints, or unofficial TikTok or YouTube upload libraries.
 3. **Twitch discovery uses the official Helix API.** Official downloads (Get Clips Download) are used for streamers who authorized the app. Unofficial downloaders (yt-dlp, TwitchDownloaderCLI) are allowed only for the private archive and, by the owner's decision of 2026-11-19, for the web version's one-off runs with every safeguard in `docs/WEB_VERSION_PLAN.md` section 5 (its own Twitch key, moments only, 24 h deletion, streamer opt-out, takedowns, kill switch). Files obtained that way are never posted unless the streamer is permissioned.
 4. **Shorts are 15–59 seconds.** YouTube blocks Shorts over 1 minute that carry any Content ID claim.
 5. **All burned-in text stays inside the safe box** x 150–930, y 270–1340 on the 1080×1920 frame. QA must check this.
@@ -80,7 +80,8 @@ docs/
   BUILD_PLAN.md
   PROGRESS.md
   WEB_VERSION_PLAN.md   # the browser version (W1-W4 built locally)
-  MUSE_POSTING_PLAN.md  # Muse, posting and CapCut (plan only, not built)
+  MUSE_POSTING_PLAN.md  # Muse, posting and CapCut (posting route decided: official APIs)
+  POSTING_AUDITS.md     # what TikTok, YouTube and Instagram need for public posts
 assets/fonts/        # Montserrat (OFL) and any other bundled fonts
 ```
 

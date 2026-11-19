@@ -13,7 +13,7 @@ DEFAULTS = {
     "youtube_privacy": "private",   # private | unlisted | public
     "enabled_tiktok": "1", "enabled_youtube": "1", "enabled_instagram": "1",
     "min_gap_minutes": "120", "jitter_minutes": "20", "daily_max": "4", "cross_account_gap_minutes": "10",
-    "youtube_daily_quota": "10000",
+    "youtube_daily_quota": "10000",  # no longer used: uploads have their own bucket of 100 a day
 }
 
 

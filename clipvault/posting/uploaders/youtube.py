@@ -11,9 +11,16 @@ from clipvault.posting.uploaders.base import ClipFile, Result, UploadError, Uplo
 UPLOAD = "https://www.googleapis.com/upload/youtube/v3/videos"
 API = "https://www.googleapis.com/youtube/v3"
 MAX_SECONDS = 180
-INSERT_COST = 1600           # quota units per videos.insert
-LOCKED = ("YouTube kept this upload private. Projects that haven't passed Google's API audit can only upload private "
-          "videos. Apply for the audit (see SETUP_UPLOADS.md), then switch privacy to public.")
+# videos.insert, docs checked 2026-11-19: 1 unit from its own "Video Uploads" bucket, 100 calls a
+# day per project, and "Videos uploaded from unverified API projects are not restricted to
+# private viewing mode" (older docs said 1,600 units and a private lock until an audit).
+UPLOADS_PER_DAY = 100
+LOCKED = (
+    "YouTube kept this upload private although public was asked for. Google's current rules "
+    "don't lock unverified projects to private, so check the channel in YouTube Studio "
+    "(verified phone number, no strikes or restrictions) and the privacy setting in "
+    "Posting → Settings."
+)
 
 
 def validate(clip: ClipFile) -> None:

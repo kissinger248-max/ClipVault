@@ -15,6 +15,10 @@ from clipvault.posting.uploaders.base import ClipFile, Result, UploadError, Uplo
 API = "https://open.tiktokapis.com/v2/post/publish"
 CHUNK = 10 * 1024 * 1024
 UNAUDITED = "unaudited_client_can_only_post_to_private_accounts"
+# TikTok's Upload (drafts) API: "at most 5 pending shares within any 24-hour period" per
+# account (docs checked 2026-11-19); the queue keeps under it, and this error waits a day.
+TOO_MANY_PENDING = "spam_risk_too_many_pending_share"
+PENDING_PER_DAY = 5
 WHY_PRIVATE = ("TikTok hasn't audited this app yet, so direct posts can only be private. "
                "Switch TikTok to Drafts mode in settings (the clip lands in your inbox and you tap Post), "
                "or apply for the Content Posting API audit (see SETUP_UPLOADS.md).")
@@ -35,6 +39,9 @@ def _check(r: requests.Response, what: str) -> dict:
             raise UploadError(f"TikTok {what}: this connection doesn't have the permission needed for that step. "
                               "Drafts need only video.upload; reconnect TikTok on Connected Accounts and approve it.",
                               "permanent")
+        if code == TOO_MANY_PENDING:
+            raise UploadError("TikTok allows 5 drafts waiting in your inbox per day, so this one "
+                              "goes tomorrow. Posting or deleting drafts frees room.", "quota")
         if code in ("rate_limit_exceeded", "internal_error", "spam_risk_too_many_posts"):
             raise UploadError(f"TikTok {what}: {code} {msg}", "temporary")
         raise UploadError(f"TikTok {what}: {code} {msg}", "permanent")
@@ -50,6 +57,7 @@ def chunk_plan(size: int) -> tuple[int, int]:
 
 class TikTok(Uploader):
     platform = "tiktok"
+    PENDING_PER_DAY = PENDING_PER_DAY
 
     def upload(self, clip, caption, account, token, settings, *, dry_run=False, http=requests, sleep=time.sleep) -> Result:
         hdr = {"Authorization": f"Bearer {token}", "Content-Type": "application/json; charset=UTF-8"}

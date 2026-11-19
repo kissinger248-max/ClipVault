@@ -146,7 +146,11 @@ def next_slot(c: sqlite3.Connection, account_id: int, clip_id: str, now: float, 
     start = datetime(day.year, day.month, day.day, tzinfo=timezone.utc).timestamp()
     done = c.execute("SELECT COUNT(*) n FROM upload_jobs WHERE account_id=? AND dry_run=0 AND state IN ('queued','posted','drafted')"
                      " AND not_before>=? AND not_before<?", (account_id, start, start + 86400)).fetchone()["n"]
-    if done >= int(st["daily_max"]):
+    cap = int(st["daily_max"])
+    account = c.execute("SELECT platform FROM social_accounts WHERE id=?", (account_id,)).fetchone()
+    if account and account["platform"] == "tiktok" and st.get("tiktok_mode", "drafts") == "drafts":
+        cap = min(cap, TikTok.PENDING_PER_DAY)  # TikTok holds at most 5 waiting drafts a day
+    if done >= cap:
         t = _tomorrow(t)
     return t
 

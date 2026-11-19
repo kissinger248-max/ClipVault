@@ -24,7 +24,10 @@ PLATFORMS: dict[str, dict] = {
             "Under Login Kit (Desktop) paste the redirect URI shown here (a localhost address with a port; the port must match). If TikTok refuses http://localhost, see SETUP_UPLOADS.md (HTTPS tunnel).",
             "Add each of your TikTok accounts as a Target User while the app is in sandbox.",
             "Copy the Client Key and Client Secret into the boxes here.",
-            "Until TikTok audits the app, posts can only be private. Use Drafts mode (default) so each clip lands in your TikTok inbox.",
+            "Use Drafts mode (default): each clip lands in your TikTok inbox and you tap Post. "
+            "No audit is needed for your own accounts; TikTok keeps at most 5 waiting drafts "
+            "per account a day. Direct Post needs TikTok's audit, which doesn't accept "
+            "reposting tools (see docs/POSTING_AUDITS.md).",
         ]},
     "youtube": {
         "label": "YouTube / Google", "fields": [("client_id", "OAuth Client ID"), ("client_secret", "Client Secret")],
@@ -35,11 +38,15 @@ PLATFORMS: dict[str, dict] = {
         "guide": [
             "Go to console.cloud.google.com and create a project (e.g. ClipWave).",
             "APIs & Services → Library → enable “YouTube Data API v3”.",
-            "OAuth consent screen: External, add yourself and your other channels’ Google accounts as Test users.",
+            "OAuth consent screen: Personal mode if Google offers it, otherwise External "
+            "with your channels’ Google accounts as Test users. Publish it (“In production”) "
+            "when it works: sign-ins of apps left in Testing expire after 7 days.",
             "Credentials → Create credentials → OAuth client ID → type “Web application”.",
             "Add the redirect URI shown here under Authorized redirect URIs.",
             "Copy the Client ID and Client Secret into the boxes here.",
-            "Unverified projects upload as private. Apply for the YouTube API audit to allow public uploads (see SETUP_UPLOADS.md).",
+            "Google no longer locks unverified projects to private (checked 2026-11-19); "
+            "uploads have their own quota of 100 a day. Upload one Short as private, check "
+            "it, then switch privacy to public in Settings.",
         ]},
     "instagram": {
         "label": "Instagram / Meta", "fields": [("app_id", "Instagram App ID"), ("app_secret", "Instagram App Secret")],

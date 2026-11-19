@@ -1032,3 +1032,22 @@ Recommended:
 - an Upload-Post adapter behind the existing queue (paid: needs the owner's OK);
 - an opt-in, approve-and-pause-only ClipVault connector for Muse (posting always through ClipVault's permission gate);
 - CapCut-style effects built into the renderer, plus a manual "Send to CapCut" package.
+
+## Decision: post through the official APIs (2026-11-19, local only)
+
+The owner chose route (b) of `docs/MUSE_POSTING_PLAN.md`: keep the 0.6.0 official-API uploaders, no posting service. Hard rule 2 in CLAUDE.md now says so (browser automation, including an AI assistant driving a browser, stays banned). SPEC §12.1 carries a note.
+
+**Docs checked today (hard rule 10), and where they disagreed with what was written before:**
+- TikTok Content Sharing Guidelines: Direct Post is for authentic creators' original content, not tools that copy content from other platforms or post only to accounts you manage, and every post needs manual privacy/interaction/disclosure choices. So ClipVault keeps Drafts mode and doesn't apply for the Direct Post audit.
+- TikTok Upload (drafts) API: at most 5 pending shares per 24 h per account, 6 requests a minute.
+- YouTube `videos.insert` now says uploads from unverified API projects are NOT restricted to private, and an upload costs 1 unit from a separate bucket of 100 calls a day. SETUP_UPLOADS.md and the code said "locked to private until an audit" and "1,600 of 10,000 units".
+- Google: unverified apps are capped at 100 users with a warning screen; "Personal mode" apps for your own account need no verification. The 7-day refresh-token expiry for apps in Testing was not re-confirmed today.
+
+**Changed:**
+- TikTok drafts are capped at 5 per account per day in the queue, whatever the daily maximum says.
+- TikTok's `spam_risk_too_many_pending_share` now waits a day ("quota") instead of going to Post manually.
+- YouTube constants and the "kept private" message follow the current docs.
+- The in-app setup steps and SETUP_UPLOADS.md section 3 are corrected; new `docs/POSTING_AUDITS.md`.
+- Two tests (the cap test fails on the old queue code). Full suite 600 passed; ruff 515 (below the 519 baseline: some long lines rewrapped).
+
+**Still the owner's:** creating the TikTok and Google apps, connecting accounts, and confirming the first public post of each account (hard rule 11).

@@ -218,6 +218,12 @@ Style values live in a per-account template (YAML) so the look changes without c
 
 ### 12.1 Posting service
 
+> **Changed 2026-11-19 (owner's decision):** ClipVault posts through the platforms' own official
+> APIs (`clipvault/posting/`, built in 0.6.0), not through Upload-Post or Blotato. Unaudited
+> apps post privately, so public posting starts when TikTok's Content Posting audit and
+> Google's verification pass (`docs/POSTING_AUDITS.md`). The Upload-Post notes below are kept
+> for reference only.
+
 - Upload-Post (primary). Docs: https://docs.upload-post.com. Upload endpoint `POST https://api.upload-post.com/api/upload` with `platform[]=tiktok` / `youtube`.
 - Accounts are connected through Upload-Post's hosted connect link (`POST /api/uploadposts/users/generate-jwt`), so the app never handles TikTok or YouTube passwords.
 - TikTok: before each post, read the account's allowed privacy levels (`GET /api/uploadposts/tiktok/settings` → `privacy_level_options`) and send one of them. Use direct-post mode, not draft/inbox mode (drafts need a manual publish in the app). Set the commercial-content/disclosure flags for campaign clips. Check the docs for exact field names.
