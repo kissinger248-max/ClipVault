@@ -265,7 +265,7 @@ Loading cards, the working-screen card, the "+N more moments" card, the daily-li
 analytics events.
 Done when: every screen shows at most one nudge, and events arrive for a test run.
 
-**W3. Twitch links and streamer search (path B).**
+**W3. Twitch links and streamer search (path B).** ✅ built 2026-11-19 (local only; server downloads of other channels OFF by default, see PROGRESS.md rules check)
 Starts with the rules check in section 5 (item 7), written down in PROGRESS.md. Then:
 - Search Channels, and clip, VOD and channel links, all with the website's own Twitch key;
 - server downloads of only the moments (yt-dlp, with daily updates);

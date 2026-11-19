@@ -1,0 +1,26 @@
+{% extends "base.html" %}
+{% block title %}My channel · ClipVault{% endblock %}
+{% block meta %}<meta name="robots" content="noindex">{% endblock %}
+{% block mainclass %}page{% endblock %}
+{% block content %}
+<section class="hero">
+  <h1>Clips from <em>your own channel</em></h1>
+  <p class="lede">Sign in with Twitch and we'll make vertical clips from your best clips of the last week, downloaded the official way through Twitch. Your sign-in is only used for this and is forgotten when your clips are made.</p>
+</section>
+<div class="card panel">
+  {% if not enabled %}
+    <p>Twitch sign-in isn't switched on here yet.</p>
+  {% elif session and session.can_download %}
+    <p>Signed in as <b>{{ session.name }}</b>.</p>
+    <button class="pill primary big" id="mine-go" data-form="{{ csrf }}" type="button">Make clips from my channel</button>
+    {% if settings.turnstile_site_key %}<div class="cf-turnstile" data-sitekey="{{ settings.turnstile_site_key }}" data-callback="cvHuman" data-theme="dark"></div>{% endif %}
+    <p class="error" id="error" role="alert" hidden></p>
+    <form method="post" action="/auth/logout" class="inline-form"><input type="hidden" name="csrf" value="{{ csrf }}"><button class="linkish" type="submit">Sign out</button></form>
+  {% else %}
+    {% if session %}<p>Signed in as <b>{{ session.name }}</b>, but to download your clips Twitch needs your OK once more.</p>{% endif %}
+    <a class="pill primary big" href="/auth/twitch?for=mine">Sign in with Twitch</a>
+    <p class="small">Twitch will ask to let ClipVault "manage clips": that's what allows the official download of your clips. We never create, edit or delete any.</p>
+  {% endif %}
+</div>
+{% endblock %}
+{% block scripts %}{% if settings.turnstile_site_key %}<script src="https://challenges.cloudflare.com/turnstile/v0/api.js" async defer></script>{% endif %}<script src="/static/web.js" defer></script>{% endblock %}

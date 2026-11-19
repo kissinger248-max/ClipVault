@@ -1,0 +1,30 @@
+{% extends "base.html" %}
+{% block title %}Report a problem · ClipVault{% endblock %}
+{% block meta %}<meta name="robots" content="noindex">{% endblock %}
+{% block mainclass %}page{% endblock %}
+{% block content %}
+<section class="hero">
+  <h1>Report a <em>problem</em></h1>
+  {% if sent %}
+  <p class="lede">Thank you. A person reads every report within 24 hours, and clips that break the rules are deleted.</p>
+  <p><a class="pill primary big" href="/">Back to ClipVault</a></p>
+  {% else %}
+  <p class="lede">Takedown requests and anything else that's wrong. A person reads every report within 24 hours{% if settings.contact_email %}; you can also email <a href="mailto:{{ settings.contact_email }}">{{ settings.contact_email }}</a>{% endif %}.</p>
+  {% endif %}
+</section>
+{% if not sent %}
+<form class="card panel" method="post" action="/report">
+  <label class="field"><span>Link to the clips <i>(the page address)</i></span>
+    <input name="run" type="text" value="{{ run_id }}" placeholder="the code at the end of the link" maxlength="60"></label>
+  <fieldset class="reasons">
+    <legend>What's wrong?</legend>
+    {% for key, label in reasons.items() %}
+    <label class="check"><input type="radio" name="reason" value="{{ key }}" {{ 'checked' if loop.first }}><span>{{ label }}</span></label>
+    {% endfor %}
+  </fieldset>
+  <label class="field"><span>Details</span><textarea name="details" rows="4" maxlength="4000" placeholder="Who you are, what should be removed and why"></textarea></label>
+  <label class="field"><span>How to reach you <i>Optional</i></span><input name="contact" type="text" maxlength="200" placeholder="email"></label>
+  <button class="pill primary big" type="submit">Send report</button>
+</form>
+{% endif %}
+{% endblock %}

@@ -1,42 +1,61 @@
 {% extends "base.html" %}
 {% block mainclass %}try{% endblock %}
+{% block meta %}{% if settings.turnstile_site_key %}<script src="https://challenges.cloudflare.com/turnstile/v0/api.js" async defer></script>{% endif %}{% endblock %}
 {% block content %}
 <section class="hero">
-  <h1>Turn a video into <em>5 viral clips</em></h1>
-  <p class="lede">Upload a stream, a podcast or any video. In a few minutes you get vertical clips with a hook headline and word-by-word captions, ready for TikTok, Shorts and Reels. Free, no sign-up.</p>
+  <h1>Turn a stream into <em>5 viral clips</em></h1>
+  <p class="lede">Paste a Twitch link, search for a streamer, or upload any video. In a few minutes you get vertical clips with a hook headline and word-by-word captions, ready for TikTok, Shorts and Reels. Free, no sign-up.</p>
 </section>
 
-<form class="card upload" id="upload" novalidate data-max-bytes="{{ max_mb * 1024 * 1024 }}" data-max-mb="{{ max_mb }}">
-  <label class="drop" id="drop" for="file">
-    <input id="file" name="file" type="file" accept="video/mp4,video/quicktime,video/x-matroska,video/webm,.mp4,.mov,.mkv,.webm,.m4v" hidden>
-    <span class="drop-icon" aria-hidden="true"><svg width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 16V4M7 8.5l5-5 5 5M5 20h14"/></svg></span>
-    <span class="drop-title" id="drop-title">Drop a video here, or <u>choose a file</u></span>
-    <span class="drop-sub" id="drop-sub">MP4, MOV, MKV or WebM · up to {{ max_minutes }} minutes · {{ '{:,}'.format(max_mb) }} MB</span>
-  </label>
+<div class="card upload" id="start" data-max-bytes="{{ max_mb * 1024 * 1024 }}" data-max-mb="{{ max_mb }}">
+  {% if twitch_on %}
+  <form class="twitch" id="twitch" novalidate autocomplete="off">
+    <label class="sr-only" for="link">Twitch link or streamer</label>
+    <div class="link-row">
+      <span class="link-icon" aria-hidden="true"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 3h16v11l-4 4h-4l-3 3H7v-3H4z"/><path d="M11 7v4M16 7v4"/></svg></span>
+      <input id="link" type="text" placeholder="Paste a Twitch link, or search a streamer" maxlength="300" role="combobox" aria-expanded="false" aria-controls="suggest" aria-autocomplete="list">
+      <button class="pill primary" id="link-go" type="submit">Make clips</button>
+    </div>
+    <ul class="suggest" id="suggest" role="listbox" hidden></ul>
+    <p class="hint">A clip, a past stream (VOD) or a channel link. We pick the best moments.</p>
+  </form>
+  <div class="or" aria-hidden="true"><span>or upload a video</span></div>
+  {% endif %}
 
-  <div class="fields">
-    <label class="field">
-      <span>Who's in it? <i>Optional, used in headlines</i></span>
-      <input id="who" type="text" maxlength="40" placeholder="e.g. Kai" autocomplete="off">
+  <form id="upload" novalidate>
+    <label class="drop" id="drop" for="file">
+      <input id="file" name="file" type="file" accept="video/mp4,video/quicktime,video/x-matroska,video/webm,.mp4,.mov,.mkv,.webm,.m4v" hidden>
+      <span class="drop-icon" aria-hidden="true"><svg width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 16V4M7 8.5l5-5 5 5M5 20h14"/></svg></span>
+      <span class="drop-title" id="drop-title">Drop a video here, or <u>choose a file</u></span>
+      <span class="drop-sub" id="drop-sub">MP4, MOV, MKV or WebM · up to {{ max_minutes }} minutes · {{ '{:,}'.format(max_mb) }} MB</span>
     </label>
-    <label class="check">
-      <input id="rights" type="checkbox">
-      <span>I own this video or have permission to use it.</span>
-    </label>
-  </div>
+    <div class="fields">
+      <label class="field">
+        <span>Who's in it? <i>Optional, used in headlines</i></span>
+        <input id="who" type="text" maxlength="40" placeholder="e.g. Kai" autocomplete="off">
+      </label>
+      <label class="check">
+        <input id="rights" type="checkbox">
+        <span>I own this video or have permission to use it.</span>
+      </label>
+    </div>
+    <div class="progress" id="progress" hidden>
+      <div class="bar"><i id="bar"></i></div>
+      <div class="progress-text"><span id="progress-label">Uploading…</span><span id="progress-amount"></span></div>
+    </div>
+    <button class="pill primary big" id="go" type="submit" disabled>Make my clips</button>
+  </form>
 
-  <div class="progress" id="progress" hidden>
-    <div class="bar"><i id="bar"></i></div>
-    <div class="progress-text"><span id="progress-label">Uploading…</span><span id="progress-amount"></span></div>
-  </div>
+  {% if settings.turnstile_site_key %}<div class="cf-turnstile" data-sitekey="{{ settings.turnstile_site_key }}" data-callback="cvHuman" data-theme="dark"></div>{% endif %}
   <p class="error" id="error" role="alert" hidden></p>
-  <button class="pill primary big" id="go" type="submit" disabled>Make my clips</button>
-</form>
+  <p class="limit" id="limit" hidden></p>
+</div>
 
 <p class="nudge-line" data-nudge="home">Want this for every stream, automatically? The free ClipVault app watches your streamers all day and clips their best moments, even live. <a href="/go/app?from=home">Get the app →</a></p>
+{% if twitch_on %}<p class="note">Streamer? <a href="/mine">Make clips from your own channel</a> · <a href="/optout">Don't want your channel clipped here?</a></p>{% endif %}
 
 <ol class="how">
-  <li><b>1</b><span>Upload a video</span></li>
+  <li><b>1</b><span>Paste a link or upload a video</span></li>
   <li><b>2</b><span>We find the moments where it gets loud, funny or wild</span></li>
   <li><b>3</b><span>Download about 5 vertical clips, captions and headline burned in</span></li>
 </ol>

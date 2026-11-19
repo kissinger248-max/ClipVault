@@ -14,28 +14,167 @@
   };
   document.querySelectorAll("[data-nudge]").forEach((el) => beacon(el.dataset.nudge));
 
-  // --- upload ----------------------------------------------------------------------------------
+  // --- starting a run: the quick check, errors, the daily limit ------------------------------
+  let human = "";
+  window.cvHuman = (token) => { human = token; };
+  const humanHeaders = () => (human ? { "X-Turnstile": human } : {});
+  const used = () => {
+    human = "";
+    try { if (window.turnstile) window.turnstile.reset(); } catch { /* no check on this page */ }
+  };
+  const showError = (message, kind) => {
+    const error = $("error");
+    const limit = $("limit");
+    if (kind === "limit" && limit) {
+      limit.innerHTML = `${esc(message)} <a href="/go/app?from=limit">Get the free app →</a>`;
+      limit.hidden = false;
+      if (error) error.hidden = true;
+      beacon("limit");
+      return;
+    }
+    if (limit) limit.hidden = true;
+    if (error) {
+      error.textContent = message;
+      error.hidden = false;
+    }
+  };
+  const clearError = () => {
+    if ($("error")) $("error").hidden = true;
+    if ($("limit")) $("limit").hidden = true;
+  };
+  async function start(url, body, headers) {
+    const reply = await fetch(url, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", ...humanHeaders(), ...headers },
+      body: JSON.stringify(body),
+    });
+    used();
+    let data = {};
+    try { data = await reply.json(); } catch { /* not JSON */ }
+    if (reply.ok && data.url) {
+      window.location.assign(data.url);
+      return true;
+    }
+    showError(data.error || "That didn't work. Please try again.", data.kind);
+    return false;
+  }
+
+  // --- a Twitch link or a streamer's name, with suggestions --------------------------------------
+  const twitch = $("twitch");
+  if (twitch) {
+    const link = $("link");
+    const list = $("suggest");
+    const goLink = $("link-go");
+    let results = [];
+    let active = -1;
+    let timer = null;
+    let asked = "";
+
+    const close = () => {
+      list.hidden = true;
+      link.setAttribute("aria-expanded", "false");
+      active = -1;
+    };
+    const draw = () => {
+      if (!results.length) { close(); return; }
+      list.innerHTML = results.map((r, i) => {
+        const face = r.avatar ? `<img src="${esc(r.avatar)}" alt="" width="32" height="32">` : `<span class="face">${esc(r.name[0] || "?")}</span>`;
+        const live = r.live ? '<span class="live-pill">LIVE</span>' : "";
+        return `<li role="option" id="opt-${i}" data-i="${i}" aria-selected="${i === active}">${face}<span class="who">${esc(r.name)}</span>${live}</li>`;
+      }).join("");
+      list.hidden = false;
+      link.setAttribute("aria-expanded", "true");
+    };
+    const pick = (i) => {
+      const r = results[i];
+      if (!r) return;
+      link.value = `twitch.tv/${r.login}`;
+      close();
+      twitch.requestSubmit();
+    };
+    link.addEventListener("input", () => {
+      clearError();
+      window.clearTimeout(timer);
+      const q = link.value.trim();
+      if (q.length < 2 || /[/.:]/.test(q)) { results = []; close(); return; }
+      timer = window.setTimeout(async () => {
+        asked = q;
+        try {
+          const reply = await fetch(`/api/search?q=${encodeURIComponent(q)}`);
+          const data = await reply.json();
+          if (asked !== link.value.trim()) return; // typed on meanwhile
+          results = data.results || [];
+          active = -1;
+          draw();
+        } catch { results = []; close(); }
+      }, 250);
+    });
+    link.addEventListener("keydown", (e) => {
+      if (list.hidden) return;
+      if (e.key === "ArrowDown" || e.key === "ArrowUp") {
+        e.preventDefault();
+        active = (active + (e.key === "ArrowDown" ? 1 : -1) + results.length) % results.length;
+        draw();
+        link.setAttribute("aria-activedescendant", `opt-${active}`);
+      } else if (e.key === "Enter" && active >= 0) {
+        e.preventDefault();
+        pick(active);
+      } else if (e.key === "Escape") {
+        close();
+      }
+    });
+    list.addEventListener("mousedown", (e) => {
+      const item = e.target.closest("li[data-i]");
+      if (item) { e.preventDefault(); pick(Number(item.dataset.i)); }
+    });
+    link.addEventListener("blur", () => window.setTimeout(close, 150));
+    twitch.addEventListener("submit", async (e) => {
+      e.preventDefault();
+      if (!link.value.trim()) { link.focus(); return; }
+      clearError();
+      goLink.disabled = true;
+      goLink.textContent = "Finding moments…";
+      const ok = await start("/api/twitch", { link: link.value.trim() }, {});
+      if (!ok) {
+        goLink.disabled = false;
+        goLink.textContent = "Make clips";
+      }
+    });
+  }
+
+  // --- "My channel" ------------------------------------------------------------------------------
+  const mine = $("mine-go");
+  if (mine) {
+    mine.addEventListener("click", async () => {
+      clearError();
+      mine.disabled = true;
+      mine.textContent = "Finding your best clips…";
+      const ok = await start("/api/mine", {}, { "X-Form": mine.dataset.form });
+      if (!ok) {
+        mine.disabled = false;
+        mine.textContent = "Make clips from my channel";
+      }
+    });
+  }
+
+  // --- upload ------------------------------------------------------------------------------------
   const form = $("upload");
-  if (form) {
+  const box = $("start");
+  if (form && box) {
     const input = $("file");
     const drop = $("drop");
     const go = $("go");
     const rights = $("rights");
-    const error = $("error");
-    const maxBytes = Number(form.dataset.maxBytes);
+    const maxBytes = Number(box.dataset.maxBytes);
     const allowed = /\.(mp4|mov|mkv|webm|m4v)$/i;
     let file = null;
 
     const ready = () => { go.disabled = !(file && rights.checked); };
-    const fail = (message) => {
-      error.textContent = message;
-      error.hidden = false;
-    };
     const choose = (picked) => {
-      error.hidden = true;
+      clearError();
       if (!picked) return;
-      if (!allowed.test(picked.name)) return fail("Please choose an MP4, MOV, MKV or WebM video.");
-      if (picked.size > maxBytes) return fail(`That file is ${mb(picked.size)}: the limit is ${form.dataset.maxMb} MB.`);
+      if (!allowed.test(picked.name)) return showError("Please choose an MP4, MOV, MKV or WebM video.");
+      if (picked.size > maxBytes) return showError(`That file is ${mb(picked.size)}: the limit is ${box.dataset.maxMb} MB.`);
       file = picked;
       drop.classList.add("has-file");
       $("drop-title").textContent = picked.name;
@@ -58,7 +197,7 @@
     form.addEventListener("submit", (e) => {
       e.preventDefault();
       if (!file || !rights.checked) return;
-      error.hidden = true;
+      clearError();
       go.disabled = true;
       go.textContent = "Uploading…";
       $("progress").hidden = false;
@@ -67,6 +206,8 @@
       xhr.setRequestHeader("X-File-Name", encodeURIComponent(file.name));
       xhr.setRequestHeader("X-Who", encodeURIComponent($("who").value.trim()));
       xhr.setRequestHeader("X-Rights", "yes");
+      if (human) xhr.setRequestHeader("X-Turnstile", human);
+      used();
       xhr.upload.addEventListener("progress", (p) => {
         if (!p.lengthComputable) return;
         const share = p.loaded / p.total;
@@ -74,8 +215,8 @@
         $("progress-amount").textContent = `${mb(p.loaded)} of ${mb(p.total)}`;
         if (share >= 1) $("progress-label").textContent = "Checking the video…";
       });
-      const again = (message) => {
-        fail(message);
+      const again = (message, kind) => {
+        showError(message, kind);
         go.disabled = false;
         go.textContent = "Make my clips";
         $("progress").hidden = true;
@@ -86,7 +227,7 @@
         if (xhr.status === 200 && reply.url) {
           window.location.assign(reply.url);
         } else {
-          again(reply.error || "The upload didn't work. Please try again.");
+          again(reply.error || "The upload didn't work. Please try again.", reply.kind);
         }
       });
       xhr.addEventListener("error", () => again("The connection dropped. Please try again."));
@@ -151,6 +292,20 @@
     return el;
   }
 
+  function embedCard(clip) {
+    const el = document.createElement("article");
+    el.className = "clip";
+    el.dataset.n = clip.n;
+    el.dataset.status = clip.status;
+    const player = clip.embed
+      ? `<iframe src="${esc(clip.embed)}" title="${esc(clip.headline || "Twitch clip")}" allowfullscreen loading="lazy"></iframe>`
+      : `<a class="wait" href="${esc(clip.link || "#")}" target="_blank" rel="noopener">Watch on Twitch</a>`;
+    el.innerHTML = `<div class="frame wide">${player}</div>`
+      + `<div class="headline">${esc(clip.headline || "")}</div>`
+      + `<div class="meta"><span>${clip.views ? `${clip.views.toLocaleString()} views` : ""}</span>${clip.link ? `<a href="${esc(clip.link)}" target="_blank" rel="noopener">On Twitch</a>` : ""}</div>`;
+    return el;
+  }
+
   function doneCard(clip) {
     const el = document.createElement("article");
     el.className = "clip arrive";
@@ -172,6 +327,12 @@
     if (kind === "working") {
       title = "While you wait…";
       text = "The free ClipVault app does this on its own for every streamer you follow, all day, even while you sleep.";
+    } else if (kind === "live") {
+      title = `${run.streamer || "They"} ${run.streamer ? "is" : "are"} live`;
+      text = "right now. The free ClipVault app clips live moments as they happen, the second chat goes wild.";
+    } else if (kind === "embed") {
+      title = "Make these vertical";
+      text = "The free ClipVault app saves these moments on your computer and turns them into phone-ready clips with headlines and captions.";
     } else if (run.more_found > 0) {
       title = `+${run.more_found} more moment${run.more_found === 1 ? "" : "s"}`;
       text = `found in this video. The website makes the top ${run.clips.length}; the free app makes all of them and keeps every clip in a folder.`;
@@ -186,11 +347,13 @@
 
   function render() {
     const title = $("title");
-    if (run.status === "done") title.innerHTML = "Your clips are <em>ready</em>";
+    if (run.embed_only) title.innerHTML = `${esc(run.streamer || "The")}'s best <em>moments</em>`;
+    else if (run.status === "done") title.innerHTML = "Your clips are <em>ready</em>";
     else if (run.status === "failed") title.textContent = "Something went wrong";
     let status = run.step || "";
     if (run.status === "queued" && run.ahead) status = `Waiting for its turn: ${run.ahead} ahead of you`;
     else if (run.step_total && run.status !== "done") status = `${run.step} (${run.step_done} of ${run.step_total})`;
+    else if (run.embed_only) status = "Watch them here, or make them into vertical clips with the free app.";
     else if (run.status === "done") status = `${run.clips.filter((c) => c.status === "done").length} clips made. Tap one to play it.`;
     $("status").textContent = status;
     const bar = $("run-bar");
@@ -201,7 +364,9 @@
     $("run-error").textContent = run.error || "";
     $("zip").hidden = !run.zip;
     if (run.zip) $("zip").href = run.zip;
-    $("expires").textContent = `These clips are deleted ${run.expires}. Download the ones you want to keep.`;
+    $("expires").textContent = run.embed_only
+      ? `This page stops working ${run.expires}.`
+      : `These clips are deleted ${run.expires}. Download the ones you want to keep.`;
 
     if (run.status === "failed" && !run.clips.length) {
       grid.innerHTML = "";
@@ -217,8 +382,11 @@
       const old = grid.querySelector(`[data-n="${key}"]`);
       const started = clip ? String(clip.started) : "";
       // A finished card is never drawn again (that would restart a playing video).
-      if (old && old.dataset.status === state && (state === "done" || old.dataset.started === started)) return;
-      const fresh = state === "done" && clip.video ? doneCard(clip) : loadingCard(key, state, clip);
+      if (old && old.dataset.status === state && (state === "done" || state === "embed" || old.dataset.started === started)) return;
+      let fresh;
+      if (state === "done" && clip.video) fresh = doneCard(clip);
+      else if (state === "embed") fresh = embedCard(clip);
+      else fresh = loadingCard(key, state, clip);
       fresh.dataset.started = started;
       if (old) old.replaceWith(fresh);
       else grid.insertBefore(fresh, grid.children[i] || null);

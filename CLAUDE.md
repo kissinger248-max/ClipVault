@@ -110,7 +110,8 @@ python -m clipvault selftest       # offline check that a build has every tool, 
 python packaging/build.py [--smoke] # installed app + installer for this OS (needs .[build]); see docs/PACKAGING.md
 python packaging/mac_open_check.py packaging/build/dist/ClipVault.app   # macOS build machine: open the app twice like a person
 python packaging/update_site.py [--macos-min V] [--site-url URL]   # fill the download page from the latest release
-python -m clipvault_web serve [--port 8800] | make FILE [--name NAME] | cleanup   # the website (W1: upload -> 5 clips); data in CLIPVAULT_WEB_DATA
+python -m clipvault_web serve [--port 8800] | make FILE [--name NAME] | cleanup | stats   # the website (docs/WEB_VERSION_PLAN.md); settings in CLIPVAULT_WEB_* env vars
+python -m clipvault_web downloads on|off|status | reports [--done ID] | remove RUN | optout LOGIN | block RUN   # running the website: download switch, takedowns
 pytest -q
 ruff check . && ruff format --check .
 ```

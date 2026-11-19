@@ -1,0 +1,28 @@
+{% extends "base.html" %}
+{% block title %}Opt out · ClipVault{% endblock %}
+{% block mainclass %}page{% endblock %}
+{% block content %}
+<section class="hero">
+  <h1>Don't want your channel <em>clipped here?</em></h1>
+  <p class="lede">Streamers can stop ClipVault Web from making clips of their channel. Sign in with Twitch to show it's yours; it takes effect at once, and clips already made from your channel are deleted right away.</p>
+</section>
+<div class="card panel">
+  {% if not enabled %}
+    <p>Twitch sign-in isn't switched on here yet. Please use the report page instead.</p>
+    <a class="pill ghost" href="/report">Report a problem</a>
+  {% elif session %}
+    <p>Signed in as <b>{{ session.name }}</b>.</p>
+    {% if blocked %}
+      <p class="ok">Your channel is opted out: nobody can make clips of it here.</p>
+      <form method="post" action="/optout"><input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="action" value="allow"><button class="pill ghost" type="submit">Allow clips of my channel again</button></form>
+    {% else %}
+      <form method="post" action="/optout"><input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="action" value="block"><button class="pill primary big" type="submit">Opt out {{ session.name }}</button></form>
+    {% endif %}
+    <form method="post" action="/auth/logout" class="inline-form"><input type="hidden" name="csrf" value="{{ csrf }}"><button class="linkish" type="submit">Sign out</button></form>
+  {% else %}
+    <a class="pill primary big" href="/auth/twitch?for=optout">Sign in with Twitch</a>
+    <p class="small">We only learn your channel name; nothing else is asked for or kept.</p>
+  {% endif %}
+</div>
+<p class="note">Want something specific taken down? <a href="/report">Report it</a>{% if settings.contact_email %} or email <a href="mailto:{{ settings.contact_email }}">{{ settings.contact_email }}</a>{% endif %}. We answer within 24 hours.</p>
+{% endblock %}

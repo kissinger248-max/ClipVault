@@ -27,7 +27,13 @@ UPLOAD = {"X-File-Name": "My%20stream.mp4", "X-Rights": "yes", "X-Who": "KaiCena
 
 @pytest.fixture
 def settings(tmp_path: Path) -> WebSettings:
-    return WebSettings(data=tmp_path / "web", max_upload_mb=1, keep_hours=24)
+    return WebSettings(
+        data=tmp_path / "web",
+        max_upload_mb=1,
+        keep_hours=24,
+        runs_per_day=100,
+        one_run_at_a_time=False,
+    )  # limits have their own tests
 
 
 @pytest.fixture

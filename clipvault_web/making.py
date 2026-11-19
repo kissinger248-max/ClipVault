@@ -94,13 +94,23 @@ def headline_options(
         clip_id=clip_key, login="", name=headlines.spoken_name(name) if name else NO_NAME,
         source="upload", text=text, language=language, recent=used_patterns,
     )  # fmt: skip
+    return choose_headlines(signals, look, used_texts, chat=False)
+
+
+def choose_headlines(
+    signals: ClipSignals, look: Look, used_texts: tuple[str, ...] = (), *, chat: bool = True
+) -> list[Headline]:
+    """The app's built-in writer: headlines that fit, best first (at least one).
+    ``chat=False`` leaves out headlines about chat (an upload has none)."""
     mask = transcribe.mask_pattern(transcribe.load_mask_words())
 
     def size_of(candidate: str) -> float | None:
         shape = layout_headline(candidate, look)
         return shape.size if shape.fits else None
 
-    usable = [h for h in headlines.offline_candidates(signals) if not _CHAT.search(h.text)]
+    usable = [
+        h for h in headlines.offline_candidates(signals) if chat or not _CHAT.search(h.text)
+    ]  # fmt: skip
     ranked = headlines.choose(usable, signals, size_of, blocked=mask, exclude=used_texts)
     return ranked[:HEADLINE_OPTIONS] or [
         Headline("Wait for the ENDING", "ENDING", "hook", "hook:0")
@@ -188,35 +198,53 @@ def make_run(
     transcribers: list[Transcriber] | None = None,
     find: Callable[..., tuple[list[finder.Moment], int]] = finder.find_moments,
     render: Callable[..., Any] | None = None,
+    fetch: Callable[..., Path] | None = None,
+    find_chat: Callable[..., list[tuple[float, float]]] | None = None,
 ) -> str:
-    """Make (or finish making) one run; returns its final status (done or failed)."""
+    """Make (or finish making) one run; returns its final status (done or failed).
+
+    ``fetch`` and ``find_chat`` stand in for Twitch downloads in tests."""
     conn = store.open_store(settings)
     try:
         run = store.get_run(conn, run_id)
         if run is None:
             raise RunFailed("This run doesn't exist.")
         log_ctx = ctx(job="web", run=run_id)
-        source = store.resolve(settings, run["source_path"])
-        if source is None:
-            raise RunFailed("The video is no longer here. Please upload it again.")
-        info = ffmpeg.probe(source)
         look = web_look()
-        if not store.clips(conn, run_id):
-            _find(conn, settings, run, source, info, look, transcribers, find)
+        if run["kind"] == "upload":
+            source = store.resolve(settings, run["source_path"])
+            if source is None:
+                raise RunFailed("The video is no longer here. Please upload it again.")
+            info = ffmpeg.probe(source)
+            if not store.clips(conn, run_id):
+                _find(conn, settings, run, source, info, look, transcribers, find)
+
+            def source_for(row: sqlite3.Row) -> tuple[Path, ffmpeg.MediaInfo] | None:
+                return source, info
+        else:
+            from . import twitch_making
+
+            hear = transcribers if transcribers is not None else providers(settings)
+            source_for = twitch_making.prepare(
+                conn, settings, run, look, hear, fetch=fetch, find_chat=find_chat
+            )
         conn.execute("UPDATE runs SET status = 'making' WHERE id = ?", (run_id,))
-        _render_all(settings, run_id, source, info, look, render or render_clip)
+        _render_all(settings, run_id, look, render or render_clip, source_for)
         rows = store.clips(conn, run_id)
         made = sum(1 for r in rows if r["status"] == "done")
-        status = "done" if made else "failed"
+        embedded = sum(1 for r in rows if r["status"] == "embed")
+        status = "done" if made or embedded else "failed"
         with db.transaction(conn):
             conn.execute(
                 "UPDATE runs SET status = ?, step = ?, step_done = ?, step_total = ?, "
-                "finished_at = ?, source_path = NULL, error = ? WHERE id = ?",
-                (status, "Ready" if made else "Failed", made, len(rows),
-                 to_rfc3339(utc_now()), None if made else "None of the clips could be made.",
-                 run_id),
+                "finished_at = ?, error = ?, embed_only = ? WHERE id = ?",
+                (status, "Ready" if status == "done" else "Failed", made, len(rows),
+                 to_rfc3339(utc_now()),
+                 None if status == "done" else "None of the clips could be made.",
+                 int(embedded > 0 and not made), run_id),
             )  # fmt: skip
-        source.unlink(missing_ok=True)  # the upload is only needed while making the clips
+            conn.execute("DELETE FROM grants WHERE run_id = ?", (run_id,))
+        _delete_sources(conn, settings, run_id)  # only the phone versions are kept
         events.count(conn, "run_finished", status)
         log.info("run finished", extra={**log_ctx, "status": status, "clips": made})
         return status
@@ -277,20 +305,30 @@ def _find(conn, settings, run, source, info, look, transcribers, find) -> None:
                                         seconds=round(time.monotonic() - started, 1)))  # fmt: skip
 
 
-def _render_all(settings, run_id, source, info, look, render) -> None:
+DONE_STATES = ("done", "failed", "embed")
+
+
+def _render_all(settings, run_id, look, render, source_for) -> None:
     """Make every clip not made yet, several at once."""
     conn = store.open_store(settings)
     try:
-        pending = [r["n"] for r in store.clips(conn, run_id) if r["status"] != "done"]
+        pending = [r for r in store.clips(conn, run_id) if r["status"] not in DONE_STATES]
     finally:
         conn.close()
     if not pending:
         return
 
-    def one(n: int) -> None:
+    def one(row: sqlite3.Row) -> None:
         c = store.open_store(settings)  # one connection per thread
         try:
-            render(c, settings, run_id, n, source, info, look)
+            found = source_for(row)
+            if found is None:
+                c.execute(
+                    "UPDATE run_clips SET status = 'failed', error = ? WHERE run_id = ? AND n = ?",
+                    ("The video for this clip is missing.", run_id, row["n"]),
+                )
+                return
+            render(c, settings, run_id, row["n"], found[0], found[1], look)
         finally:
             c.close()
 
@@ -359,6 +397,19 @@ def render_clip(
             (run_id,),
         ).fetchone()[0]
         conn.execute("UPDATE runs SET step_done = ? WHERE id = ?", (done, run_id))
+
+
+def _delete_sources(conn: sqlite3.Connection, settings: WebSettings, run_id: str) -> None:
+    """The upload and the Twitch downloads are only needed while the clips are made."""
+    run = store.get_run(conn, run_id)
+    rows = store.clips(conn, run_id)
+    folder = store.run_dir(settings, run_id).resolve()
+    for rel in [run["source_path"], *(r["source_path"] for r in rows)]:
+        path = store.resolve(settings, rel)
+        if path is not None and path.is_relative_to(folder):
+            path.unlink(missing_ok=True)
+    conn.execute("UPDATE runs SET source_path = NULL WHERE id = ?", (run_id,))
+    conn.execute("UPDATE run_clips SET source_path = NULL WHERE run_id = ?", (run_id,))
 
 
 def _fail(conn: sqlite3.Connection, run_id: str, message: str) -> None:

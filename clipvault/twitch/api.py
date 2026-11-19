@@ -100,6 +100,11 @@ class TwitchClient:
                 found += self._get("/users", [(key, v) for v in chunk]).get("data", [])
         return found
 
+    def get_token_user(self) -> dict[str, Any] | None:
+        """The user a user access token belongs to (Get Users without parameters)."""
+        data = self._get("/users", []).get("data", [])
+        return data[0] if data else None
+
     def get_games(self, ids: Iterable[str]) -> dict[str, str]:
         """Return ``{game_id: name}`` for the ids Twitch knows."""
         names: dict[str, str] = {}
@@ -113,6 +118,42 @@ class TwitchClient:
         params = [("user_id", user_id), ("type", "archive"), ("sort", "time")]
         params.append(("first", str(min(max(first, 1), MAX_PAGE_SIZE))))
         return self._get("/videos", params).get("data", [])
+
+    def search_channels(self, query: str, first: int = 8) -> list[dict[str, Any]]:
+        """Channels whose login or display name matches ``query`` (Search Channels;
+        checked 2026-11-19: ``broadcaster_login``, ``display_name``, ``id``, ``is_live``,
+        ``thumbnail_url``)."""
+        params = [("query", query), ("first", str(min(max(first, 1), MAX_PAGE_SIZE)))]
+        return self._get("/search/channels", params).get("data", [])
+
+    def get_clips(self, ids: Iterable[str]) -> list[dict[str, Any]]:
+        """Clips by id (unknown or deleted ones are left out)."""
+        found: list[dict[str, Any]] = []
+        for chunk in _chunks(list(dict.fromkeys(ids)), MAX_IDS_PER_REQUEST):
+            found += self._get("/clips", [("id", v) for v in chunk]).get("data", [])
+        return found
+
+    def get_videos(self, ids: Iterable[str]) -> list[dict[str, Any]]:
+        """Videos (VODs) by id."""
+        found: list[dict[str, Any]] = []
+        for chunk in _chunks(list(dict.fromkeys(ids)), MAX_IDS_PER_REQUEST):
+            found += self._get("/videos", [("id", v) for v in chunk]).get("data", [])
+        return found
+
+    def get_clip_downloads(
+        self, editor_id: str, broadcaster_id: str, clip_ids: Iterable[str]
+    ) -> dict[str, dict[str, Any]]:
+        """Official download links for a broadcaster's clips: ``{clip_id: {landscape_download_url,
+        portrait_download_url}}``. Needs a user token with ``channel:manage:clips`` (or
+        ``editor:manage:clips``) whose user is ``editor_id``; the links expire, so download
+        at once. Checked 2026-11-19: at most 10 ids per call, 100 calls a minute."""
+        found: dict[str, dict[str, Any]] = {}
+        for chunk in _chunks(list(dict.fromkeys(clip_ids)), 10):
+            params = [("editor_id", editor_id), ("broadcaster_id", broadcaster_id)]
+            params += [("clip_id", v) for v in chunk]
+            for item in self._get("/clips/downloads", params).get("data", []):
+                found[item["clip_id"]] = item
+        return found
 
     def get_live_stream_ids(self, user_ids: Iterable[str]) -> dict[str, str]:
         """``{user_id: stream_id}`` for the broadcasters that are live right now."""

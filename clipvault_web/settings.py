@@ -32,6 +32,19 @@ class WebSettings:
     render_threads: int = 5  # phone versions of one run made at the same time
     app_download_url: str = APP_DOWNLOAD_URL
     groq_api_key: str | None = field(default=None, repr=False)
+    # The website's OWN Twitch app (never the desktop app's keys: plan section 5, item 1).
+    twitch_client_id: str | None = None
+    twitch_client_secret: str | None = field(default=None, repr=False)
+    public_url: str = "http://127.0.0.1:8800"  # where Twitch sends people back after sign-in
+    downloads_default: bool = False  # server downloads of other channels (the switch's start)
+    contact_email: str = ""  # takedowns and problem reports
+    # W4 limits
+    runs_per_day: int = 3  # per visitor without sign-in
+    runs_per_day_signed_in: int = 5
+    max_queue: int = 30  # waiting runs before new ones are turned away ("busy")
+    one_run_at_a_time: bool = True  # per visitor
+    turnstile_site_key: str = ""
+    turnstile_secret: str | None = field(default=None, repr=False)
 
     @property
     def db_path(self) -> Path:
@@ -67,4 +80,17 @@ def from_env(data: Path | None = None) -> WebSettings:
         render_threads=max(_int("RENDER_THREADS", 5), 1),
         app_download_url=os.environ.get("CLIPVAULT_WEB_APP_URL") or APP_DOWNLOAD_URL,
         groq_api_key=os.environ.get("CLIPVAULT_WEB_GROQ_API_KEY") or None,
+        twitch_client_id=os.environ.get("CLIPVAULT_WEB_TWITCH_CLIENT_ID") or None,
+        twitch_client_secret=os.environ.get("CLIPVAULT_WEB_TWITCH_CLIENT_SECRET") or None,
+        public_url=(os.environ.get("CLIPVAULT_WEB_PUBLIC_URL") or "http://127.0.0.1:8800").rstrip(
+            "/"
+        ),
+        downloads_default=os.environ.get("CLIPVAULT_WEB_TWITCH_DOWNLOADS", "").lower() == "on",
+        contact_email=os.environ.get("CLIPVAULT_WEB_CONTACT", ""),
+        runs_per_day=_int("RUNS_PER_DAY", 3),
+        runs_per_day_signed_in=_int("RUNS_PER_DAY_SIGNED_IN", 5),
+        max_queue=_int("MAX_QUEUE", 30),
+        one_run_at_a_time=os.environ.get("CLIPVAULT_WEB_ONE_AT_A_TIME", "on") != "off",
+        turnstile_site_key=os.environ.get("CLIPVAULT_WEB_TURNSTILE_SITE_KEY", ""),
+        turnstile_secret=os.environ.get("CLIPVAULT_WEB_TURNSTILE_SECRET") or None,
     )

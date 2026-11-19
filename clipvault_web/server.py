@@ -10,7 +10,6 @@ from __future__ import annotations
 import hashlib
 import os
 import re
-import secrets
 import time
 import zipfile
 from contextlib import asynccontextmanager
@@ -38,8 +37,15 @@ CHUNK = 1024 * 1024
 _UNSAFE = re.compile(r'[<>:"/\\|?*\x00-\x1f]')
 
 
-def create_app(settings: WebSettings, *, start_worker: bool = True) -> FastAPI:
-    """The website, with its background worker (tests pass ``start_worker=False``)."""
+def create_app(
+    settings: WebSettings,
+    *,
+    start_worker: bool = True,
+    twitch: Any = None,
+    http: Any = None,
+) -> FastAPI:
+    """The website, with its background worker. Tests pass ``start_worker=False`` and
+    stand-ins for Twitch (``twitch``: a Helix client, ``http``: for signing in)."""
     for folder in (settings.runs_dir, settings.incoming_dir):
         folder.mkdir(parents=True, exist_ok=True)
     store.open_store(settings).close()  # migrate before the first request
@@ -59,7 +65,11 @@ def create_app(settings: WebSettings, *, start_worker: bool = True) -> FastAPI:
     templates = Jinja2Templates(directory=str(HERE / "templates"))
     app.mount("/static", StaticFiles(directory=str(HERE / "static")), name="static")
     app.state.worker = worker
-    salt = os.environ.get("CLIPVAULT_WEB_SALT") or secrets.token_hex(16)
+    first = store.open_store(settings)
+    try:
+        salt = store.salt(first)  # kept, so daily limits survive a restart
+    finally:
+        first.close()
 
     @app.middleware("http")
     async def headers(request: Request, call_next):
@@ -71,6 +81,7 @@ def create_app(settings: WebSettings, *, start_worker: bool = True) -> FastAPI:
         return response
 
     def page(request: Request, name: str, status_code: int = 200, **values: Any) -> HTMLResponse:
+        values.setdefault("twitch_on", bool(settings.twitch_client_id))
         return templates.TemplateResponse(
             request, name, {"settings": settings, **values}, status_code=status_code
         )
@@ -106,7 +117,7 @@ def create_app(settings: WebSettings, *, start_worker: bool = True) -> FastAPI:
                 return page(request, "gone.html", 410, title="These clips were deleted",
                             text=f"Clips are kept for {settings.keep_hours} hours. "
                                  "Upload the video again to make them again.")  # fmt: skip
-            state = run_state(conn, run)
+            state = run_state(conn, run, request.url.hostname or "localhost")
             events.count(conn, "page_view", "run")
         finally:
             conn.close()
@@ -143,6 +154,17 @@ def create_app(settings: WebSettings, *, start_worker: bool = True) -> FastAPI:
     async def upload(request: Request):
         """The video arrives as the raw request body (so its size is checked as it streams);
         its name, the optional name of who is in it and the rights box come as headers."""
+
+        def check() -> Any:
+            conn = store.open_store(settings)
+            try:
+                return app.state.guard(request, conn)
+            finally:
+                conn.close()
+
+        refused = await run_in_threadpool(check)
+        if refused:
+            return refusal_reply(refused)
         if request.headers.get("x-rights") != "yes":
             return _error("Please confirm you have the right to use this video.", 400)
         name = unquote(request.headers.get("x-file-name", "")).strip()[:200] or "video.mp4"
@@ -211,13 +233,13 @@ def create_app(settings: WebSettings, *, start_worker: bool = True) -> FastAPI:
     # --- a run --------------------------------------------------------------------------
 
     @app.get("/api/runs/{run_id}")
-    def run_status(run_id: str):
+    def run_status(request: Request, run_id: str):
         conn = store.open_store(settings)
         try:
             run = store.get_run(conn, run_id)
             if run is None:
                 return _error("No such run.", 404)
-            return run_state(conn, run)
+            return run_state(conn, run, request.url.hostname or "localhost")
         finally:
             conn.close()
 
@@ -275,11 +297,26 @@ def create_app(settings: WebSettings, *, start_worker: bool = True) -> FastAPI:
         counted("zip_downloaded")
         return FileResponse(target, media_type="application/zip", filename="ClipVault clips.zip")
 
+    from . import limits, twitch_routes
+
+    def guard(request: Request, conn) -> limits.Refusal | None:
+        return limits.refusal(conn, settings, request, visitor(request), http=http)
+
+    app.state.guard = guard
+    twitch_routes.add(app, settings, page=page, counted=counted, visitor_of=visitor,
+                      guard=guard, twitch=twitch, http=http)  # fmt: skip
     return app
 
 
 class _TooBig(Exception):
     pass
+
+
+def refusal_reply(refused: Any) -> JSONResponse:
+    """A limit was reached: the message, and which limit (the page shows the "limit"
+    one with its nudge toward the app)."""
+    return JSONResponse({"error": refused.message, "kind": refused.kind},
+                        status_code=refused.status)  # fmt: skip
 
 
 def _error(message: str, status: int) -> JSONResponse:
@@ -296,36 +333,59 @@ def download_name(n: int, headline: str | None) -> str:
 EXPECTED_S = {"fetching": 15, "listening": 12, "making": 35}
 # The steps a card shows: found, saved, subtitles, phone version.
 STEPS_DONE = {"waiting": 3, "fetching": 1, "listening": 2, "ready": 3, "making": 3,
-              "done": 4, "failed": 0}  # fmt: skip
+              "done": 4, "failed": 0, "embed": 1}  # fmt: skip
 
 
-def run_state(conn, run) -> dict[str, Any]:
+def embed_for(row, host: str) -> str | None:
+    """Twitch's own player for a moment (shown when the server may not download it)."""
+    if row["clip_slug"]:
+        return f"https://clips.twitch.tv/embed?clip={quote(row['clip_slug'])}&parent={quote(host)}&autoplay=false"
+    return None
+
+
+def run_state(conn, run, host: str = "localhost") -> dict[str, Any]:
     """Everything the run page shows, as plain data (also the polling answer)."""
     rows = store.clips(conn, run["id"])
     base = f"/r/{quote(run['id'])}"
+    twitch = run["kind"] != "upload"
     clips = []
     for row in rows:
         made = row["status"] == "done" and row["path"]
         status = row["status"]
+        steps = 1 if twitch and status == "waiting" else STEPS_DONE.get(status, 0)
         clips.append({
             "n": row["n"],
             "status": status,
-            "steps": STEPS_DONE.get(status, 0),
+            "steps": steps,
             "started": row["started_at"],
             "expected": EXPECTED_S.get(status),
-            "headline": row["headline"],
+            "headline": row["headline"] or (row["title"] if status == "embed" else None),
             "seconds": round(row["end"] - row["start"]),
             "at": round(row["start"]),
+            "views": row["views"],
             "video": f"{base}/clip/{row['n']}.mp4" if made else None,
             "thumb": f"{base}/clip/{row['n']}.jpg" if made and row["thumb_path"] else None,
             "download": f"{base}/clip/{row['n']}.mp4?download=1" if made else None,
+            "embed": embed_for(row, host) if status == "embed" else None,
+            "link": row["source_url"] if status == "embed" else None,
         })  # fmt: skip
     finished = run["status"] in ("done", "failed")
+    if run["status"] == "failed":
+        nudge = None
+    elif run["embed_only"]:
+        nudge = "embed"
+    elif run["is_live"] and not finished:
+        nudge = "live"
+    else:
+        nudge = "more" if finished else "working"
     return {
         "id": run["id"],
         "now": time.time(),
+        "kind": run["kind"],
         "status": run["status"],
         "source": run["source_name"],
+        "streamer": run["twitch_name"],
+        "embed_only": bool(run["embed_only"]),
         "step": run["step"],
         "step_done": run["step_done"],
         "step_total": run["step_total"],
@@ -334,7 +394,7 @@ def run_state(conn, run) -> dict[str, Any]:
         "more_found": run["more_found"],
         "expires": store.expires_in_words(run),
         "clips": clips,
-        "zip": f"{base}/clips.zip" if run["status"] == "done" else None,
-        # One nudge toward the app per screen: while waiting, then after the clips are made.
-        "nudge": None if run["status"] == "failed" else ("more" if finished else "working"),
+        "zip": f"{base}/clips.zip" if run["status"] == "done" and not run["embed_only"] else None,
+        # One nudge toward the app per screen: while waiting (or "they're live"), then after.
+        "nudge": nudge,
     }

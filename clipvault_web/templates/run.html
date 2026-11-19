@@ -21,7 +21,7 @@
 <div class="clips" id="clips" aria-live="polite"></div>
 
 <p class="note" id="expires">These clips are deleted {{ run.expires }}. Download the ones you want to keep.</p>
-<p class="note"><a href="/">Make clips from another video</a></p>
+<p class="note"><a href="/">Make more clips</a> · <a href="/report?run={{ run.id }}">Report a problem</a></p>
 <script type="application/json" id="run-initial">{{ run|tojson }}</script>
 {% endblock %}
 {% block scripts %}<script src="/static/web.js" defer></script>{% endblock %}
